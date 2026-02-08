@@ -15,7 +15,7 @@ DOMAIN: Final = "exaviz"
 # Plugin version (semver + git hash for build metadata)
 # Format: MAJOR.MINOR.PATCH+<git-short-hash>
 # Update MAJOR.MINOR.PATCH here; the hash is appended at build/tag time.
-PLUGIN_VERSION: Final = "0.0.1"
+PLUGIN_VERSION: Final = "1.0.0"
 
 # Configuration keys
 CONF_SCAN_INTERVAL: Final = "scan_interval"

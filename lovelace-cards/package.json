@@ -1,6 +1,6 @@
 {
   "name": "exaviz-lovelace-cards",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Exaviz Home Assistant Lovelace Cards",
   "type": "module",
   "main": "dist/exaviz-cards.js",
