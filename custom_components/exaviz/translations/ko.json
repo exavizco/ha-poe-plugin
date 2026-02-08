@@ -1,0 +1,136 @@
+{
+  "title": "Exaviz PoE 관리",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Exaviz 로컬 보드 PoE 관리",
+        "description": "감지됨: {board_type} 보드, {total_ports}개의 PoE 포트 ({addon_boards}개의 애드온 보드, {onboard_ports}개의 온보드 포트). 아래에서 업데이트 간격을 구성하세요.",
+        "data": {
+          "update_interval": "업데이트 간격 (초)"
+        },
+        "data_description": {
+          "update_interval": "PoE 포트 상태를 스캔하는 빈도 (10-300초)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "보드 하드웨어를 감지할 수 없습니다. Exaviz Interceptor 또는 Cruiser 보드에서 실행 중인지 확인하세요.",
+      "no_poe_detected": "이 보드에서 PoE 시스템이 감지되지 않았습니다. 하드웨어 연결을 확인하세요.",
+      "unknown": "예기치 않은 오류가 발생했습니다. 다시 시도하세요."
+    },
+    "abort": {
+      "already_configured": "이 보드는 이미 구성되어 있습니다."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Exaviz 옵션",
+        "description": "Exaviz 보드 통합의 구성 옵션을 업데이트합니다.",
+        "data": {
+          "update_interval": "업데이트 간격 (초)"
+        },
+        "data_description": {
+          "update_interval": "PoE 포트 상태를 스캔하는 빈도"
+        }
+      }
+    },
+    "error": {
+      "unknown": "예기치 않은 오류가 발생했습니다. 다시 시도하세요."
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "PoE 데이터 새로 고침",
+      "description": "로컬 보드에서 PoE 포트 데이터를 새로 고칩니다."
+    },
+    "turn_on_port": {
+      "name": "Turn On PoE Port",
+      "description": "Enable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "turn_off_port": {
+      "name": "Turn Off PoE Port",
+      "description": "Disable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "toggle_port": {
+      "name": "Toggle PoE Port",
+      "description": "Toggle power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "control_port": {
+      "name": "Control PoE Port",
+      "description": "Control a PoE port with a specified action.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Action to perform: turn_on, turn_off, or toggle."
+        }
+      }
+    },
+    "reset_port": {
+      "name": "Reset PoE Port",
+      "description": "Reset (power cycle) a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power_consumption": {
+        "name": "전력 소비"
+      },
+      "voltage": {
+        "name": "전압"
+      },
+      "current": {
+        "name": "전류"
+      },
+      "temperature": {
+        "name": "온도"
+      }
+    },
+    "binary_sensor": {
+      "device_plugged": {
+        "name": "장치 연결됨"
+      },
+      "device_powered": {
+        "name": "장치 전원 공급됨"
+      }
+    },
+    "switch": {
+      "port_enabled": {
+        "name": "{port_name} 포트"
+      }
+    },
+    "button": {
+      "port_reset": {
+        "name": "{port_name} 재설정"
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+# Exaviz PoE Management Services
+
+refresh_data:
+  name: Refresh PoE Data
+  description: Refresh PoE port status data from the local board
+  fields: {}
+
+turn_on_port:
+  name: Turn On PoE Port
+  description: Enable power on a PoE port
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: exaviz
+
+turn_off_port:
+  name: Turn Off PoE Port
+  description: Disable power on a PoE port
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: exaviz
+
+toggle_port:
+  name: Toggle PoE Port
+  description: Toggle power on a PoE port
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: exaviz
+
+control_port:
+  name: Control PoE Port
+  description: Control a PoE port with a specified action
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: exaviz
+    action:
+      name: Action
+      description: Action to perform on the port
+      required: false
+      default: toggle
+      selector:
+        select:
+          options:
+            - turn_on
+            - turn_off
+            - toggle
+
+reset_port:
+  name: Reset PoE Port
+  description: Reset (power cycle) a PoE port - disables then re-enables after a delay
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: exaviz
+

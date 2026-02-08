@@ -1,0 +1,299 @@
+/* Exaviz Theme System - CSS Custom Properties */
+/* Brand Colors and Variables */
+
+:root {
+  /* Exaviz Brand Colors */
+  --exaviz-primary: #90FF80;
+  --exaviz-primary-dark: #3D5FCC;
+  --exaviz-primary-light: #7A9AFF;
+  --exaviz-secondary: #2196F3;
+  --exaviz-accent: #FF6B35;
+
+  /* Status Colors */
+  --exaviz-success: #4CAF50;
+  --exaviz-warning: #FF9800;
+  --exaviz-error: #F44336;
+  --exaviz-info: #2196F3;
+
+  /* Neutral Colors */
+  --exaviz-background: #f5f5f5;
+  --exaviz-surface: #ffffff;
+  --exaviz-card-bg: #ffffff;
+  --exaviz-border: #e0e0e0;
+  --exaviz-divider: #eeeeee;
+
+  /* Text Colors */
+  --exaviz-text-primary: #333333;
+  --exaviz-text-secondary: #666666;
+  --exaviz-text-disabled: #999999;
+  --exaviz-text-on-primary: #ffffff;
+
+  /* Shadows */
+  --exaviz-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --exaviz-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.15);
+  --exaviz-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --exaviz-shadow-primary: 0 4px 8px rgba(79, 124, 255, 0.2);
+
+  /* Spacing Scale */
+  --exaviz-spacing-xs: 4px;
+  --exaviz-spacing-sm: 8px;
+  --exaviz-spacing-md: 16px;
+  --exaviz-spacing-lg: 24px;
+  --exaviz-spacing-xl: 32px;
+  --exaviz-spacing-xxl: 48px;
+
+  /* Border Radius */
+  --exaviz-radius-sm: 4px;
+  --exaviz-radius-md: 8px;
+  --exaviz-radius-lg: 12px;
+  --exaviz-radius-xl: 16px;
+
+  /* Typography */
+  --exaviz-font-family-primary: 'Bruno Ace SC', sans-serif;
+  --exaviz-font-family-secondary: Arial, sans-serif;
+  --exaviz-font-size-xs: 0.75rem;
+  --exaviz-font-size-sm: 0.875rem;
+  --exaviz-font-size-md: 1rem;
+  --exaviz-font-size-lg: 1.125rem;
+  --exaviz-font-size-xl: 1.25rem;
+  --exaviz-font-size-xxl: 1.5rem;
+
+  /* Transitions */
+  --exaviz-transition-fast: 0.15s ease;
+  --exaviz-transition-normal: 0.3s ease;
+  --exaviz-transition-slow: 0.5s ease;
+}
+
+/* Dark Theme Support */
+[data-theme="dark"] {
+  --exaviz-background: #1f1f1f;
+  --exaviz-surface: #2d2d2d;
+  --exaviz-card-bg: #2d2d2d;
+  --exaviz-border: #404040;
+  --exaviz-divider: #333333;
+  
+  --exaviz-text-primary: #ffffff;
+  --exaviz-text-secondary: #cccccc;
+  --exaviz-text-disabled: #666666;
+  
+  --exaviz-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --exaviz-shadow-2: 0 2px 6px rgba(0, 0, 0, 0.4);
+  --exaviz-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Base Card Styling */
+.exaviz-card {
+  background: var(--exaviz-card-bg);
+  border-radius: var(--exaviz-radius-lg);
+  box-shadow: var(--exaviz-shadow-2);
+  padding: var(--exaviz-spacing-md);
+  border: 1px solid var(--exaviz-border);
+  transition: all var(--exaviz-transition-normal);
+}
+
+.exaviz-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--exaviz-shadow-3);
+}
+
+.exaviz-card--primary {
+  border-color: var(--exaviz-primary);
+  box-shadow: var(--exaviz-shadow-primary);
+}
+
+/* Status Indicators */
+.exaviz-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--exaviz-spacing-xs);
+  padding: var(--exaviz-spacing-xs) var(--exaviz-spacing-sm);
+  border-radius: var(--exaviz-radius-sm);
+  font-size: var(--exaviz-font-size-sm);
+  font-weight: 500;
+}
+
+.exaviz-status--online {
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--exaviz-success);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.exaviz-status--offline {
+  background: rgba(244, 67, 54, 0.1);
+  color: var(--exaviz-error);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.exaviz-status--warning {
+  background: rgba(255, 152, 0, 0.1);
+  color: var(--exaviz-warning);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+/* LED-style Status Dot */
+.exaviz-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.exaviz-status-dot--online {
+  background: var(--exaviz-success);
+  animation: pulse-green 2s infinite;
+}
+
+.exaviz-status-dot--offline {
+  background: var(--exaviz-error);
+}
+
+.exaviz-status-dot--warning {
+  background: var(--exaviz-warning);
+  animation: pulse-orange 2s infinite;
+}
+
+/* Animations */
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-orange {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Button Styling */
+.exaviz-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--exaviz-spacing-xs);
+  padding: var(--exaviz-spacing-sm) var(--exaviz-spacing-md);
+  border: none;
+  border-radius: var(--exaviz-radius-md);
+  font-family: var(--exaviz-font-family-secondary);
+  font-size: var(--exaviz-font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--exaviz-transition-fast);
+  text-decoration: none;
+  min-height: 44px; /* Touch-friendly */
+}
+
+.exaviz-button--primary {
+  background: var(--exaviz-primary);
+  color: var(--exaviz-text-on-primary);
+}
+
+.exaviz-button--primary:hover {
+  background: var(--exaviz-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--exaviz-shadow-2);
+}
+
+.exaviz-button--secondary {
+  background: transparent;
+  color: var(--exaviz-primary);
+  border: 1px solid var(--exaviz-primary);
+}
+
+.exaviz-button--secondary:hover {
+  background: var(--exaviz-primary);
+  color: var(--exaviz-text-on-primary);
+}
+
+/* Typography Classes */
+.exaviz-title {
+  font-family: var(--exaviz-font-family-primary);
+  font-size: var(--exaviz-font-size-xl);
+  color: var(--exaviz-text-primary);
+  margin: 0 0 var(--exaviz-spacing-md) 0;
+  letter-spacing: 0.5px;
+}
+
+.exaviz-subtitle {
+  font-family: var(--exaviz-font-family-secondary);
+  font-size: var(--exaviz-font-size-lg);
+  color: var(--exaviz-text-secondary);
+  margin: 0 0 var(--exaviz-spacing-sm) 0;
+}
+
+.exaviz-body {
+  font-family: var(--exaviz-font-family-secondary);
+  font-size: var(--exaviz-font-size-md);
+  color: var(--exaviz-text-primary);
+  line-height: 1.5;
+}
+
+.exaviz-caption {
+  font-family: var(--exaviz-font-family-secondary);
+  font-size: var(--exaviz-font-size-sm);
+  color: var(--exaviz-text-secondary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .exaviz-card {
+    padding: var(--exaviz-spacing-sm);
+  }
+  
+  .exaviz-title {
+    font-size: var(--exaviz-font-size-lg);
+  }
+  
+  .exaviz-button {
+    min-height: 48px; /* Larger touch targets on mobile */
+    padding: var(--exaviz-spacing-md) var(--exaviz-spacing-lg);
+  }
+}
+
+/* Utility Classes */
+.exaviz-flex {
+  display: flex;
+}
+
+.exaviz-flex-column {
+  flex-direction: column;
+}
+
+.exaviz-justify-between {
+  justify-content: space-between;
+}
+
+.exaviz-align-center {
+  align-items: center;
+}
+
+.exaviz-gap-sm {
+  gap: var(--exaviz-spacing-sm);
+}
+
+.exaviz-gap-md {
+  gap: var(--exaviz-spacing-md);
+}
+
+.exaviz-text-center {
+  text-align: center;
+}
+
+.exaviz-full-width {
+  width: 100%;
+}
+
+/* Loading States */
+.exaviz-skeleton {
+  background: linear-gradient(90deg, 
+    var(--exaviz-border) 25%, 
+    rgba(224, 224, 224, 0.5) 50%, 
+    var(--exaviz-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: var(--exaviz-radius-sm);
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+} 

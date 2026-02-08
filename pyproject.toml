@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exaviz-ha-integration"
+version = "0.0.1"
+description = "Exaviz PoE Management Integration for Home Assistant"
+authors = [
+    {name = "Exaviz Development Team", email = "dev@exaviz.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+# IMPORTANT: Don't change Python version without discussion - aligned with HA 2024.12
+requires-python = ">=3.13"
+dependencies = [
+    # No external dependencies - reads directly from /proc and /sys filesystems
+    # Home Assistant core dependencies are provided by HA itself
+]
+
+[tool.setuptools]
+packages = ["custom_components.exaviz"]
+
+[tool.setuptools.package-dir]
+"custom_components.exaviz" = "custom_components/exaviz"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-timeout>=2.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "isort>=5.12.0",
+    "bandit[toml]>=1.7.5",
+    "safety>=2.3.0",
+    "voluptuous>=0.13.0",
+]
+
+[tool.black]
+target-version = ["py313"]
+line-length = 88
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# pytest configuration moved to pytest.ini to avoid conflicts
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["custom_components"]
+known_third_party = ["homeassistant"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]  # Skip assert_used test 

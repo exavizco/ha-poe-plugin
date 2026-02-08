@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="100"
+   height="30"
+   viewBox="0 0 100 30"
+   preserveAspectRatio="xMinYMid meet"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <style
+     id="style1">
+    @import url('https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&amp;display=swap');
+    
+    /* Always use Exaviz green on gray background */
+    .exaviz-logo-text { 
+      fill: #90FF80; /* Exaviz Green */
+      font-family: 'Bruno Ace SC', Arial, sans-serif;
+    }
+  </style>
+  <g
+     id="g1">
+    <path
+       d="M 20.886687,21.341597 H 6.32638 v -13.248 h 14.560307 v 2.424 H 8.8883852 v 8.4 H 20.886687 Z m -1.623449,-5.472 h -9.182633 v -2.424 h 9.182633 z m 18.576639,5.472 H 34.51688 l -5.073277,-4.944 -5.073278,4.944 h -3.348363 l 6.747459,-6.576 -6.747459,-6.624 h 3.348363 z m 0,-13.2 -6.011834,5.904 -1.648815,-1.632 4.337652,-4.272 z m 16.927858,13.2 h -2.536639 v -3.624 h -9.766059 v -2.448 h 9.766059 v -4.752 h -6.595261 q -1.242953,0 -2.257608,0.576 -1.014656,0.576 -1.623449,1.536 -0.608793,0.936 -0.608793,2.112 v 6.6 H 38.58398 v -6.6 q 0,-1.368 0.532694,-2.568 0.55806,-1.224 1.521983,-2.136 0.989289,-0.912 2.257609,-1.416 1.293685,-0.528 2.739569,-0.528 h 9.1319 z m 18.29764,-13.2 -7.127955,13.2 h -2.891768 l -7.178688,-13.2 h 2.891768 l 5.732804,10.536 5.707437,-10.536 z m 3.610496,13.2 h -2.511272 v -13.2 h 2.511272 z m 17.815662,-10.824 -12.049034,8.424 h 12.049034 v 2.4 H 78.510708 v -2.4 l 12.125134,-8.424 H 78.510708 v -2.376 h 15.980825 z"
+       id="text1"
+       class="exaviz-logo-text"
+       style="font-size:24px;font-family:'Bruno Ace SC', Arial, sans-serif;letter-spacing:-1;dominant-baseline:middle;text-anchor:middle;fill:#90ff80"
+       aria-label="exaviz" />
+  </g>
+</svg>

@@ -1,0 +1,136 @@
+{
+  "title": "Exaviz PoE管理",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Exavizローカルボード PoE管理",
+        "description": "検出: {board_type}ボード、{total_ports}個のPoEポート（{addon_boards}個のアドオンボード、{onboard_ports}個のオンボードポート）。以下で更新間隔を設定してください。",
+        "data": {
+          "update_interval": "更新間隔（秒）"
+        },
+        "data_description": {
+          "update_interval": "PoEポートの状態をスキャンする頻度（10〜300秒）"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "ボードのハードウェアを検出できません。Exaviz InterceptorまたはCruiserボードで実行していることを確認してください。",
+      "no_poe_detected": "このボードでPoEシステムが検出されませんでした。ハードウェア接続を確認してください。",
+      "unknown": "予期しないエラーが発生しました。もう一度お試しください。"
+    },
+    "abort": {
+      "already_configured": "このボードは既に設定されています。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Exavizオプション",
+        "description": "Exavizボード統合の設定オプションを更新します。",
+        "data": {
+          "update_interval": "更新間隔（秒）"
+        },
+        "data_description": {
+          "update_interval": "PoEポートの状態をスキャンする頻度"
+        }
+      }
+    },
+    "error": {
+      "unknown": "予期しないエラーが発生しました。もう一度お試しください。"
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "PoEデータを更新",
+      "description": "ローカルボードからPoEポートデータを更新します。"
+    },
+    "turn_on_port": {
+      "name": "Turn On PoE Port",
+      "description": "Enable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "turn_off_port": {
+      "name": "Turn Off PoE Port",
+      "description": "Disable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "toggle_port": {
+      "name": "Toggle PoE Port",
+      "description": "Toggle power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "control_port": {
+      "name": "Control PoE Port",
+      "description": "Control a PoE port with a specified action.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Action to perform: turn_on, turn_off, or toggle."
+        }
+      }
+    },
+    "reset_port": {
+      "name": "Reset PoE Port",
+      "description": "Reset (power cycle) a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power_consumption": {
+        "name": "消費電力"
+      },
+      "voltage": {
+        "name": "電圧"
+      },
+      "current": {
+        "name": "電流"
+      },
+      "temperature": {
+        "name": "温度"
+      }
+    },
+    "binary_sensor": {
+      "device_plugged": {
+        "name": "デバイス接続"
+      },
+      "device_powered": {
+        "name": "デバイス給電"
+      }
+    },
+    "switch": {
+      "port_enabled": {
+        "name": "{port_name}ポート"
+      }
+    },
+    "button": {
+      "port_reset": {
+        "name": "{port_name}をリセット"
+      }
+    }
+  }
+}

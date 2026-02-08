@@ -1,0 +1,13 @@
+{
+  "domain": "exaviz",
+  "name": "Exaviz PoE Management",
+  "codeowners": ["@exavizco"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/exavizco/ha-poe-plugin",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/exavizco/ha-poe-plugin/issues",
+  "requirements": [],
+  "version": "0.0.1"
+} 

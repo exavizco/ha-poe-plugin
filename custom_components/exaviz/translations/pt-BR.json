@@ -1,0 +1,136 @@
+{
+  "title": "Gerenciamento PoE Exaviz",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Gerenciamento PoE Placa Local Exaviz",
+        "description": "Detectado: Placa {board_type} com {total_ports} portas PoE ({addon_boards} placas adicionais, {onboard_ports} portas integradas). Configure o intervalo de atualização abaixo.",
+        "data": {
+          "update_interval": "Intervalo de Atualização (segundos)"
+        },
+        "data_description": {
+          "update_interval": "Com que frequência verificar o status das portas PoE (10-300 segundos)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Não é possível detectar o hardware da placa. Certifique-se de estar executando em uma placa Exaviz Interceptor ou Cruiser.",
+      "no_poe_detected": "Nenhum sistema PoE detectado nesta placa. Verifique as conexões de hardware.",
+      "unknown": "Ocorreu um erro inesperado. Por favor, tente novamente."
+    },
+    "abort": {
+      "already_configured": "Esta placa já está configurada."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções Exaviz",
+        "description": "Atualizar opções de configuração para a integração da placa Exaviz.",
+        "data": {
+          "update_interval": "Intervalo de Atualização (segundos)"
+        },
+        "data_description": {
+          "update_interval": "Com que frequência verificar o status das portas PoE"
+        }
+      }
+    },
+    "error": {
+      "unknown": "Ocorreu um erro inesperado. Por favor, tente novamente."
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "Atualizar Dados PoE",
+      "description": "Atualizar dados de portas PoE da placa local."
+    },
+    "turn_on_port": {
+      "name": "Turn On PoE Port",
+      "description": "Enable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "turn_off_port": {
+      "name": "Turn Off PoE Port",
+      "description": "Disable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "toggle_port": {
+      "name": "Toggle PoE Port",
+      "description": "Toggle power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "control_port": {
+      "name": "Control PoE Port",
+      "description": "Control a PoE port with a specified action.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Action to perform: turn_on, turn_off, or toggle."
+        }
+      }
+    },
+    "reset_port": {
+      "name": "Reset PoE Port",
+      "description": "Reset (power cycle) a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power_consumption": {
+        "name": "Consumo de Energia"
+      },
+      "voltage": {
+        "name": "Tensão"
+      },
+      "current": {
+        "name": "Corrente"
+      },
+      "temperature": {
+        "name": "Temperatura"
+      }
+    },
+    "binary_sensor": {
+      "device_plugged": {
+        "name": "Dispositivo Conectado"
+      },
+      "device_powered": {
+        "name": "Dispositivo Alimentado"
+      }
+    },
+    "switch": {
+      "port_enabled": {
+        "name": "Porta {port_name}"
+      }
+    },
+    "button": {
+      "port_reset": {
+        "name": "Redefinir {port_name}"
+      }
+    }
+  }
+}

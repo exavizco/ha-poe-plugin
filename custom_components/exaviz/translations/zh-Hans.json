@@ -1,0 +1,136 @@
+{
+  "title": "Exaviz PoE 管理",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Exaviz 本地板 PoE 管理",
+        "description": "检测到：{board_type} 板，有 {total_ports} 个 PoE 端口（{addon_boards} 个扩展板，{onboard_ports} 个板载端口）。请在下方配置更新间隔。",
+        "data": {
+          "update_interval": "更新间隔（秒）"
+        },
+        "data_description": {
+          "update_interval": "扫描 PoE 端口状态的频率（10-300 秒）"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法检测板卡硬件。请确保您在 Exaviz Interceptor 或 Cruiser 板上运行。",
+      "no_poe_detected": "在此板上未检测到 PoE 系统。请检查硬件连接。",
+      "unknown": "发生意外错误。请重试。"
+    },
+    "abort": {
+      "already_configured": "此板已配置。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Exaviz 选项",
+        "description": "更新 Exaviz 板集成的配置选项。",
+        "data": {
+          "update_interval": "更新间隔（秒）"
+        },
+        "data_description": {
+          "update_interval": "扫描 PoE 端口状态的频率"
+        }
+      }
+    },
+    "error": {
+      "unknown": "发生意外错误。请重试。"
+    }
+  },
+  "services": {
+    "refresh_data": {
+      "name": "刷新 PoE 数据",
+      "description": "从本地板刷新 PoE 端口数据。"
+    },
+    "turn_on_port": {
+      "name": "Turn On PoE Port",
+      "description": "Enable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "turn_off_port": {
+      "name": "Turn Off PoE Port",
+      "description": "Disable power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "toggle_port": {
+      "name": "Toggle PoE Port",
+      "description": "Toggle power on a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    },
+    "control_port": {
+      "name": "Control PoE Port",
+      "description": "Control a PoE port with a specified action.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Action to perform: turn_on, turn_off, or toggle."
+        }
+      }
+    },
+    "reset_port": {
+      "name": "Reset PoE Port",
+      "description": "Reset (power cycle) a PoE port.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID of the PoE port switch."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power_consumption": {
+        "name": "功耗"
+      },
+      "voltage": {
+        "name": "电压"
+      },
+      "current": {
+        "name": "电流"
+      },
+      "temperature": {
+        "name": "温度"
+      }
+    },
+    "binary_sensor": {
+      "device_plugged": {
+        "name": "设备已插入"
+      },
+      "device_powered": {
+        "name": "设备已供电"
+      }
+    },
+    "switch": {
+      "port_enabled": {
+        "name": "{port_name} 端口"
+      }
+    },
+    "button": {
+      "port_reset": {
+        "name": "重置 {port_name}"
+      }
+    }
+  }
+}

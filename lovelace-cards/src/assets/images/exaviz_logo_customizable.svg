@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns="http://www.w3.org/2000/svg"
+   width="100"
+   height="30"
+   viewBox="0 0 100 30"
+   preserveAspectRatio="xMinYMid meet">
+  <style>
+    .exaviz-logo-main { 
+      fill: var(--exaviz-logo-color, #90FF80); 
+      font-family: var(--exaviz-logo-font, 'Bruno Ace SC', Arial, sans-serif);
+    }
+    .exaviz-logo-tagline { 
+      fill: var(--exaviz-tagline-color, #90FF80); 
+      font-family: var(--exaviz-tagline-font, Arial, sans-serif);
+    }
+  </style>
+  <g>
+    <text
+      x="50%"
+      y="11"
+      text-anchor="middle"
+      class="exaviz-logo-main"
+      font-size="24"
+      letter-spacing="-1"
+      lengthAdjust="spacingAndGlyphs"
+      textLength="90"
+      font-weight="normal"
+      font-style="normal"
+      dominant-baseline="middle"
+    >exaviz</text>
+    <text
+      x="50%"
+      y="28"
+      text-anchor="middle"
+      class="exaviz-logo-tagline"
+      font-size="9"
+      letter-spacing="1"
+      font-weight="normal"
+      font-style="normal"
+      dominant-baseline="text-after-edge"
+    >IoT + AI + Video</text>
+  </g>
+</svg> 
