@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """
-Copyright (c) 2025 Axzez LLC.
+Copyright (c) 2026 Axzez LLC.
 Licensed under MIT with Commons Clause. See LICENSE for details.
 """
 
