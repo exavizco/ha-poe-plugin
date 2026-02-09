@@ -10,11 +10,7 @@ A zero-configuration Home Assistant custom integration for managing PoE ports on
 Exaviz Interceptor and Cruiser carrier boards. Runs directly on the board --
 no external servers required.
 
-<img src="images/cruiser-poe-dashboard.png" alt="Cruiser PoE Management Dashboard" width="600">
-
-Click any port tile to see detailed information:
-
-<img src="images/cruiser-poe-port-details.png" alt="PoE Port Details" width="400">
+<img src="images/interceptor-poe-dashboard.png" alt="Interceptor PoE Management Dashboard" width="600">
 
 ## Features
 
