@@ -1,5 +1,16 @@
 """Board detection for Axzez Interceptor and Cruiser carrier boards.
 
+Prerequisites:
+  This integration requires the following Exaviz packages from
+  apt.exaviz.com to be installed on the host OS:
+
+    - exaviz-dkms    (kernel modules, device tree overlays, udev rules)
+    - exaviz-netplan  (per-port network configuration with DHCP servers)
+
+  These packages are required on BOTH Cruiser and Interceptor boards,
+  regardless of the base OS.  The deprecated pre-built Exaviz OS images
+  are not supported.
+
 Detection uses a 3-tier fallback chain:
   1. /proc/device-tree/chosen/board (device tree property, if present)
   2. /boot/firmware/config.txt dtoverlay line (set by exaviz-dkms postinst)
@@ -12,9 +23,16 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 _LOGGER = logging.getLogger(__name__)
+
+# Required Exaviz host packages.  Both are needed on Cruiser and
+# Interceptor — exaviz-dkms provides kernel modules (ip179h DSA switch,
+# ip808ar PSE controller, ESP32 SDIO) and device tree overlays;
+# exaviz-netplan provides per-port network configuration (subnets,
+# DHCP servers for connected devices).
+REQUIRED_PACKAGES = ("exaviz-dkms", "exaviz-netplan")
 
 
 class BoardType(Enum):
@@ -137,6 +155,61 @@ async def _detect_from_pse_interface() -> Optional[BoardType]:
         return BoardType.INTERCEPTOR
 
     return None
+
+
+async def check_prerequisites() -> dict[str, Any]:
+    """Verify that required Exaviz host packages are installed.
+
+    Returns a dict with:
+      packages:  {pkg_name: version_str | None}
+      missing:   list of package names that are not installed
+      all_ok:    True if every required package is present
+
+    This check runs ``dpkg-query`` which is available on all Debian-based
+    systems.  Inside a Docker container the host packages are invisible,
+    so a missing result there is expected — the check is a best-effort
+    hint, not a hard gate.
+    """
+    result: dict[str, Any] = {"packages": {}, "missing": [], "all_ok": True}
+
+    for pkg in REQUIRED_PACKAGES:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "dpkg-query", "-W", "-f", "${Version}", pkg,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await proc.communicate()
+            if proc.returncode == 0 and stdout:
+                result["packages"][pkg] = stdout.decode().strip()
+            else:
+                result["packages"][pkg] = None
+                result["missing"].append(pkg)
+                result["all_ok"] = False
+        except OSError:
+            # dpkg-query not available (unlikely on Debian, possible in
+            # minimal containers).  Don't block setup.
+            result["packages"][pkg] = None
+            result["missing"].append(pkg)
+            result["all_ok"] = False
+
+    if result["all_ok"]:
+        _LOGGER.info(
+            "Exaviz prerequisites OK: %s",
+            ", ".join(f"{k} {v}" for k, v in result["packages"].items()),
+        )
+    else:
+        _LOGGER.warning(
+            "Missing required Exaviz packages: %s. "
+            "Install them from apt.exaviz.com — see "
+            "https://exa-pedia.com/docs/software/apt-repository/ "
+            "for instructions. If running Home Assistant in Docker, "
+            "the packages must be installed on the HOST OS, not "
+            "inside the container.",
+            ", ".join(result["missing"]),
+        )
+
+    return result
 
 
 async def detect_board_type() -> BoardType:

@@ -14,8 +14,9 @@
       }
     },
     "error": {
-      "cannot_connect": "Unable to detect board hardware. Ensure you are running on an Exaviz Interceptor or Cruiser board.",
-      "no_poe_detected": "No PoE systems detected on this board. Check hardware connections.",
+      "cannot_connect": "Unable to detect board hardware. Ensure you are running on an Exaviz Interceptor or Cruiser board with exaviz-dkms installed.",
+      "missing_packages": "Required Exaviz packages (exaviz-dkms, exaviz-netplan) are not installed. Install them from apt.exaviz.com on the host OS. See https://exa-pedia.com/docs/software/apt-repository/ for instructions.",
+      "no_poe_detected": "No PoE systems detected on this board. Check hardware connections and verify exaviz-dkms is installed.",
       "unknown": "An unexpected error occurred. Please try again."
     },
     "abort": {

@@ -10,14 +10,27 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from .board_detector import detect_all_poe_systems
+from .board_detector import check_prerequisites, detect_all_poe_systems
 from .const import CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def validate_board_detection(hass: HomeAssistant) -> dict[str, Any]:
-    """Detect board type and PoE systems."""
+    """Detect board type and PoE systems.
+
+    Checks prerequisites first (exaviz-dkms, exaviz-netplan) and then
+    runs board detection.  Missing packages raise MissingPackages so the
+    UI can show a targeted error message.
+    """
+    # Check prerequisites (best-effort — Docker hides host packages)
+    prereqs = await check_prerequisites()
+    if not prereqs["all_ok"]:
+        raise MissingPackages(
+            f"Missing required packages: {', '.join(prereqs['missing'])}. "
+            "Install from apt.exaviz.com on the host OS."
+        )
+
     try:
         detection = await detect_all_poe_systems()
         
@@ -33,6 +46,8 @@ async def validate_board_detection(hass: HomeAssistant) -> dict[str, Any]:
                 "total_poe_ports": detection["total_poe_ports"],
             },
         }
+    except (MissingPackages, NoPoEDetected):
+        raise
     except Exception as ex:
         _LOGGER.error("Board detection failed: %s", ex)
         raise CannotConnect from ex
@@ -52,6 +67,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await validate_board_detection(self.hass)
+            except MissingPackages:
+                errors["base"] = "missing_packages"
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except NoPoEDetected:
@@ -97,6 +114,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                     errors=errors,
                 )
+            except MissingPackages:
+                errors["base"] = "missing_packages"
             except (CannotConnect, NoPoEDetected):
                 errors["base"] = "no_poe_detected"
             except Exception:  # pylint: disable=broad-except
@@ -122,3 +141,7 @@ class CannotConnect(HomeAssistantError):
 
 class NoPoEDetected(HomeAssistantError):
     """Error to indicate no PoE systems were detected."""
+
+
+class MissingPackages(HomeAssistantError):
+    """Error to indicate required Exaviz host packages are not installed."""

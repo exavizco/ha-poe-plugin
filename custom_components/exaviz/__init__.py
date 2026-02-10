@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
+from .board_detector import check_prerequisites
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 from .services import async_setup_services, async_unload_services
@@ -29,7 +30,20 @@ PLATFORMS: list[Platform] = [
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Exaviz PoE Management from a config entry."""
     _LOGGER.debug("Setting up Exaviz PoE integration for entry: %s", entry.entry_id)
-    
+
+    # Check that required Exaviz host packages are installed.
+    # Inside Docker, dpkg-query sees the container's packages (not the
+    # host's), so a failure here is only a warning — board detection
+    # itself is the real gate.
+    prereqs = await check_prerequisites()
+    if not prereqs["all_ok"]:
+        _LOGGER.warning(
+            "Exaviz prerequisites not met — missing: %s. "
+            "The integration requires exaviz-dkms and exaviz-netplan "
+            "on the host OS.  See https://exa-pedia.com/docs/software/apt-repository/",
+            ", ".join(prereqs["missing"]),
+        )
+
     coordinator = ExavizDataUpdateCoordinator(hass, entry)
 
     # Set up the coordinator (detects local board and PoE systems)

@@ -35,12 +35,36 @@ Click any port tile to see detailed information:
 ## Requirements
 
 - Exaviz Cruiser or Interceptor board with PoE support
-- Debian-based Linux (Bookworm or Trixie)
-- [exaviz-dkms](https://exa-pedia.com/docs/software/apt-repository/) package installed
-- Home Assistant 2024.12+ (Docker Container recommended)
+- Debian-based Linux (Bookworm or Trixie) -- e.g., Raspberry Pi OS via Imager
+- **[exaviz-dkms](https://exa-pedia.com/docs/software/apt-repository/)** package installed (kernel modules, device tree overlays)
+- **[exaviz-netplan](https://exa-pedia.com/docs/software/apt-repository/)** package installed (per-port network configuration)
+- Home Assistant 2024.12+ ([Docker Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container) recommended)
 - [HACS](https://hacs.xyz/) (Home Assistant Community Store)
 
+> **Note:** Both `exaviz-dkms` and `exaviz-netplan` are required on **all** board
+> types (Cruiser and Interceptor). Install them from the [Exaviz apt
+> repository](https://exa-pedia.com/docs/software/apt-repository/).
+>
+> The deprecated pre-built Exaviz OS images are **not supported** by this plugin.
+> Use a standard Debian-based OS with the Exaviz packages instead.
+
 ## Quick Start
+
+### 0. Install Exaviz packages on the host OS
+
+```bash
+# Add the Exaviz apt repository (one-time setup)
+curl -fsSL https://apt.exaviz.com/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/exaviz.gpg
+echo "deb [signed-by=/usr/share/keyrings/exaviz.gpg] https://apt.exaviz.com stable main" \
+  | sudo tee /etc/apt/sources.list.d/exaviz.list
+
+# Install required packages
+sudo apt update
+sudo apt install exaviz-dkms exaviz-netplan
+
+# Reboot to load kernel modules and device tree overlays
+sudo reboot
+```
 
 ### 1. Install via HACS
 
