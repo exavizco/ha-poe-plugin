@@ -113,16 +113,23 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
         for line in pse_text.split('\n'):
             match = re.match(port_pattern, line.strip())
             if match:
-                state, poe_class, power_str, voltage_str, current_str, temp_str = match.groups()
+                state, poe_class, power_budget_str, voltage_str, current_str, temp_str = match.groups()
                 
                 # Parse values
-                power_watts = float(power_str) if power_str != '?' else 0.0
                 voltage_volts = float(voltage_str) if voltage_str != '?' else 0.0
                 
                 # Parse "current/limit" format
                 current_parts = current_str.split('/')
                 current_amps = float(current_parts[0]) if current_parts else 0.0
                 current_milliamps = int(current_amps * 1000)
+                
+                # CRITICAL: The "power" field from /proc/pse is the PSE power
+                # BUDGET (classification result), NOT actual measured consumption.
+                # The IP808AR chip does not have a power measurement register.
+                # Actual power must be computed from V × I.
+                #   Example: power_budget=15.50 (Class 0 allocation), but
+                #            V×I = 48.25 × 0.097 = 4.69W (actual draw).
+                power_watts = round(voltage_volts * current_amps, 2)
                 
                 # Parse "temp/max" format
                 temp_parts = temp_str.split('/')
@@ -136,7 +143,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
                     "poe_system": "addon",
                     "state": state,
                     "class": poe_class,
-                    "power_watts": round(power_watts, 2),
+                    "power_watts": power_watts,
                     "allocated_power_watts": allocated_power,
                     "voltage_volts": round(voltage_volts, 2),
                     "current_milliamps": current_milliamps,
@@ -574,11 +581,16 @@ async def _get_connected_device_from_arp(interface: str) -> Optional[Dict[str, s
             return None
         
         # Parse ARP/NDP entry - supports both IPv4 and IPv6
-        # IPv4 example: 192.168.1.100 lladdr 00:13:e2:1f:bc:b9 REACHABLE
-        # IPv6 example: fe80::2652:6aff:fe08:7180 lladdr 24:52:6a:08:71:80 STALE
+        # iproute2 format:  10.200.0.197 lladdr 00:13:e2:1f:bc:b9 REACHABLE
+        # BusyBox format:   192.168.86.93 lladdr 24:52:6a:08:71:80 used 0/0/0 probes 4 STALE
+        # IPv6 example:     fe80::2652:6aff:fe08:7180 lladdr 24:52:6a:08:71:80 STALE
+        #
+        # NOTE: BusyBox ip (used inside HA Docker containers) inserts extra fields
+        # ("used X/X/X probes N") between the MAC address and the NUD state.
+        # We use .*? to skip any intermediate fields.
         
         # Try IPv4 first
-        ipv4_match = re.search(r"(\d+\.\d+\.\d+\.\d+)\s+lladdr\s+([\da-f:]+)\s+(REACHABLE|STALE|DELAY)", output, re.IGNORECASE)
+        ipv4_match = re.search(r"(\d+\.\d+\.\d+\.\d+)\s+lladdr\s+([\da-f:]+).*?\b(REACHABLE|STALE|DELAY|PROBE)\b", output, re.IGNORECASE)
         if ipv4_match:
             device_info = {
                 "ip_address": ipv4_match.group(1),
@@ -603,8 +615,8 @@ async def _get_connected_device_from_arp(interface: str) -> Optional[Dict[str, s
             
             return enriched_info
         
-        # Try IPv6 (neighbor discovery)
-        ipv6_match = re.search(r"([\da-f:]+)\s+lladdr\s+([\da-f:]+)\s+(REACHABLE|STALE|DELAY|PROBE|INCOMPLETE|FAILED)", output, re.IGNORECASE)
+        # Try IPv6 (neighbor discovery) — also handles BusyBox extra fields
+        ipv6_match = re.search(r"([\da-f:]+)\s+lladdr\s+([\da-f:]+).*?\b(REACHABLE|STALE|DELAY|PROBE)\b", output, re.IGNORECASE)
         if ipv6_match:
             ipv6_addr = ipv6_match.group(1)
             mac_addr = ipv6_match.group(2)
@@ -731,6 +743,10 @@ def _parse_field(text: str, pattern: str) -> Optional[str]:
 async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Dict[str, Any]]:
     """Read all ports for an add-on PoE board.
     
+    On the Interceptor, the IP179H DSA switch creates network interfaces
+    named poe0-poe7 (for pse0) or poe8-poe15 (for pse1).  The mapping
+    is: poe{pse_num * 8 + port_num}.
+    
     Args:
         pse_id: PSE controller ID (e.g., "pse0")
         port_count: Number of ports to read (default 8)
@@ -745,6 +761,9 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Di
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
+    # Extract PSE number once (e.g., "pse0" -> 0)
+    pse_num = int(pse_id.replace("pse", ""))
+    
     port_data = {}
     for port_num, result in enumerate(results):
         if isinstance(result, Exception):
@@ -755,9 +774,9 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Di
                 "error": str(result),
             }
         else:
-            # Add-on boards have network interfaces: pse0 -> poe0-X, pse1 -> poe1-X
-            pse_num = pse_id.replace("pse", "")
-            interface = f"poe{pse_num}-{port_num}"
+            # Interceptor interface naming: poe{pse_num * 8 + port_num}
+            # pse0 → poe0-poe7, pse1 → poe8-poe15
+            interface = f"poe{pse_num * 8 + port_num}"
             
             # Check for connected device via ARP (same as onboard ports)
             port_status = result.copy()

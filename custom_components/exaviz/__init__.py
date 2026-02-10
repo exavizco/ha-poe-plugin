@@ -52,6 +52,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # the sensor platform creates the ExavizServerStatusSensor device.
     board_type = coordinator.board_type
     board_name = board_type.value.title() if board_type else "Unknown"
+
+    # Update the config entry title if board detection now succeeds but the
+    # title was created with "Unknown" (e.g., Docker first-boot before all
+    # volume mounts were in place, or Tier 2/3 detection improved).
+    entry_title = getattr(entry, "title", "") or ""
+    if board_name != "Unknown" and isinstance(entry_title, str) and "Unknown" in entry_title:
+        new_title = f"Exaviz {board_name}"
+        _LOGGER.info(
+            "Updating integration title from '%s' to '%s' "
+            "(board type resolved after initial setup)",
+            entry.title, new_title,
+        )
+        hass.config_entries.async_update_entry(entry, title=new_title)
     device_reg = dr.async_get(hass)
     device_reg.async_get_or_create(
         config_entry_id=entry.entry_id,

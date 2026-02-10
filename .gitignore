@@ -75,3 +75,7 @@ secrets.yaml
 
 # ESLint cache
 .eslintcache
+
+# Local deployment artifacts (not part of HACS distribution)
+deploy.conf
+scripts/deploy-unified.sh

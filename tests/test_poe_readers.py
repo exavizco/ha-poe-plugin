@@ -292,8 +292,8 @@ class TestReadAllAddonPorts:
             }
         
         async def mock_get_device(interface):
-            # interface like "poe0-2"
-            port_num = interface.split("-")[1]
+            # interface like "poe0", "poe1" (pse0 port N → poe{N})
+            port_num = interface.replace("poe", "")
             return {
                 "ip_address": f"198.51.100.{port_num}",
                 "mac_address": f"00:13:e2:1f:bc:{port_num}0",

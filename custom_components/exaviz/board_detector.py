@@ -112,12 +112,24 @@ async def _detect_from_pse_interface() -> Optional[BoardType]:
     - Interceptor: /proc/pse exists (ip808ar kernel driver procfs)
 
     These are mutually exclusive on current hardware.
+
+    Docker note: Docker's device passthrough resolves symlinks, so
+    /dev/pse (a symlink to ttyAMA3) appears as /dev/ttyAMA3 inside the
+    container.  We check both paths for Cruiser detection.
     """
     dev_pse = Path("/dev/pse")
+    dev_ttyama3 = Path("/dev/ttyAMA3")
     proc_pse = Path("/proc/pse")
 
     if dev_pse.exists():
         _LOGGER.info("Detected Cruiser board via /dev/pse symlink")
+        return BoardType.CRUISER
+
+    if dev_ttyama3.exists():
+        _LOGGER.info(
+            "Detected Cruiser board via /dev/ttyAMA3 "
+            "(Docker resolves /dev/pse symlink to the real device)"
+        )
         return BoardType.CRUISER
 
     if proc_pse.exists():
@@ -163,39 +175,66 @@ async def detect_board_type() -> BoardType:
 async def detect_addon_boards() -> List[str]:
     """Detect add-on PoE boards (IP808ar PSE controllers).
 
-    Checks known /proc/pse{N} paths directly (max 2 PSE boards supported).
-    Avoids scanning all of /proc which triggers a blocking I/O warning in HA.
+    The IP808AR kernel driver (v2.0) exposes a single streaming file at
+    /proc/pse — NOT per-PSE directories like /proc/pse0/port0/.  Each PSE
+    controller is identified by the prefix in the data lines (e.g., "0-3:"
+    for PSE 0 port 3, "1-0:" for PSE 1 port 0).
+
+    Detection strategy:
+      1. Check if /proc/pse exists (streaming file from ip808ar driver)
+      2. Read the header + first batch of port lines
+      3. Determine which PSE controllers are present from the port prefixes
 
     Returns:
-        List of PSE identifiers (e.g., ["pse0", "pse1"])
+        List of PSE identifiers (e.g., ["pse0"] or ["pse0", "pse1"])
     """
     addon_boards = []
 
     try:
-        # Check specific paths directly instead of scanning /proc
-        # Maximum of 2 add-on PSE boards supported (pse0, pse1)
-        for pse_idx in range(2):
-            pse_dir = Path(f"/proc/pse{pse_idx}")
-            if not pse_dir.is_dir():
-                continue
+        pse_file = Path("/proc/pse")
 
-            pse_id = pse_dir.name
+        if not pse_file.exists():
+            _LOGGER.debug("No add-on PoE boards detected (/proc/pse not found)")
+            return []
 
-            # Verify it has port subdirectories by checking known paths
-            # directly (max 8 ports per PSE board) to avoid iterdir()
-            port_count = sum(
-                1 for port_idx in range(8)
-                if (pse_dir / f"port{port_idx}").is_dir()
+        # /proc/pse is a streaming file — read a limited number of lines
+        # to avoid blocking.  30 lines is enough for 2 full PSE cycles
+        # (header + 8 ports + summary per PSE × 2).
+        import subprocess
+        result = await asyncio.to_thread(
+            subprocess.run,
+            ["head", "-30", str(pse_file)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        pse_text = result.stdout
+
+        if not pse_text:
+            _LOGGER.debug("/proc/pse exists but returned no data")
+            return []
+
+        # Scan port lines to discover which PSE controllers are present.
+        # Port lines match: "0-3: power-on 0 15.50 ..."  (PSE 0, port 3)
+        pse_ids_found: set[int] = set()
+        for line in pse_text.splitlines():
+            match = re.match(r"^(\d+)-\d+:", line.strip())
+            if match:
+                pse_ids_found.add(int(match.group(1)))
+
+        for pse_num in sorted(pse_ids_found):
+            pse_id = f"pse{pse_num}"
+            addon_boards.append(pse_id)
+            _LOGGER.info(
+                "Detected add-on PoE board: %s (via /proc/pse streaming file)",
+                pse_id,
             )
-            if port_count > 0:
-                addon_boards.append(pse_id)
-                _LOGGER.info(
-                    "Detected add-on PoE board: %s (%d ports)",
-                    pse_id, port_count,
-                )
 
         if not addon_boards:
-            _LOGGER.debug("No add-on PoE boards detected")
+            _LOGGER.debug(
+                "/proc/pse exists but no port lines found — "
+                "driver may still be initialising"
+            )
 
         return sorted(addon_boards)
 
@@ -252,6 +291,15 @@ async def detect_onboard_poe() -> List[str]:
 async def detect_all_poe_systems() -> dict:
     """Detect all PoE systems on the board.
 
+    On an Interceptor, the poe0-poe7 network interfaces are created by
+    the IP179H DSA switch on the add-on PSE board.  Their power data comes
+    from /proc/pse (IP808AR), so they must be handled via the addon path.
+    We detect them as network interfaces (for ARP / link state) but do NOT
+    count them as separate onboard ports.
+
+    On a Cruiser, the poe0-poe7 interfaces are true onboard DSA ports and
+    power data comes from the ESP32 (/dev/pse).  No addon boards exist.
+
     Returns:
         Dictionary with board type, add-on boards, and onboard ports
     """
@@ -259,13 +307,22 @@ async def detect_all_poe_systems() -> dict:
     addon_boards = await detect_addon_boards()
     onboard_ports = await detect_onboard_poe()
 
+    # If addon boards were detected, the poe interfaces belong to the
+    # addon PSE board — do NOT also count them as onboard ports.
+    # The addon reader (read_all_addon_ports) handles ARP lookups using
+    # the correct poe interface names.
+    if addon_boards:
+        if onboard_ports:
+            _LOGGER.info(
+                "Add-on PoE boards detected — poe interfaces (%s) are "
+                "addon ports, not onboard. Clearing onboard list.",
+                ", ".join(onboard_ports),
+            )
+        onboard_ports = []
+
     # Calculate total port count
     total_ports = 0
-
-    # Add-on boards typically have 8 ports each
     total_ports += len(addon_boards) * 8
-
-    # Onboard ports counted from actual interfaces detected
     onboard_port_count = len(onboard_ports)
     total_ports += onboard_port_count
 
