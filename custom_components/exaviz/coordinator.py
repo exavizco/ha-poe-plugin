@@ -86,7 +86,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             poe_data: dict[str, Any] = {}
             
             # Read add-on board ports
-            for pse_id in self.addon_boards:
+            for idx, pse_id in enumerate(self.addon_boards):
                 port_data = await read_all_addon_ports(pse_id, port_count=8)
                 pse_num = pse_id.replace("pse", "")
                 
@@ -95,7 +95,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                     if not port_status.get("available", False):
                         continue
 
-                    interface = f"poe{pse_num}-{port_num}"
+                    interface = f"poe{int(pse_num) * 8 + port_num}"
                     is_active = self._is_port_active(port_status)
                     connected_device = self._build_device_info(
                         port_status, interface, is_active, "Add-on PoE",
@@ -116,7 +116,17 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                         "connected_device": connected_device,
                     })
                 
-                poe_data[pse_id] = {
+                # Use "onboard" as the poe_set key for the first (or only)
+                # PoE system.  This keeps entity unique_ids stable regardless
+                # of whether the detection path classifies ports as "addon"
+                # or "onboard" — a distinction that changed when we fixed
+                # Interceptor detection.  Second+ PSEs get "addon_1", etc.
+                if idx == 0 and not self.onboard_ports:
+                    poe_set_key = "onboard"
+                else:
+                    poe_set_key = f"addon_{idx}"
+
+                poe_data[poe_set_key] = {
                     "total_ports": 8,
                     "active_ports": len([p for p in ports_list if p["enabled"]]),
                     "used_power_watts": sum(p["power_consumption_watts"] for p in ports_list),
