@@ -120,6 +120,9 @@ class TestViaDeviceRegistration:
 
         mock_hass.config_entries.async_forward_entry_setups = track_forward
         mock_hass.data = {}
+        # The static-path registration needs an async mock for the HTTP component
+        mock_hass.http = Mock()
+        mock_hass.http.async_register_static_paths = AsyncMock()
 
         with patch(
             "custom_components.exaviz.ExavizDataUpdateCoordinator",
