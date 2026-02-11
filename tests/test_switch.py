@@ -24,48 +24,51 @@ def mock_coordinator():
     """Create a mock coordinator."""
     coordinator = MagicMock(spec=DataUpdateCoordinator)
     coordinator.data = {
-        "onboard": {
-            "total_ports": 8,
-            "ports": [
-                {
-                    "port": 0,
-                    "interface": "poe0",
-                    "enabled": True,
-                    "status": "active",
-                    "power_consumption_watts": 15.5,
-                    "voltage_volts": 48.0,
-                    "current_milliamps": 320,
-                    "temperature_celsius": 45.0,
-                    "poe_class": "4",
-                    "poe_system": "onboard",
-                    "connected_device": {
-                        "name": "Test Camera",
-                        "device_type": "GeoVision (Camera)",
-                        "ip_address": "192.168.1.100",
-                        "mac_address": "00:11:22:33:44:55",
-                        "manufacturer": "GeoVision",
-                        "hostname": "camera-1",
-                    },
-                }
-            ],
-        },
-        "pse0": {
-            "total_ports": 8,
-            "ports": [
-                {
-                    "port": 2,
-                    "interface": "poe0-2",
-                    "enabled": True,
-                    "status": "active",
-                    "power_consumption_watts": 12.3,
-                    "voltage_volts": 47.5,
-                    "current_milliamps": 259,
-                    "temperature_celsius": 42.0,
-                    "poe_class": "3",
-                    "poe_system": "addon",
-                    "connected_device": None,
-                }
-            ],
+        "poe": {
+            "onboard": {
+                "total_ports": 8,
+                "ports": [
+                    {
+                        "port": 0,
+                        "interface": "poe0",
+                        "enabled": True,
+                        "status": "active",
+                        "power_consumption_watts": 15.5,
+                        "voltage_volts": 48.0,
+                        "current_milliamps": 320,
+                        "temperature_celsius": 45.0,
+                        "poe_class": "4",
+                        "poe_system": "onboard",
+                        "connected_device": {
+                            "name": "Test Camera",
+                            "device_type": "GeoVision (Camera)",
+                            "ip_address": "192.168.1.100",
+                            "mac_address": "00:11:22:33:44:55",
+                            "manufacturer": "GeoVision",
+                            "hostname": "camera-1",
+                        },
+                    }
+                ],
+            },
+            "addon_0": {
+                "pse_id": "pse0",
+                "total_ports": 8,
+                "ports": [
+                    {
+                        "port": 2,
+                        "interface": "poe0-2",
+                        "enabled": True,
+                        "status": "active",
+                        "power_consumption_watts": 12.3,
+                        "voltage_volts": 47.5,
+                        "current_milliamps": 259,
+                        "temperature_celsius": 42.0,
+                        "poe_class": "3",
+                        "poe_system": "addon",
+                        "connected_device": None,
+                    }
+                ],
+            },
         },
     }
     coordinator.async_request_refresh = AsyncMock()
@@ -104,15 +107,14 @@ class TestExavizPoEPortSwitch:
         switch = ExavizPoEPortSwitch(
             coordinator=mock_coordinator,
             entry_id="test_entry",
-            poe_set="pse0",
+            poe_set="addon_0",
             port_number=2,
         )
         
-        assert switch._poe_set == "pse0"
+        assert switch._poe_set == "addon_0"
         assert switch._port_number == 2
-        assert switch._interface == "poe0-2"
-        assert switch._attr_unique_id == "test_entry_pse0_port2"
-        assert switch._attr_name == "PSE0 Port 2"
+        assert switch._attr_unique_id == "test_entry_addon_0_port2"
+        assert switch._attr_name == "ADDON_0 Port 2"
 
     def test_is_on_enabled_port(self, mock_coordinator):
         """Test is_on returns True for enabled port."""
@@ -163,13 +165,13 @@ class TestExavizPoEPortSwitch:
         switch = ExavizPoEPortSwitch(
             coordinator=mock_coordinator,
             entry_id="test_entry",
-            poe_set="pse0",
+            poe_set="addon_0",
             port_number=2,
         )
         
         attrs = switch.extra_state_attributes
         assert attrs["port_number"] == 2
-        assert attrs["poe_set"] == "pse0"
+        assert attrs["poe_set"] == "addon_0"
         assert "device_name" not in attrs
         assert "device_ip" not in attrs
 
@@ -205,7 +207,7 @@ class TestExavizPoEPortSwitch:
         switch = ExavizPoEPortSwitch(
             coordinator=mock_coordinator,
             entry_id="test_entry",
-            poe_set="pse0",
+            poe_set="addon_0",
             port_number=2,
         )
         
@@ -225,12 +227,12 @@ class TestExavizPoEPortSwitch:
             mock_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_async_turn_on_pse1_port(self, mock_coordinator):
-        """Test turning on pse1 (second add-on board) port."""
+    async def test_async_turn_on_addon_1_port(self, mock_coordinator):
+        """Test turning on addon_1 (second add-on board) port."""
         switch = ExavizPoEPortSwitch(
             coordinator=mock_coordinator,
             entry_id="test_entry",
-            poe_set="pse1",
+            poe_set="addon_1",
             port_number=5,
         )
         
@@ -277,7 +279,7 @@ class TestExavizPoEPortSwitch:
         switch = ExavizPoEPortSwitch(
             coordinator=mock_coordinator,
             entry_id="test_entry",
-            poe_set="pse0",
+            poe_set="addon_0",
             port_number=7,
         )
         
@@ -340,10 +342,10 @@ class TestExavizPoEPortSwitch:
             # (poe_set, port_number, expected_interface)
             ("onboard", 0, "poe0"),
             ("onboard", 7, "poe7"),
-            ("pse0", 0, "poe0-0"),
-            ("pse0", 7, "poe0-7"),
-            ("pse1", 0, "poe1-0"),
-            ("pse1", 7, "poe1-7"),
+            ("addon_0", 0, "poe0-0"),
+            ("addon_0", 7, "poe0-7"),
+            ("addon_1", 0, "poe1-0"),
+            ("addon_1", 7, "poe1-7"),
         ]
         
         for poe_set, port_num, expected_interface in test_cases:
@@ -364,11 +366,14 @@ async def test_async_setup_entry(mock_config_entry):
     hass = MagicMock(spec=HomeAssistant)
     mock_coordinator = MagicMock()
     mock_coordinator.data = {
-        "onboard": {
-            "ports": [{"port": 0}, {"port": 1}]
-        },
-        "pse0": {
-            "ports": [{"port": 0}]
+        "poe": {
+            "onboard": {
+                "ports": [{"port": 0}, {"port": 1}]
+            },
+            "addon_0": {
+                "pse_id": "pse0",
+                "ports": [{"port": 0}]
+            },
         },
     }
     
@@ -401,10 +406,10 @@ async def test_sudo_permission_simulation():
         # Format: (poe_set, port, expected_command)
         ("onboard", 0, ["sudo", "ip", "link", "set", "poe0", "up"]),
         ("onboard", 7, ["sudo", "ip", "link", "set", "poe7", "down"]),
-        ("pse0", 0, ["sudo", "ip", "link", "set", "poe0-0", "up"]),
-        ("pse0", 7, ["sudo", "ip", "link", "set", "poe0-7", "down"]),
-        ("pse1", 0, ["sudo", "ip", "link", "set", "poe1-0", "up"]),
-        ("pse1", 7, ["sudo", "ip", "link", "set", "poe1-7", "down"]),
+        ("addon_0", 0, ["sudo", "ip", "link", "set", "poe0-0", "up"]),
+        ("addon_0", 7, ["sudo", "ip", "link", "set", "poe0-7", "down"]),
+        ("addon_1", 0, ["sudo", "ip", "link", "set", "poe1-0", "up"]),
+        ("addon_1", 7, ["sudo", "ip", "link", "set", "poe1-7", "down"]),
     ]
     
     mock_coordinator = MagicMock()

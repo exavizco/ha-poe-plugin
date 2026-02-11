@@ -257,10 +257,12 @@ class TestCompletePoESystemDetection:
         assert len(result["addon_boards"]) == 0
         assert result["total_poe_ports"] == 8
 
-    @pytest.mark.skip(reason="Path.glob mocking needs refactor")
     @pytest.mark.asyncio
     async def test_cruiser_with_two_addon_boards(self):
-        """Test Cruiser with onboard + 2 add-on boards (24 ports total)."""
+        """Test Cruiser with onboard + 2 add-on boards (24 ports total).
+
+        Cruiser keeps its onboard ports even when add-on boards are present.
+        """
         with patch("custom_components.exaviz.board_detector.detect_board_type") as mock_board:
             mock_board.return_value = BoardType.CRUISER
             
@@ -273,19 +275,24 @@ class TestCompletePoESystemDetection:
                     result = await detect_all_poe_systems()
         
         assert result["board_type"] == BoardType.CRUISER
+        # Cruiser keeps its onboard ports — they are real onboard DSA ports
         assert len(result["onboard_ports"]) == 8
         assert len(result["addon_boards"]) == 2
         assert result["total_poe_ports"] == 24  # 8 onboard + 8*2 addon
 
-    @pytest.mark.skip(reason="Path.glob mocking needs refactor")
     @pytest.mark.asyncio
     async def test_interceptor_with_two_addon_boards(self):
-        """Test Interceptor with no onboard + 2 add-on boards (16 ports total)."""
+        """Test Interceptor with no onboard + 2 add-on boards (16 ports total).
+
+        Interceptor's poe interfaces belong to the add-on board,
+        so onboard_ports are cleared even if detect_onboard_poe found them.
+        """
         with patch("custom_components.exaviz.board_detector.detect_board_type") as mock_board:
             mock_board.return_value = BoardType.INTERCEPTOR
             
             with patch("custom_components.exaviz.board_detector.detect_onboard_poe") as mock_onboard:
-                mock_onboard.return_value = []  # Interceptor has no onboard PoE
+                # Interceptor may detect poe interfaces but they belong to add-on
+                mock_onboard.return_value = [f"poe{i}" for i in range(8)]
                 
                 with patch("custom_components.exaviz.board_detector.detect_addon_boards") as mock_addon:
                     mock_addon.return_value = ["pse0", "pse1"]
@@ -293,6 +300,7 @@ class TestCompletePoESystemDetection:
                     result = await detect_all_poe_systems()
         
         assert result["board_type"] == BoardType.INTERCEPTOR
+        # Interceptor clears onboard — poe interfaces belong to addon boards
         assert len(result["onboard_ports"]) == 0
         assert len(result["addon_boards"]) == 2
         assert result["total_poe_ports"] == 16  # 0 onboard + 8*2 addon

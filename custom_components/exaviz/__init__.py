@@ -3,6 +3,7 @@ from __future__ import annotations
 """Exaviz PoE Management Integration for Home Assistant."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -15,6 +16,10 @@ from .board_detector import check_prerequisites
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 from .services import async_setup_services, async_unload_services
+
+# URL prefix for the bundled Lovelace frontend cards.
+# Users add this as a Lovelace resource: /exaviz_static/exaviz-cards.js
+FRONTEND_URL_BASE = "/exaviz_static"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +64,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    # Register static path for the bundled Lovelace frontend cards (once).
+    # HACS "integration" category does not auto-serve frontend files, so the
+    # integration itself must expose them.  Users then add the Lovelace
+    # resource URL: /exaviz_static/exaviz-cards.js  (type: module)
+    if "frontend_registered" not in hass.data[DOMAIN]:
+        www_path = Path(__file__).parent / "www"
+        if www_path.is_dir():
+            hass.http.register_static_path(
+                FRONTEND_URL_BASE, str(www_path), cache_headers=False
+            )
+            hass.data[DOMAIN]["frontend_registered"] = True
+            _LOGGER.info(
+                "Exaviz frontend cards registered at %s/exaviz-cards.js — "
+                "add this URL as a Lovelace resource (type: module) if not "
+                "already configured",
+                FRONTEND_URL_BASE,
+            )
 
     # Register the parent board device BEFORE forwarding platforms.
     # Child entities reference this device via via_device=(DOMAIN, entry.entry_id).

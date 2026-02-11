@@ -181,10 +181,10 @@ class TestCoordinatorDataUpdate:
         with patch("custom_components.exaviz.coordinator.read_all_addon_ports", return_value=mock_port_data):
             data = await coordinator._async_update_data()
         
-        assert "pse0" in data
-        assert len(data["pse0"]["ports"]) == 2
-        assert data["pse0"]["active_ports"] == 1
-        assert data["pse0"]["used_power_watts"] == 12.0
+        assert "addon_0" in data
+        assert len(data["addon_0"]["ports"]) == 2
+        assert data["addon_0"]["active_ports"] == 1
+        assert data["addon_0"]["used_power_watts"] == 12.0
 
     @pytest.mark.asyncio
     async def test_update_mixed_configuration(self, mock_hass, mock_config_entry):
@@ -207,8 +207,8 @@ class TestCoordinatorDataUpdate:
                 data = await coordinator._async_update_data()
         
         assert "onboard" in data
-        assert "pse0" in data
-        assert "pse1" in data
+        assert "addon_0" in data
+        assert "addon_1" in data
         assert len(data) == 3
 
     @pytest.mark.asyncio
@@ -360,8 +360,8 @@ class TestCoordinatorIntegrationScenarios:
         # Should have 3 PoE systems
         assert len(data) == 3
         assert "onboard" in data
-        assert "pse0" in data
-        assert "pse1" in data
+        assert "addon_0" in data
+        assert "addon_1" in data
         
         # Total ports across all systems
         total_ports = sum(system["total_ports"] for system in data.values())
@@ -392,12 +392,12 @@ class TestCoordinatorIntegrationScenarios:
         with patch("custom_components.exaviz.coordinator.read_all_addon_ports", side_effect=mock_addon_data):
             data = await coordinator._async_update_data()
         
-        assert "pse0" in data
-        assert "pse1" in data
-        assert data["pse0"]["active_ports"] == 1
-        assert data["pse1"]["active_ports"] == 1
-        assert data["pse0"]["used_power_watts"] == 15.5
-        assert data["pse1"]["used_power_watts"] == 15.5
+        assert "addon_0" in data
+        assert "addon_1" in data
+        assert data["addon_0"]["active_ports"] == 1
+        assert data["addon_1"]["active_ports"] == 1
+        assert data["addon_0"]["used_power_watts"] == 15.5
+        assert data["addon_1"]["used_power_watts"] == 15.5
 
     @pytest.mark.asyncio
     async def test_empty_system_no_active_ports(self, mock_hass, mock_config_entry):

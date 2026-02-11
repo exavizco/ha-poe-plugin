@@ -46,17 +46,18 @@ def map_port_to_entity_id(poe_set: str, port_number: int) -> int:
     """Map PoE set and port number to Exaviz entity ID.
     
     Args:
-        poe_set: PoE set name (e.g., 'poe0', 'poe1', 'pse0', 'pse1', 'onboard')
+        poe_set: PoE set name (e.g., 'onboard', 'addon_0', 'addon_1',
+                 or legacy 'poe0', 'poe1', 'pse0', 'pse1')
         port_number: Port number (0-7)
         
     Returns:
         Exaviz entity ID following the pattern:
-        - poe0 / pse0 / onboard: 1000-1007
-        - poe1 / pse1:           2000-2007
+        - onboard / addon_0 / poe0 / pse0: 1000-1007
+        - addon_1 / poe1 / pse1:           2000-2007
     """
-    if poe_set in ("poe0", "pse0", "onboard"):
+    if poe_set in ("onboard", "addon_0", "poe0", "pse0"):
         return 1000 + port_number
-    elif poe_set in ("poe1", "pse1"):
+    elif poe_set in ("addon_1", "poe1", "pse1"):
         return 2000 + port_number
     else:
         _LOGGER.warning("Unknown PoE set: %s, using fallback mapping", poe_set)
@@ -66,43 +67,33 @@ def map_port_to_entity_id(poe_set: str, port_number: int) -> int:
 def parse_entity_prefix(entity_id: str) -> tuple[str | None, int | None]:
     """Parse entity ID to extract PoE set and port number.
     
+    Handles entity IDs like:
+        switch.onboard_port0
+        switch.addon_0_port3
+        switch.pse0_port3  (legacy)
+    
     Args:
-        entity_id: HA entity ID (e.g., 'switch.poe0_port0')
+        entity_id: HA entity ID
         
     Returns:
         Tuple of (poe_set, port_number) or (None, None) if parsing fails
     """
+    import re
+
     try:
         if "." in entity_id:
             _, suffix = entity_id.split(".", 1)
         else:
             suffix = entity_id
-            
-        parts = suffix.split("_")
-        poe_set = None
-        port_number = None
-        
-        for i, part in enumerate(parts):
-            if part.startswith("poe") and part[3:].isdigit():
-                poe_set = part
-            elif part.startswith("pse") and part[3:].isdigit():
-                poe_set = part
-            elif part == "onboard":
-                poe_set = "onboard"
-            elif part == "port" and i + 1 < len(parts):
-                next_part = parts[i + 1].split("_")[0]
-                if next_part.isdigit():
-                    port_number = int(next_part)
 
-        # Also handle portN without underscore separator (e.g., "port0")
-        if port_number is None:
-            for part in parts:
-                if part.startswith("port") and part[4:].isdigit():
-                    port_number = int(part[4:])
-                    break
-                    
-        return poe_set, port_number
-        
+        # Match: {poe_set}_port{N}[_suffix]
+        # poe_set may contain underscores (e.g. addon_0)
+        m = re.match(r"^(.+?)_port(\d+)(?:_|$)", suffix)
+        if m:
+            return m.group(1), int(m.group(2))
+
+        return None, None
+
     except (ValueError, IndexError):
         return None, None
 
@@ -112,7 +103,7 @@ def build_entity_id(domain: str, poe_set: str, port_number: int, suffix: str = "
     
     Args:
         domain: HA domain (sensor, switch, binary_sensor, button)
-        poe_set: PoE set name (poe0, poe1, onboard, pse0, pse1)
+        poe_set: PoE set name (onboard, addon_0, addon_1)
         port_number: Port number
         suffix: Optional suffix (current, powered, reset, etc.)
         

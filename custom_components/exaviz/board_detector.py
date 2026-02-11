@@ -380,15 +380,16 @@ async def detect_all_poe_systems() -> dict:
     addon_boards = await detect_addon_boards()
     onboard_ports = await detect_onboard_poe()
 
-    # If addon boards were detected, the poe interfaces belong to the
-    # addon PSE board — do NOT also count them as onboard ports.
-    # The addon reader (read_all_addon_ports) handles ARP lookups using
-    # the correct poe interface names.
-    if addon_boards:
+    # On Interceptor, the poe network interfaces are created by the
+    # add-on PSE board's IP179H DSA switch — they are NOT onboard ports.
+    # On Cruiser, the poe interfaces are true onboard DSA ports even
+    # when an add-on board is also present, so we must keep them.
+    if addon_boards and board_type != BoardType.CRUISER:
         if onboard_ports:
             _LOGGER.info(
-                "Add-on PoE boards detected — poe interfaces (%s) are "
-                "addon ports, not onboard. Clearing onboard list.",
+                "Add-on PoE boards detected on %s — poe interfaces (%s) "
+                "are addon ports, not onboard. Clearing onboard list.",
+                board_type.value,
                 ", ".join(onboard_ports),
             )
         onboard_ports = []

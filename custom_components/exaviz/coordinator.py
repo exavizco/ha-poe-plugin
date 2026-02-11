@@ -116,17 +116,15 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                         "connected_device": connected_device,
                     })
                 
-                # Use "onboard" as the poe_set key for the first (or only)
-                # PoE system.  This keeps entity unique_ids stable regardless
-                # of whether the detection path classifies ports as "addon"
-                # or "onboard" — a distinction that changed when we fixed
-                # Interceptor detection.  Second+ PSEs get "addon_1", etc.
-                if idx == 0 and not self.onboard_ports:
-                    poe_set_key = "onboard"
-                else:
-                    poe_set_key = f"addon_{idx}"
+                # Always use addon_{idx} for add-on boards.  This gives
+                # Interceptor entities like switch.addon_0_port0 and
+                # switch.addon_1_port0 — matching what users expect.
+                # The hardware PSE ID (pse0/pse1) is stored as "pse_id"
+                # so the control path can find /proc/pse{N}.
+                poe_set_key = f"addon_{idx}"
 
                 poe_data[poe_set_key] = {
+                    "pse_id": pse_id,
                     "total_ports": 8,
                     "active_ports": len([p for p in ports_list if p["enabled"]]),
                     "used_power_watts": sum(p["power_consumption_watts"] for p in ports_list),

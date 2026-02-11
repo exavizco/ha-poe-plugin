@@ -322,12 +322,24 @@ class TestUtilsPortMapping:
     Fix: Added support for all known PoE set names.
     """
 
+    def test_addon_0_maps_correctly(self):
+        from custom_components.exaviz.utils import map_port_to_entity_id
+        assert map_port_to_entity_id("addon_0", 0) == 1000
+        assert map_port_to_entity_id("addon_0", 7) == 1007
+
+    def test_addon_1_maps_correctly(self):
+        from custom_components.exaviz.utils import map_port_to_entity_id
+        assert map_port_to_entity_id("addon_1", 0) == 2000
+        assert map_port_to_entity_id("addon_1", 7) == 2007
+
     def test_pse0_maps_correctly(self):
+        """Legacy pse0 still works."""
         from custom_components.exaviz.utils import map_port_to_entity_id
         assert map_port_to_entity_id("pse0", 0) == 1000
         assert map_port_to_entity_id("pse0", 7) == 1007
 
     def test_pse1_maps_correctly(self):
+        """Legacy pse1 still works."""
         from custom_components.exaviz.utils import map_port_to_entity_id
         assert map_port_to_entity_id("pse1", 0) == 2000
         assert map_port_to_entity_id("pse1", 7) == 2007
@@ -358,6 +370,20 @@ class TestUtilsPortMapping:
         poe_set, port = parse_entity_prefix("switch.onboard_port0")
         assert poe_set == "onboard"
         assert port == 0
+
+    def test_parse_entity_prefix_with_addon_0(self):
+        """parse_entity_prefix should handle addon_0 entity IDs."""
+        from custom_components.exaviz.utils import parse_entity_prefix
+        poe_set, port = parse_entity_prefix("switch.addon_0_port3")
+        assert poe_set == "addon_0"
+        assert port == 3
+
+    def test_parse_entity_prefix_with_addon_1(self):
+        """parse_entity_prefix should handle addon_1 entity IDs."""
+        from custom_components.exaviz.utils import parse_entity_prefix
+        poe_set, port = parse_entity_prefix("sensor.addon_1_port5_current")
+        assert poe_set == "addon_1"
+        assert port == 5
 
 
 # ---------------------------------------------------------------------------

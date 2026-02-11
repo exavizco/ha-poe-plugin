@@ -39,9 +39,7 @@ export class ExavizPoECard extends LitElement {
     if (!config) {
       throw new Error('Invalid configuration');
     }
-    if (!config.poe_set) {
-      throw new Error('poe_set is required');
-    }
+    // poe_set is optional — auto-detected from entities when omitted
     this.config = {
       show_header: true,
       layout: 'auto',
@@ -63,31 +61,50 @@ export class ExavizPoECard extends LitElement {
     this._discoverPorts();
   }
 
+  /**
+   * Scan HA entity registry for all poe_set values that have switch entities.
+   * Returns sorted array of unique poe_set strings (e.g. ["addon_0", "onboard"]).
+   */
+  private _detectAvailablePoeSets(): string[] {
+    const sets = new Set<string>();
+    Object.keys(this.hass.states).forEach(entityId => {
+      // Match: switch.{poeSet}_port{N}  (poeSet may contain underscores)
+      const match = entityId.match(/^switch\.(.+?)_port\d+$/);
+      if (match) {
+        sets.add(match[1]);
+      }
+    });
+    return Array.from(sets).sort();
+  }
+
   private _discoverPorts(): void {
     if (!this.hass) return;
-    
+
+    // poe_set config maps directly to backend entity names:
+    //   "onboard", "addon_0", "addon_1"
+    // When omitted, auto-detect the first available poe_set.
+    let poeSet = this.config.poe_set;
+    if (!poeSet) {
+      const available = this._detectAvailablePoeSets();
+      if (available.length > 0) {
+        poeSet = available[0];
+      } else {
+        this._ports = [];
+        return;
+      }
+    }
+
     const ports: any[] = [];
-    const poeSet = this.config.poe_set;
-    
-    // Map user-friendly poe_set names to actual backend names
-    // Backend uses: "onboard", "pse0", "pse1"
-    // Card config uses: "exaviz_onboard", "exaviz_addon_0", "exaviz_addon_1"
-    const poeSetMap: { [key: string]: string } = {
-      "exaviz_onboard": "onboard",
-      "exaviz_addon_0": "pse0",
-      "exaviz_addon_1": "pse1",
-    };
-    const actualPoeSet = poeSetMap[poeSet] || poeSet;
-    
+
     // Scan entity registry for switch entities matching our PoE set pattern
-    // Backend creates entities like: switch.onboard_port0 (no suffix for switches)
+    // Backend creates entities like: switch.onboard_port0, switch.addon_0_port3
     Object.keys(this.hass.states).forEach(entityId => {
-      if (entityId.startsWith(`switch.${actualPoeSet}_port`)) {
-        // Match pattern: switch.{poeSet}_port{number} or switch.{poeSet}_port{number}_{suffix}
-        const match = entityId.match(/switch\.([^_]+)_port(\d+)(?:_|$)/);
+      if (entityId.startsWith(`switch.${poeSet}_port`)) {
+        // Match pattern: switch.{poeSet}_port{number} — poeSet may contain underscores
+        const match = entityId.match(/^switch\.(.+?)_port(\d+)$/);
         if (match) {
           const portNumber = parseInt(match[2], 10);
-          const portConfig = this._getPortConfig(portNumber);
+          const portConfig = this._getPortConfig(portNumber, poeSet);
           if (portConfig) {
             ports.push(portConfig);
           }
@@ -107,20 +124,15 @@ export class ExavizPoECard extends LitElement {
     this._ports = ports;
   }
 
-  private _getPortConfig(portNumber: number): any | null {
-    const poeSet = this.config.poe_set;
-    // Map user-friendly poe_set names to actual backend names
-    const poeSetMap: { [key: string]: string } = {
-      "exaviz_onboard": "onboard",
-      "exaviz_addon_0": "pse0",
-      "exaviz_addon_1": "pse1",
-    };
-    const actualPoeSet = poeSetMap[poeSet] || poeSet;
-    const switchEntity = `switch.${actualPoeSet}_port${portNumber}`;
-    const currentEntity = `sensor.${poeSet}_port${portNumber}_current`;
-    const poweredEntity = `binary_sensor.${poeSet}_port${portNumber}_powered`;
-    const pluggedEntity = `binary_sensor.${poeSet}_port${portNumber}_plug`;
-    const resetEntity = `button.${poeSet}_port${portNumber}_reset`;
+  private _getPortConfig(portNumber: number, poeSet?: string): any | null {
+    // poe_set values map directly to backend entity names:
+    //   "onboard", "addon_0", "addon_1"
+    const resolvedPoeSet = poeSet || this.config.poe_set;
+    const switchEntity = `switch.${resolvedPoeSet}_port${portNumber}`;
+    const currentEntity = `sensor.${resolvedPoeSet}_port${portNumber}_current`;
+    const poweredEntity = `binary_sensor.${resolvedPoeSet}_port${portNumber}_powered`;
+    const pluggedEntity = `binary_sensor.${resolvedPoeSet}_port${portNumber}_plug`;
+    const resetEntity = `button.${resolvedPoeSet}_port${portNumber}_reset`;
 
     // Check if switch entity exists (required)
     if (!this.hass.states[switchEntity]) {
@@ -129,7 +141,7 @@ export class ExavizPoECard extends LitElement {
 
     // Get linux device name from switch entity attributes
     const switchState = this.hass.states[switchEntity];
-    const linuxDevice = switchState?.attributes?.linux_device || `${poeSet}-${portNumber}`;
+    const linuxDevice = switchState?.attributes?.linux_device || `${resolvedPoeSet}-${portNumber}`;
 
     return {
       port: portNumber,
@@ -267,13 +279,10 @@ export class ExavizPoECard extends LitElement {
     const poeSet = this.config.poe_set || 'onboard';
     const nameMap: { [key: string]: string } = {
       'onboard': 'Onboard PoE Management',
-      'exaviz_onboard': 'Onboard PoE Management',
-      'exaviz_addon_0': 'Add-on Board 0 PoE',
-      'exaviz_addon_1': 'Add-on Board 1 PoE',
-      'pse0': 'Add-on Board 0 PoE',
-      'pse1': 'Add-on Board 1 PoE',
+      'addon_0': 'Add-on Board 0 PoE',
+      'addon_1': 'Add-on Board 1 PoE',
     };
-    return nameMap[poeSet] || `${poeSet.toUpperCase()} PoE Management`;
+    return nameMap[poeSet] || `${poeSet.replace(/_/g, ' ').toUpperCase()} PoE Management`;
   }
 
   private _getPoeSetSummary(): any {
@@ -344,15 +353,7 @@ export class ExavizPoECard extends LitElement {
 
     if (this._ports.length === 0) {
       // Scan for available poe_set values
-      const availableSets = new Set<string>();
-      Object.keys(this.hass.states).forEach(entityId => {
-        const match = entityId.match(/^switch\.([^_]+_[^_]+)_port\d+$/);
-        if (match) {
-          availableSets.add(match[1]);
-        }
-      });
-      
-      const suggestions = Array.from(availableSets).sort();
+      const suggestions = this._detectAvailablePoeSets();
       
       return html`
         <ha-card>

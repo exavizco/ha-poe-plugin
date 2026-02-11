@@ -108,7 +108,13 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             self._poe_set, self._port_number,
         )
         try:
-            if self._poe_set == "onboard":
+            port_data = self._get_port_data()
+            is_onboard = (
+                port_data.get("poe_system") == "onboard"
+                if port_data
+                else self._poe_set == "onboard"
+            )
+            if is_onboard:
                 await self._reset_onboard_port()
             else:
                 await self._reset_addon_port()
@@ -188,9 +194,15 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
 
         _LOGGER.info("Successfully reset PoE port %s", interface)
 
+    def _get_pse_id(self) -> str:
+        """Look up the hardware PSE ID (e.g. 'pse0') from coordinator data."""
+        poe_data = (self.coordinator.data or {}).get("poe", {})
+        return poe_data.get(self._poe_set, {}).get("pse_id", self._poe_set)
+
     async def _reset_addon_port(self) -> None:
         """Reset an add-on board port via /proc/pse interface."""
-        reset_file = f"/proc/{self._poe_set}/port{self._port_number}/reset"
+        pse_id = self._get_pse_id()
+        reset_file = f"/proc/{pse_id}/port{self._port_number}/reset"
         try:
             proc = await asyncio.create_subprocess_exec(
                 "sudo", "tee", reset_file,

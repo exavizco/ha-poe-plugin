@@ -119,8 +119,8 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
     @property
     def _is_addon_board(self) -> bool:
-        """Check if this is an add-on board port (pse0/pse1)."""
-        return self._poe_set.startswith("pse")
+        """Check if this is an add-on board port (addon_0/addon_1)."""
+        return self._poe_set.startswith("addon_")
 
     @property
     def available(self) -> bool:
@@ -309,13 +309,23 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
         await self.coordinator.async_request_refresh()
 
+    def _get_pse_num(self) -> int:
+        """Look up the numeric PSE ID from coordinator data.
+
+        The coordinator stores the hardware pse_id (e.g. "pse0") in each
+        poe_set dict.  We extract the number for /proc/pse{N} paths.
+        """
+        poe_data = (self.coordinator.data or {}).get("poe", {})
+        pse_id = poe_data.get(self._poe_set, {}).get("pse_id", self._poe_set)
+        return int(pse_id.replace("pse", ""))
+
     async def _control_pse_port(self, action: str) -> None:
         """Control add-on board port via /proc/pse interface.
 
         Args:
             action: "enable", "disable", or "reset"
         """
-        pse_id = int(self._poe_set.replace("pse", ""))
+        pse_id = self._get_pse_num()
 
         if action == "reset":
             reset_file = Path(f"/proc/pse{pse_id}/port{self._port_number}/reset")
@@ -349,10 +359,18 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     # HA switch interface
     # ------------------------------------------------------------------
 
+    def _is_onboard_poe_system(self) -> bool:
+        """Return True when this port uses the onboard (ESP32) control path."""
+        port_data = self._get_port_data()
+        if port_data:
+            return port_data.get("poe_system") == "onboard"
+        # Fallback: key name
+        return self._poe_set == "onboard"
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the PoE port."""
         try:
-            if self._poe_set == "onboard":
+            if self._is_onboard_poe_system():
                 await self._control_onboard_port("enable")
             else:
                 await self._control_pse_port("enable")
@@ -366,7 +384,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the PoE port."""
         try:
-            if self._poe_set == "onboard":
+            if self._is_onboard_poe_system():
                 await self._control_onboard_port("disable")
             else:
                 await self._control_pse_port("disable")
