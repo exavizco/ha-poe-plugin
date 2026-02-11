@@ -72,16 +72,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if "frontend_registered" not in hass.data[DOMAIN]:
         www_path = Path(__file__).parent / "www"
         if www_path.is_dir():
-            hass.http.register_static_path(
-                FRONTEND_URL_BASE, str(www_path), cache_headers=False
-            )
-            hass.data[DOMAIN]["frontend_registered"] = True
-            _LOGGER.info(
-                "Exaviz frontend cards registered at %s/exaviz-cards.js — "
-                "add this URL as a Lovelace resource (type: module) if not "
-                "already configured",
-                FRONTEND_URL_BASE,
-            )
+            try:
+                from homeassistant.components.http import StaticPathConfig
+
+                await hass.http.async_register_static_paths(
+                    [StaticPathConfig(FRONTEND_URL_BASE, str(www_path), False)]
+                )
+                hass.data[DOMAIN]["frontend_registered"] = True
+                _LOGGER.info(
+                    "Exaviz frontend cards registered at %s/exaviz-cards.js — "
+                    "add this URL as a Lovelace resource (type: module) if not "
+                    "already configured",
+                    FRONTEND_URL_BASE,
+                )
+            except (ImportError, AttributeError) as exc:
+                _LOGGER.warning(
+                    "Could not register static path for frontend cards: %s. "
+                    "Manually copy www/ contents to /config/www/community/exaviz/",
+                    exc,
+                )
 
     # Register the parent board device BEFORE forwarding platforms.
     # Child entities reference this device via via_device=(DOMAIN, entry.entry_id).
