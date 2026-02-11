@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -23,13 +24,24 @@ async def validate_board_detection(hass: HomeAssistant) -> dict[str, Any]:
     runs board detection.  Missing packages raise MissingPackages so the
     UI can show a targeted error message.
     """
-    # Check prerequisites (best-effort — Docker hides host packages)
+    # Check prerequisites (best-effort — Docker hides host packages).
+    # Inside a Docker container dpkg-query sees the container's packages,
+    # not the host's, so we log a warning instead of blocking setup.
     prereqs = await check_prerequisites()
     if not prereqs["all_ok"]:
-        raise MissingPackages(
-            f"Missing required packages: {', '.join(prereqs['missing'])}. "
-            "Install from apt.exaviz.com on the host OS."
-        )
+        in_docker = Path("/.dockerenv").exists()
+        if in_docker:
+            _LOGGER.warning(
+                "Prerequisite check found missing packages (%s) but running "
+                "inside Docker — host packages are not visible.  Continuing "
+                "with board detection.",
+                ", ".join(prereqs["missing"]),
+            )
+        else:
+            raise MissingPackages(
+                f"Missing required packages: {', '.join(prereqs['missing'])}. "
+                "Install from apt.exaviz.com on the host OS."
+            )
 
     try:
         detection = await detect_all_poe_systems()
