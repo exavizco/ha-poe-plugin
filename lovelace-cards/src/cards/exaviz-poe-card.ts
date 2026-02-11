@@ -35,6 +35,26 @@ export class ExavizPoECard extends LitElement {
   @state() private _tooltipY: number = 0;
   @state() private _loadingPorts: Set<number> = new Set();
 
+  /**
+   * Called by Lovelace when the user adds a new card.  Provides a
+   * sensible default config so the card renders immediately.
+   */
+  public static getStubConfig(hass: HomeAssistant): Record<string, unknown> {
+    // Auto-detect available poe_set values from switch entities
+    const sets = new Set<string>();
+    Object.keys(hass.states).forEach(entityId => {
+      const match = entityId.match(/^switch\.(.+?)_port\d+$/);
+      if (match) {
+        sets.add(match[1]);
+      }
+    });
+    const available = Array.from(sets).sort();
+    return {
+      type: 'custom:exaviz-poe-card',
+      poe_set: available.length > 0 ? available[0] : 'addon_0',
+    };
+  }
+
   public setConfig(config: ExavizPoECardConfig): void {
     if (!config) {
       throw new Error('Invalid configuration');
@@ -387,7 +407,7 @@ export class ExavizPoECard extends LitElement {
           <div class="card-header">
             <img 
               class="exaviz-logo-header" 
-              src="/local/custom_components/exaviz/www/assets/exaviz_logo_plain.svg?v=20251031" 
+              src="/exaviz_static/assets/exaviz_logo_plain.svg?v=20260211" 
               alt="Exaviz"
             />
             <div class="name">${cardTitle}</div>
