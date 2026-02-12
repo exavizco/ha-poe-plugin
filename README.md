@@ -38,12 +38,13 @@ Click any port tile to see detailed information:
 - Debian-based Linux (Bookworm or Trixie) -- e.g., Raspberry Pi OS via Imager
 - **[exaviz-dkms](https://exa-pedia.com/docs/software/apt-repository/)** package installed (kernel modules, device tree overlays)
 - **[exaviz-netplan](https://exa-pedia.com/docs/software/apt-repository/)** package installed (per-port network configuration)
+- **[exaviz-poe-tool](https://exa-pedia.com/docs/software/apt-repository/)** package installed (PoE monitoring utility)
 - Home Assistant 2024.12+ ([Docker Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container) recommended)
 - [HACS](https://hacs.xyz/) (Home Assistant Community Store)
 
-> **Note:** Both `exaviz-dkms` and `exaviz-netplan` are required on **all** board
-> types (Cruiser and Interceptor). Install them from the [Exaviz apt
-> repository](https://exa-pedia.com/docs/software/apt-repository/).
+> **Note:** The `exaviz-dkms`, `exaviz-netplan`, and `exaviz-poe-tool` packages are
+> required on **all** board types (Cruiser and Interceptor). Install them from the
+> [Exaviz apt repository](https://exa-pedia.com/docs/software/apt-repository/).
 >
 > The deprecated pre-built Exaviz OS images are **not supported** by this plugin.
 > Use a standard Debian-based OS with the Exaviz packages instead.
@@ -54,13 +55,15 @@ Click any port tile to see detailed information:
 
 ```bash
 # Add the Exaviz apt repository (one-time setup)
-curl -fsSL https://apt.exaviz.com/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/exaviz.gpg
-echo "deb [signed-by=/usr/share/keyrings/exaviz.gpg] https://apt.exaviz.com stable main" \
+curl -fsSL https://apt.exaviz.com/KEY.gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/exaviz-archive-keyring.gpg
+DISTRO=$(lsb_release -cs 2>/dev/null || grep VERSION_CODENAME /etc/os-release | cut -d= -f2)
+echo "deb [arch=arm64 signed-by=/usr/share/keyrings/exaviz-archive-keyring.gpg] https://apt.exaviz.com ${DISTRO} main" \
   | sudo tee /etc/apt/sources.list.d/exaviz.list
 
 # Install required packages
 sudo apt update
-sudo apt install exaviz-dkms exaviz-netplan
+sudo apt install exaviz-dkms exaviz-netplan exaviz-poe-tool
 
 # Reboot to load kernel modules and device tree overlays
 sudo reboot
@@ -89,7 +92,9 @@ sudo reboot
 
 1. Edit a dashboard and click **+ Add Card**
 2. Search for "**Exaviz PoE**"
-3. The card will display all detected PoE ports
+3. The card auto-detects your PoE configuration and displays ports for the selected set
+4. For boards with multiple PoE sets (e.g., Cruiser onboard + add-on, or dual Interceptor),
+   add one card per set
 
 ## Documentation
 
