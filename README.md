@@ -1,5 +1,5 @@
 <a href="https://www.exaviz.com">
-  <img src="images/exaviz-logo.svg" alt="Exaviz" height="40">
+  <img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/exaviz-logo.svg" alt="Exaviz" height="40">
 </a>
 
 # Exaviz PoE Plugin for Home Assistant
@@ -10,11 +10,11 @@ A zero-configuration Home Assistant custom integration for managing PoE ports on
 Exaviz Interceptor and Cruiser carrier boards. Runs directly on the board --
 no external servers required.
 
-<img src="images/interceptor-poe-dashboard.png" alt="Interceptor PoE Management Dashboard" width="400">
+<img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/interceptor-poe-dashboard.png" alt="Interceptor PoE Management Dashboard" width="400">
 
 Click any port tile to see detailed information:
 
-<img src="images/cruiser-poe-port-details.png" alt="PoE Port Details" width="400">
+<img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/cruiser-poe-port-details.png" alt="PoE Port Details" width="400">
 
 ## Features
 
