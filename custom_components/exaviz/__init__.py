@@ -92,7 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # module automatically — no manual resource URL step for users.
             if resource_url is not None:
                 try:
-                    from homeassistant.components.lovelace import (  # noqa: E402
+                    from homeassistant.components.lovelace.resources import (  # noqa: E402
                         ResourceStorageCollection,
                     )
 
