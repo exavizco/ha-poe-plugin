@@ -65,25 +65,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # Register static path for the bundled Lovelace frontend cards (once).
-    # HACS "integration" category does not auto-serve frontend files, so the
-    # integration itself must expose them.  Users then add the Lovelace
-    # resource URL: /exaviz_static/exaviz-cards.js  (type: module)
+    # Register static path AND Lovelace resource for the bundled frontend
+    # cards (once per HA session).  Two steps are needed:
+    #   1. async_register_static_paths  → makes the JS file accessible via HTTP
+    #   2. Lovelace resource creation   → tells HA to load the JS module in the
+    #      browser, so the card appears in the card picker automatically.
     if "frontend_registered" not in hass.data[DOMAIN]:
         www_path = Path(__file__).parent / "www"
         if www_path.is_dir():
+            resource_url = f"{FRONTEND_URL_BASE}/exaviz-cards.js"
             try:
                 from homeassistant.components.http import StaticPathConfig
 
                 await hass.http.async_register_static_paths(
                     [StaticPathConfig(FRONTEND_URL_BASE, str(www_path), False)]
-                )
-                hass.data[DOMAIN]["frontend_registered"] = True
-                _LOGGER.info(
-                    "Exaviz frontend cards registered at %s/exaviz-cards.js — "
-                    "add this URL as a Lovelace resource (type: module) if not "
-                    "already configured",
-                    FRONTEND_URL_BASE,
                 )
             except (ImportError, AttributeError) as exc:
                 _LOGGER.warning(
@@ -91,6 +86,52 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "Manually copy www/ contents to /config/www/community/exaviz/",
                     exc,
                 )
+                resource_url = None  # Skip Lovelace registration too
+
+            # Register as a Lovelace resource so the browser loads the JS
+            # module automatically — no manual resource URL step for users.
+            if resource_url is not None:
+                try:
+                    from homeassistant.components.lovelace import (  # noqa: E402
+                        ResourceStorageCollection,
+                    )
+
+                    resources = hass.data.get("lovelace", {}).get("resources")
+                    if isinstance(resources, ResourceStorageCollection):
+                        existing = [
+                            r
+                            for r in resources.async_items()
+                            if r.get("url") == resource_url
+                        ]
+                        if not existing:
+                            await resources.async_create_item(
+                                {"res_type": "module", "url": resource_url}
+                            )
+                            _LOGGER.info(
+                                "Exaviz frontend resource auto-registered: %s",
+                                resource_url,
+                            )
+                        else:
+                            _LOGGER.debug(
+                                "Exaviz frontend resource already registered: %s",
+                                resource_url,
+                            )
+                    else:
+                        _LOGGER.info(
+                            "Lovelace resources not using storage mode — "
+                            "add %s as a Lovelace resource (type: module) manually",
+                            resource_url,
+                        )
+                except (ImportError, AttributeError, KeyError) as exc:
+                    _LOGGER.warning(
+                        "Could not auto-register Lovelace resource: %s. "
+                        "Add %s as a resource (type: module) manually in "
+                        "Settings > Dashboards > Resources",
+                        exc,
+                        resource_url,
+                    )
+
+            hass.data[DOMAIN]["frontend_registered"] = True
 
     # Register the parent board device BEFORE forwarding platforms.
     # Child entities reference this device via via_device=(DOMAIN, entry.entry_id).
