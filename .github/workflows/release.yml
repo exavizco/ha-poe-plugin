@@ -100,9 +100,9 @@ jobs:
           echo "### Installation" >> release_notes.md
           echo "" >> release_notes.md
           echo "#### Via HACS (Recommended)" >> release_notes.md
-          echo "1. Add custom repository: https://github.com/exavizco/ha-poe-plugin" >> release_notes.md
-          echo "2. Search for 'Exaviz PoE Management'" >> release_notes.md
-          echo "3. Click Install" >> release_notes.md
+          echo "1. Open **HACS** in Home Assistant" >> release_notes.md
+          echo "2. Search for **Exaviz**" >> release_notes.md
+          echo "3. Click **Download**" >> release_notes.md
           echo "4. Restart Home Assistant" >> release_notes.md
           echo "" >> release_notes.md
           echo "#### Manual Installation" >> release_notes.md
