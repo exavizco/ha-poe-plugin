@@ -86,6 +86,12 @@ jobs:
           echo "## Exaviz PoE Management $TAG_VERSION" > release_notes.md
           echo "" >> release_notes.md
           
+          if echo "$TAG_VERSION" | grep -qE -- '-(alpha|beta|rc)'; then
+            echo "> **Pre-release:** This is a beta/RC version. Enable *Show beta versions*" >> release_notes.md
+            echo "> in HACS to install it. Not recommended for production use." >> release_notes.md
+            echo "" >> release_notes.md
+          fi
+          
           if [ -n "$PREV_TAG" ]; then
             echo "### Changes since $PREV_TAG" >> release_notes.md
             echo "" >> release_notes.md
@@ -121,6 +127,18 @@ jobs:
           
           cat release_notes.md
       
+      - name: Detect pre-release
+        id: prerelease
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if echo "$TAG" | grep -qE -- '-(alpha|beta|rc)'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Detected pre-release tag: $TAG"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "Stable release tag: $TAG"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -129,6 +147,6 @@ jobs:
             exaviz-poe-*.zip
             exaviz-poe-*.tar.gz
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
