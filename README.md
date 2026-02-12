@@ -72,14 +72,14 @@ sudo reboot
 ### 1. Install via HACS
 
 1. Open HACS in Home Assistant
-2. Click the menu (**...**) then **Custom repositories**
-3. Add this repository URL:
-   ```
-   https://github.com/exavizco/ha-poe-plugin
-   ```
-4. Set category to **Integration** and click **Add**
-5. Search for "**Exaviz**" in HACS and click **Download**
-6. Restart Home Assistant
+2. Search for "**Exaviz**"
+3. Click on **Exaviz PoE Plugin** and click **Download**
+4. Restart Home Assistant
+
+> **Tip:** If you need a version that isn't in the default HACS store (e.g., a
+> pre-release or development branch), you can add this repository as a
+> **Custom repository** instead:
+> `https://github.com/exavizco/ha-poe-plugin`
 
 ### 2. Add the Integration
 
