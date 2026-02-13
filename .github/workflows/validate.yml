@@ -19,5 +19,3 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "integration"
-          # TODO: Remove 'brands' ignore once home-assistant/brands PR #9484 is merged
-          ignore: "brands"
