@@ -192,10 +192,15 @@ def _parse_esp32_line(line: str) -> dict[str, Any] | None:
     pse_num, port_num, state, poe_class, power_str, voltage_str, current_str, limit_str, temp_str, error = match.groups()
     
     try:
-        power_watts = float(power_str) if power_str != '?' else 0.0
         voltage_volts = float(voltage_str) if voltage_str != '?' else 0.0
-        current_milliamps = int(float(current_str)) if current_str != '?' else 0
+        current_amps = float(current_str) if current_str != '?' else 0.0
+        current_milliamps = int(current_amps * 1000)
         temperature_celsius = float(temp_str) if temp_str != '?' else 0.0
+        
+        # CRITICAL: The ESP32 sends voltage and current; calculate actual consumption.
+        # Do NOT use the power field — that's just the PoE class allocation.
+        # Real power = V × I (same logic as Interceptor with IP808AR).
+        power_watts = round(voltage_volts * current_amps, 2)
         allocated_power = get_allocated_power_watts(poe_class)
 
         # Return RAW ESP32 coordinates — conversion to Linux port numbers happens at lookup time
@@ -209,7 +214,7 @@ def _parse_esp32_line(line: str) -> dict[str, Any] | None:
             "poe_system": "onboard",
             "state": state,
             "class": poe_class,
-            "power_watts": round(power_watts, 2),
+            "power_watts": power_watts,
             "allocated_power_watts": allocated_power,
             "voltage_volts": round(voltage_volts, 2),
             "current_milliamps": current_milliamps,
