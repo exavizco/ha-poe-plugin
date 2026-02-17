@@ -97,7 +97,7 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:$},dt=(t=ct
           ${this.config.show_details&&o?B`
             <div class="port-details">
               <div class="details-header">
-                <h3>Port ${o.port+1} Details</h3>
+                <h3>Port ${o.port} Details</h3>
                 <button @click=${()=>this._selectedPort=null} class="close-btn">×</button>
               </div>
               <div class="details-content">
@@ -198,7 +198,7 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:$},dt=(t=ct
         class="poe-port port-${e} ${o?"enabled":"disabled"} ${i?"selected":""} ${r?"loading":""}"
         @click=${e=>this._handlePortClick(e,t)}
         @contextmenu=${e=>this._handlePortClick(e,t)}
-        title="Port ${t.port+1}: ${e} (${this._formatPowerDisplay(t)})
+        title="Port ${t.port}: ${e} (${this._formatPowerDisplay(t)})
 Click to select, click again to toggle on/off
 Right-click to reset"
       >
@@ -207,7 +207,7 @@ Right-click to reset"
             <div class="spinner"></div>
           </div>
         `:""}
-        <div class="port-number">P${t.port+1}</div>
+        <div class="port-number">P${t.port}</div>
         <div class="port-device">${t.linux_device||`${this.config.poe_set}-${t.port}`}</div>
         <div class="ethernet-connector">
           <div class="connector-body">

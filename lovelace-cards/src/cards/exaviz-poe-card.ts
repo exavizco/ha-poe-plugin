@@ -445,7 +445,7 @@ export class ExavizPoECard extends LitElement {
           ${this.config.show_details && selectedPortDetails ? html`
             <div class="port-details">
               <div class="details-header">
-                <h3>Port ${selectedPortDetails.port + 1} Details</h3>
+                <h3>Port ${selectedPortDetails.port} Details</h3>
                 <button @click=${() => this._selectedPort = null} class="close-btn">×</button>
               </div>
               <div class="details-content">
@@ -558,7 +558,7 @@ export class ExavizPoECard extends LitElement {
         class="poe-port port-${status} ${isEnabled ? 'enabled' : 'disabled'} ${isSelected ? 'selected' : ''} ${isLoading ? 'loading' : ''}"
         @click=${(e: Event) => this._handlePortClick(e, portConfig)}
         @contextmenu=${(e: Event) => this._handlePortClick(e, portConfig)}
-        title="Port ${portConfig.port + 1}: ${status} (${this._formatPowerDisplay(portConfig)})
+        title="Port ${portConfig.port}: ${status} (${this._formatPowerDisplay(portConfig)})
 Click to select, click again to toggle on/off
 Right-click to reset"
       >
@@ -567,7 +567,7 @@ Right-click to reset"
             <div class="spinner"></div>
           </div>
         ` : ''}
-        <div class="port-number">P${portConfig.port + 1}</div>
+        <div class="port-number">P${portConfig.port}</div>
         <div class="port-device">${portConfig.linux_device || `${this.config.poe_set}-${portConfig.port}`}</div>
         <div class="ethernet-connector">
           <div class="connector-body">
