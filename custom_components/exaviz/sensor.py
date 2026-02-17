@@ -181,7 +181,7 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
             "os_version",
             "kernel_version",
             "dkms_driver_version",
-            "poe_tool_version",
+            "netplan_version",
             "poe_controller",
             "esp32_firmware_version",
             "board_model_esp32",

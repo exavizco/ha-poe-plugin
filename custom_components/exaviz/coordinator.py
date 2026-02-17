@@ -366,11 +366,11 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             if kernel:
                 info["kernel_version"] = kernel
 
-            # Exaviz package versions (PoE-relevant only)
+            # Exaviz package versions (integration-relevant only)
             dpkg_out = await self._run_cmd(
                 "dpkg-query", "-W", "-f",
                 "${Package} ${Version}\n",
-                "exaviz-dkms", "exaviz-poe-tool",
+                "exaviz-dkms", "exaviz-netplan",
             )
             for line in dpkg_out.splitlines():
                 parts = line.strip().split(None, 1)
@@ -378,8 +378,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                     pkg, ver = parts
                     if pkg == "exaviz-dkms":
                         info["dkms_driver_version"] = ver
-                    elif pkg == "exaviz-poe-tool":
-                        info["poe_tool_version"] = ver
+                    elif pkg == "exaviz-netplan":
+                        info["netplan_version"] = ver
 
             # PoE controller type (derived from board type)
             if self.board_type == BoardType.CRUISER:
