@@ -23,13 +23,30 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .const import MIN_TRAFFIC_BYTES, TCPDUMP_TIMEOUT, BOSCH_PACKET_COUNT, POE_CLASS_POWER_ALLOCATION
 from .device_identifier import enrich_device_info
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _unavailable_port(**overrides: Any) -> dict[str, Any]:
+    """Return a default unavailable port status dict."""
+    result: dict[str, Any] = {
+        "available": False,
+        "state": "unavailable",
+        "class": "?",
+        "power_watts": 0.0,
+        "allocated_power_watts": 15.4,
+        "voltage_volts": 0.0,
+        "current_milliamps": 0,
+        "temperature_celsius": 0.0,
+    }
+    result.update(overrides)
+    return result
 
 
 def get_allocated_power_watts(poe_class: str) -> float:
@@ -44,7 +61,7 @@ def get_allocated_power_watts(poe_class: str) -> float:
     return POE_CLASS_POWER_ALLOCATION.get(str(poe_class), 15.4)
 
 
-async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
+async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
     """Read add-on board PoE port status from /proc/pse.
     
     CRITICAL: /proc/pse is a STREAMING format (not /proc/pse0/port0/status subdirectories)!
@@ -70,25 +87,12 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
     try:
         if not pse_file.exists():
             _LOGGER.debug("/proc/pse not found")
-            return {
-                "available": False,
-                "state": "unavailable",
-                "class": "?",
-                "power_watts": 0.0,
-                "allocated_power_watts": 15.4,  # Default to Class 0/3
-                "voltage_volts": 0.0,
-                "current_milliamps": 0,
-                "temperature_celsius": 0.0,
-            }
+            return _unavailable_port()
         
-        # Extract PSE number from pse_id (e.g., "pse0" -> 0)
         pse_num_match = re.search(r'\d+', pse_id)
         pse_num = int(pse_num_match.group()) if pse_num_match else 0
         
-        # Read /proc/pse streaming output
-        # CRITICAL: /proc/pse is a STREAMING file - must read limited lines to avoid hang!
-        # Use subprocess to run 'head -30' to read only first batch
-        import subprocess
+        # /proc/pse is a streaming file — read limited lines to avoid hang
         try:
             result = await asyncio.to_thread(
                 subprocess.run,
@@ -106,8 +110,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
                 "error": str(e),
             }
         
-        # Parse space-delimited format: "0-0: power-on 0 15.50 47.9375 0.05950/0.80000 33.1250/150.0000"
-        # Look for line matching our PSE-PORT
+        # Format: "0-0: power-on 0 15.50 47.9375 0.05950/0.80000 33.1250/150.0000"
         port_pattern = rf'^{pse_num}-{port_num}:\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)'
         
         for line in pse_text.split('\n'):
@@ -115,7 +118,6 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
             if match:
                 state, poe_class, power_budget_str, voltage_str, current_str, temp_str = match.groups()
                 
-                # Parse values
                 voltage_volts = float(voltage_str) if voltage_str != '?' else 0.0
                 
                 # Parse "current/limit" format
@@ -135,7 +137,6 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
                 temp_parts = temp_str.split('/')
                 temperature_celsius = float(temp_parts[0]) if temp_parts else 0.0
                 
-                # Get allocated power based on class
                 allocated_power = get_allocated_power_watts(poe_class)
                 
                 return {
@@ -153,16 +154,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
         
         # Port not found in output
         _LOGGER.warning("Port %d-%d not found in /proc/pse", pse_num, port_num)
-        return {
-            "available": False,
-            "state": "unavailable",
-            "class": "?",
-            "power_watts": 0.0,
-            "allocated_power_watts": 15.4,
-            "voltage_volts": 0.0,
-            "current_milliamps": 0,
-            "temperature_celsius": 0.0,
-        }
+        return _unavailable_port()
         
     except Exception as ex:
         _LOGGER.error("Failed to read PSE port status %s/port%d: %s", pse_id, port_num, ex)
@@ -173,7 +165,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> Dict[str, Any]:
         }
 
 
-def _parse_esp32_line(line: str) -> Optional[Dict[str, Any]]:
+def _parse_esp32_line(line: str) -> dict[str, Any] | None:
     """Parse a single line from ESP32 PoE monitor output.
     
     ESP32 Protocol Format:
@@ -200,17 +192,13 @@ def _parse_esp32_line(line: str) -> Optional[Dict[str, Any]]:
     pse_num, port_num, state, poe_class, power_str, voltage_str, current_str, limit_str, temp_str, error = match.groups()
     
     try:
-        # Parse values
         power_watts = float(power_str) if power_str != '?' else 0.0
         voltage_volts = float(voltage_str) if voltage_str != '?' else 0.0
         current_milliamps = int(float(current_str)) if current_str != '?' else 0
         temperature_celsius = float(temp_str) if temp_str != '?' else 0.0
-        
-        # Get allocated power based on class
         allocated_power = get_allocated_power_watts(poe_class)
-        
-        # Return RAW ESP32 coordinates (pse_num, port_num from ESP32)
-        # Conversion to Linux port numbers happens at lookup time
+
+        # Return RAW ESP32 coordinates — conversion to Linux port numbers happens at lookup time
         pse_num_int = int(pse_num)
         port_num_int = int(port_num)
         
@@ -234,7 +222,7 @@ def _parse_esp32_line(line: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def _read_esp32_serial_stream(pse_num: int, port_num: int) -> Optional[Dict[str, Any]]:
+async def _read_esp32_serial_stream(pse_num: int, port_num: int) -> dict[str, Any] | None:
     """Read ESP32 PoE monitor serial stream from /dev/pse or /dev/ttyAMA3.
     
     Reads the serial stream for ~3 seconds to capture multiple update cycles.
@@ -275,8 +263,7 @@ async def _read_esp32_serial_stream(pse_num: int, port_num: int) -> Optional[Dic
             
             stdout, _ = await proc.communicate()
             
-            # Parse lines looking for our specific port
-            # Take the most recent occurrence (last one in the stream)
+            # Take the most recent occurrence (last in the stream)
             target_port_id = f"{pse_num}-{port_num}:"
             last_match = None
             for line in stdout.decode('utf-8', errors='ignore').split('\n'):
@@ -298,7 +285,7 @@ async def _read_esp32_serial_stream(pse_num: int, port_num: int) -> Optional[Dic
     return None
 
 
-async def _try_read_cruiser_pse_data(port_num: int) -> Optional[Dict[str, Any]]:
+async def _try_read_cruiser_pse_data(port_num: int) -> dict[str, Any] | None:
     """Try to read power data from Cruiser's ESP32 serial stream.
     
     CRITICAL ARCHITECTURE:
@@ -329,7 +316,6 @@ async def _try_read_cruiser_pse_data(port_num: int) -> Optional[Dict[str, Any]]:
     pse_num = 1 if port_num < 4 else 0  # Ports 0-3 use PSE1, ports 4-7 use PSE0
     pse_port_num = port_num % 4  # Local port number on PSE controller
     
-    # Try to read from ESP32 serial stream
     esp32_data = await _read_esp32_serial_stream(pse_num, pse_port_num)
     if esp32_data:
         return esp32_data
@@ -341,221 +327,232 @@ async def _try_read_cruiser_pse_data(port_num: int) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def read_network_port_status(interface: str, esp32_data_map: Optional[Dict[tuple[int, int], Dict[str, Any]]] = None) -> Dict[str, Any]:
+async def _read_link_state(sys_net_path: Path) -> tuple[str, bool, int]:
+    """Read link state, admin state, and speed from sysfs.
+
+    Returns:
+        (link_state, admin_up, speed_mbps)
+    """
+    # Operational state
+    link_state = "unknown"
+    operstate_file = sys_net_path / "operstate"
+    if operstate_file.exists():
+        link_state = (await asyncio.to_thread(operstate_file.read_text)).strip()
+
+    # Administrative state (IFF_UP flag)
+    admin_up = False
+    flags_file = sys_net_path / "flags"
+    if flags_file.exists():
+        try:
+            flags_hex = (await asyncio.to_thread(flags_file.read_text)).strip()
+            admin_up = bool(int(flags_hex, 16) & 0x1)
+        except (ValueError, OSError):
+            admin_up = link_state in ("up", "lowerlayerdown")
+
+    # Speed (only meaningful when link is up)
+    speed_mbps = 0
+    if link_state == "up":
+        speed_file = sys_net_path / "speed"
+        if speed_file.exists():
+            try:
+                speed_mbps = int((await asyncio.to_thread(speed_file.read_text)).strip())
+            except (ValueError, OSError):
+                pass
+
+    return link_state, admin_up, speed_mbps
+
+
+async def _read_traffic_stats(sys_net_path: Path) -> tuple[int, int]:
+    """Read rx_bytes and tx_bytes from sysfs statistics.
+
+    Returns:
+        (rx_bytes, tx_bytes)
+    """
+    stats_path = sys_net_path / "statistics"
+    rx_bytes = tx_bytes = 0
+    if not stats_path.exists():
+        return rx_bytes, tx_bytes
+
+    for name, attr in [("rx_bytes", "rx_bytes"), ("tx_bytes", "tx_bytes")]:
+        f = stats_path / name
+        if f.exists():
+            try:
+                val = int((await asyncio.to_thread(f.read_text)).strip())
+                if attr == "rx_bytes":
+                    rx_bytes = val
+                else:
+                    tx_bytes = val
+            except (ValueError, OSError):
+                pass
+    return rx_bytes, tx_bytes
+
+
+async def _try_bosch_detection(
+    interface: str,
+    link_state: str,
+    rx_bytes: int,
+    tx_bytes: int,
+    connected_device: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Detect Bosch camera via tcpdump if ARP is missing or manufacturer unknown."""
+    should_try = False
+    if not connected_device and link_state == "up" and (rx_bytes > MIN_TRAFFIC_BYTES or tx_bytes > MIN_TRAFFIC_BYTES):
+        _LOGGER.debug("No ARP for %s, traffic detected (%d RX, %d TX) — trying Bosch detection",
+                       interface, rx_bytes, tx_bytes)
+        should_try = True
+    elif connected_device and connected_device.get("manufacturer") == "Unknown" and link_state == "up":
+        _LOGGER.debug("Unknown manufacturer for %s — trying Bosch detection", interface)
+        should_try = True
+
+    if not should_try:
+        return connected_device
+
+    bosch_info = await _detect_bosch_camera(interface)
+    if not bosch_info:
+        return connected_device
+
+    bosch_fields = {
+        "name": f"{bosch_info['model']} on {interface}",
+        "device_type": bosch_info["device_type"],
+        "manufacturer": bosch_info["manufacturer"],
+        "model": bosch_info["model"],
+        "detection_method": bosch_info["detection_method"],
+    }
+    if connected_device:
+        connected_device.update(bosch_fields)
+    else:
+        # Bosch cameras broadcast via ethertype 0x2070, no IP/MAC from L2
+        connected_device = {
+            **bosch_fields,
+            "ip_address": "N/A (Proprietary Protocol)",
+            "mac_address": "N/A (Proprietary Protocol)",
+        }
+    return connected_device
+
+
+def _build_onboard_result(
+    *,
+    link_state: str,
+    admin_up: bool,
+    speed_mbps: int,
+    rx_bytes: int,
+    tx_bytes: int,
+    connected_device: dict[str, Any] | None,
+    real_power_data: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Assemble the return dict for a single onboard port."""
+    if real_power_data:
+        poe_class = real_power_data.get("class", "?")
+        # Admin state overrides hardware state — TPS23861 keeps delivering
+        # power after `ip link set down`, but UI should show "disabled".
+        hw_state = real_power_data["state"]
+        state = "disabled" if not admin_up else hw_state
+        return {
+            "available": True,
+            "poe_system": "onboard",
+            "state": state,
+            "link_state": link_state,
+            "speed_mbps": speed_mbps,
+            "rx_bytes": rx_bytes,
+            "tx_bytes": tx_bytes,
+            "connected_device": connected_device,
+            "power_watts": real_power_data["power_watts"],
+            "allocated_power_watts": get_allocated_power_watts(poe_class),
+            "voltage_volts": real_power_data["voltage_volts"],
+            "current_milliamps": real_power_data["current_milliamps"],
+            "temperature_celsius": real_power_data.get("temperature_celsius", 0.0),
+            "class": poe_class,
+            "enabled": admin_up,
+        }
+
+    # Fallback: mock power metrics (ESP32 data not available)
+    power_watts = 0.0
+    poe_class = "?"
+    if link_state == "up":
+        if speed_mbps >= 1000:
+            power_watts, poe_class = 12.5, "3"
+        elif speed_mbps > 0:
+            power_watts, poe_class = 8.0, "2"
+
+    if not admin_up:
+        state = "disabled"
+    elif link_state == "up":
+        state = "power on"
+    else:
+        state = "searching"
+
+    return {
+        "available": True,
+        "poe_system": "onboard",
+        "state": state,
+        "link_state": link_state,
+        "speed_mbps": speed_mbps,
+        "rx_bytes": rx_bytes,
+        "tx_bytes": tx_bytes,
+        "connected_device": connected_device,
+        "power_watts": round(power_watts, 2),
+        "allocated_power_watts": get_allocated_power_watts(poe_class),
+        "power_mocked": True,
+        "voltage_volts": 48.0 if link_state == "up" else 0.0,
+        "current_milliamps": int((power_watts / 48.0) * 1000) if link_state == "up" else 0,
+        "class": poe_class,
+        "enabled": admin_up,
+    }
+
+
+async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[int, int], dict[str, Any]] | None = None) -> dict[str, Any]:
     """Read onboard PoE network interface status (Cruiser Carrier Board).
-    
-    Tries to read real power data from Cruiser's /dev/pse* interface (when available).
-    Falls back to network-only data if power interface not ready.
-    
-    CRITICAL: Cruiser uses /dev/pse* (NOT /proc/pse*)!
-    
+
+    Reads real power data from /dev/pse* (ESP32/TPS23861) when available,
+    falls back to network-only data with mocked power metrics.
+
     Args:
         interface: Network interface name (e.g., "poe0")
-    
+        esp32_data_map: Pre-read ESP32 data keyed by (pse_num, port_num)
+
     Returns:
         Dictionary with port status information
     """
     try:
-        # Check if interface exists
         sys_net_path = Path(f"/sys/class/net/{interface}")
         if not sys_net_path.exists():
-            return {
-                "available": False,
-                "state": "unavailable",
-                "link_state": "down",
-            }
-        
-        # Extract port number from interface name (e.g., "poe0" -> 0)
+            return {"available": False, "state": "unavailable", "link_state": "down"}
+
         port_num = int(interface.replace("poe", ""))
-        
-        # Try to get ESP32 data from the shared map (if provided)
-        # Otherwise, try reading directly (fallback for backward compatibility)
+
+        # Resolve ESP32 power data
         real_power_data = None
         if esp32_data_map is not None:
-            # Use pre-read ESP32 data to avoid serial port conflicts
             # PSE mapping: PSE 1 (left) = ports 0-3, PSE 0 (right) = ports 4-7
-            pse_num = 1 if port_num < 4 else 0  # CORRECT: PSE1 for ports 0-3, PSE0 for ports 4-7
-            pse_port_num = port_num % 4
-            real_power_data = esp32_data_map.get((pse_num, pse_port_num))
+            pse_num = 1 if port_num < 4 else 0
+            real_power_data = esp32_data_map.get((pse_num, port_num % 4))
         else:
-            # Fallback: read directly (may conflict with parallel reads)
             real_power_data = await _try_read_cruiser_pse_data(port_num)
-        
-        # Read link state (operational state)
-        operstate_file = sys_net_path / "operstate"
-        link_state = "unknown"
-        if operstate_file.exists():
-            link_state = (await asyncio.to_thread(operstate_file.read_text)).strip()
-        
-        # Read administrative state (is interface enabled?)
-        flags_file = sys_net_path / "flags"
-        admin_up = False
-        if flags_file.exists():
-            try:
-                flags_hex = (await asyncio.to_thread(flags_file.read_text)).strip()
-                flags = int(flags_hex, 16)
-                # IFF_UP flag is 0x1
-                admin_up = bool(flags & 0x1)
-            except (ValueError, OSError):
-                # Fallback: if operstate is 'up' or 'lowerlayerdown', interface is admin up
-                admin_up = link_state in ("up", "lowerlayerdown")
-        
-        # Read speed (if link is up)
-        speed_mbps = 0
-        if link_state == "up":
-            speed_file = sys_net_path / "speed"
-            if speed_file.exists():
-                try:
-                    speed_text = (await asyncio.to_thread(speed_file.read_text)).strip()
-                    speed_mbps = int(speed_text)
-                except (ValueError, OSError):
-                    pass
-        
-        # Read statistics
-        stats_path = sys_net_path / "statistics"
-        rx_bytes = 0
-        tx_bytes = 0
-        if stats_path.exists():
-            rx_file = stats_path / "rx_bytes"
-            tx_file = stats_path / "tx_bytes"
-            if rx_file.exists():
-                try:
-                    rx_bytes = int((await asyncio.to_thread(rx_file.read_text)).strip())
-                except (ValueError, OSError):
-                    pass
-            if tx_file.exists():
-                try:
-                    tx_bytes = int((await asyncio.to_thread(tx_file.read_text)).strip())
-                except (ValueError, OSError):
-                    pass
-        
-        # Try to get connected device from ARP table
+
+        link_state, admin_up, speed_mbps = await _read_link_state(sys_net_path)
+        rx_bytes, tx_bytes = await _read_traffic_stats(sys_net_path)
+
         connected_device = await _get_connected_device_from_arp(interface)
-        
-        # Try Bosch camera detection if:
-        # 1. No ARP entry but traffic exists (camera uses non-IP protocol only)
-        # 2. OR ARP entry exists but manufacturer is Unknown (camera might use dual-mode)
-        should_try_bosch = False
-        if not connected_device and link_state == "up" and (rx_bytes > MIN_TRAFFIC_BYTES or tx_bytes > MIN_TRAFFIC_BYTES):
-            _LOGGER.debug("No ARP entry for %s but traffic detected (%d RX, %d TX bytes), trying Bosch detection", 
-                         interface, rx_bytes, tx_bytes)
-            should_try_bosch = True
-        elif connected_device and connected_device.get("manufacturer") == "Unknown" and link_state == "up":
-            _LOGGER.debug("Unknown manufacturer for %s (MAC: %s), trying Bosch detection", 
-                         interface, connected_device.get("mac_address", "N/A"))
-            should_try_bosch = True
-        
-        if should_try_bosch:
-            bosch_info = await _detect_bosch_camera(interface)
-            if bosch_info:
-                # Merge Bosch info with existing device info (if any)
-                if connected_device:
-                    # Keep IP and MAC from ARP, update manufacturer/model from Bosch
-                    connected_device.update({
-                        "name": f"{bosch_info['model']} on {interface}",
-                        "device_type": bosch_info['device_type'],
-                        "manufacturer": bosch_info['manufacturer'],
-                        "model": bosch_info['model'],
-                        "detection_method": bosch_info['detection_method'],
-                    })
-                else:
-                    # Create new device info from Bosch detection
-                    connected_device = {
-                        "name": f"{bosch_info['model']} on {interface}",
-                        "device_type": bosch_info['device_type'],
-                        "manufacturer": bosch_info['manufacturer'],
-                        "model": bosch_info['model'],
-                        "detection_method": bosch_info['detection_method'],
-                        "ip_address": "N/A (Proprietary Protocol)",  # Bosch uses non-IP protocol (ethertype 0x2070)
-                        "mac_address": "N/A (Proprietary Protocol)",  # Not available from L2 broadcast
-                    }
-        
-        # Use real power data if available, otherwise mock it
-        if real_power_data:
-            # Real power data from ESP32/TPS23861
-            _LOGGER.debug("Using real power data for %s", interface)
-            poe_class = real_power_data.get("class", "?")
-            allocated_power = get_allocated_power_watts(poe_class)
-            
-            # CRITICAL: Admin state overrides hardware state.
-            # When the user disables a port via `ip link set down`, the
-            # TPS23861 PSE chip continues delivering power (no software
-            # path to cut it yet), so the ESP32 still reports "power on".
-            # We override to "disabled" so the UI reflects the user's intent.
-            hw_state = real_power_data["state"]
-            state = "disabled" if not admin_up else hw_state
-            
-            return {
-                "available": True,
-                "poe_system": "onboard",
-                "state": state,
-                "link_state": link_state,
-                "speed_mbps": speed_mbps,
-                "rx_bytes": rx_bytes,
-                "tx_bytes": tx_bytes,
-                "connected_device": connected_device,
-                "power_watts": real_power_data["power_watts"],
-                "allocated_power_watts": allocated_power,
-                "voltage_volts": real_power_data["voltage_volts"],
-                "current_milliamps": real_power_data["current_milliamps"],
-                "temperature_celsius": real_power_data.get("temperature_celsius", 0.0),
-                "class": poe_class,
-                "enabled": admin_up,
-            }
-        else:
-            # Fallback: Mock power metrics (ESP32 data not available)
-            _LOGGER.debug("Using mocked power data for %s (ESP32 data not available)", interface)
-            power_watts_mocked = 0.0
-            poe_class_mocked = "?"  # Unknown class when mocking
-            
-            if link_state == "up":
-                # Estimate based on speed
-                if speed_mbps >= 1000:
-                    power_watts_mocked = 12.5  # Typical PoE camera at 1Gbps
-                    poe_class_mocked = "3"  # Assume Class 3 for high-power devices
-                elif speed_mbps > 0:
-                    power_watts_mocked = 8.0   # Lower speed device
-                    poe_class_mocked = "2"  # Assume Class 2 for medium-power devices
-            
-            allocated_power_mocked = get_allocated_power_watts(poe_class_mocked)
-            
-            # Determine state based on admin state first, then link state
-            # This fixes the issue where disabled ports showed "empty" instead of "disabled"
-            if not admin_up:
-                state = "disabled"  # Administratively disabled
-            elif link_state == "up":
-                state = "power on"  # Device connected and powered
-            else:
-                state = "searching"  # Enabled but no device connected
-            
-            return {
-                "available": True,
-                "poe_system": "onboard",
-                "state": state,
-                "link_state": link_state,
-                "speed_mbps": speed_mbps,
-                "rx_bytes": rx_bytes,
-                "tx_bytes": tx_bytes,
-                "connected_device": connected_device,
-                "power_watts": round(power_watts_mocked, 2),
-                "allocated_power_watts": allocated_power_mocked,
-                "power_mocked": True,  # Flag to indicate mocked power
-                "voltage_volts": 48.0 if link_state == "up" else 0.0,  # Mocked
-                "current_milliamps": int((power_watts_mocked / 48.0) * 1000) if link_state == "up" else 0,  # Mocked
-                "class": poe_class_mocked,
-                "enabled": admin_up,
-            }
-        
+        connected_device = await _try_bosch_detection(
+            interface, link_state, rx_bytes, tx_bytes, connected_device,
+        )
+
+        return _build_onboard_result(
+            link_state=link_state,
+            admin_up=admin_up,
+            speed_mbps=speed_mbps,
+            rx_bytes=rx_bytes,
+            tx_bytes=tx_bytes,
+            connected_device=connected_device,
+            real_power_data=real_power_data,
+        )
+
     except Exception as ex:
         _LOGGER.error("Failed to read network port status %s: %s", interface, ex)
-        return {
-            "available": False,
-            "state": "error",
-            "error": str(ex),
-        }
+        return {"available": False, "state": "error", "error": str(ex)}
 
 
-async def _get_connected_device_from_arp(interface: str) -> Optional[Dict[str, str]]:
+async def _get_connected_device_from_arp(interface: str) -> dict[str, str] | None:
     """Get connected device information from ARP table with enrichment.
     
     Args:
@@ -653,7 +650,7 @@ async def _get_connected_device_from_arp(interface: str) -> Optional[Dict[str, s
         return None
 
 
-async def _detect_bosch_camera(interface: str) -> Optional[Dict[str, str]]:
+async def _detect_bosch_camera(interface: str) -> dict[str, str] | None:
     """Detect Bosch camera via proprietary protocol packet capture.
     
     Bosch cameras use ethertype 0x2070 and broadcast discovery packets
@@ -726,7 +723,7 @@ async def _detect_bosch_camera(interface: str) -> Optional[Dict[str, str]]:
         return None
 
 
-def _parse_field(text: str, pattern: str) -> Optional[str]:
+def _parse_field(text: str, pattern: str) -> str | None:
     """Parse a field from status text using regex.
     
     Args:
@@ -740,7 +737,7 @@ def _parse_field(text: str, pattern: str) -> Optional[str]:
     return match.group(1).strip() if match else None
 
 
-async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Dict[str, Any]]:
+async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> dict[int, dict[str, Any]]:
     """Read all ports for an add-on PoE board.
     
     On the Interceptor, the IP179H DSA switch creates network interfaces
@@ -761,7 +758,6 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Di
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
-    # Extract PSE number once (e.g., "pse0" -> 0)
     pse_num = int(pse_id.replace("pse", ""))
     
     port_data = {}
@@ -778,7 +774,6 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Di
             # pse0 → poe0-poe7, pse1 → poe8-poe15
             interface = f"poe{pse_num * 8 + port_num}"
             
-            # Check for connected device via ARP (same as onboard ports)
             port_status = result.copy()
             if port_status.get("available", False):
                 device_info = await _get_connected_device_from_arp(interface)
@@ -790,7 +785,7 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> Dict[int, Di
     return port_data
 
 
-async def _read_all_esp32_data() -> Dict[tuple[int, int], Dict[str, Any]]:
+async def _read_all_esp32_data() -> dict[tuple[int, int], dict[str, Any]]:
     """Read all ESP32 data in one pass to avoid serial port conflicts.
     
     Returns:
@@ -823,7 +818,6 @@ async def _read_all_esp32_data() -> Dict[tuple[int, int], Dict[str, Any]]:
             
             stdout, _ = await proc.communicate()
             
-            # Parse all port lines from the stream
             # Keep the most recent data for each port
             for line in stdout.decode('utf-8', errors='ignore').split('\n'):
                 parsed = _parse_esp32_line(line)
@@ -842,14 +836,14 @@ async def _read_all_esp32_data() -> Dict[tuple[int, int], Dict[str, Any]]:
     return esp32_data
 
 
-async def read_all_onboard_ports(interfaces: list[str]) -> Dict[str, Dict[str, Any]]:
+async def read_all_onboard_ports(interfaces: list[str]) -> dict[str, dict[str, Any]]:
     """Read all onboard PoE network interfaces.
     
     Reads ESP32 data once for all ports to avoid serial port conflicts,
     then reads network status for each interface.
     
     Args:
-        interfaces: List of interface names (e.g., ["poe0", "poe1", ...])
+        interfaces: list of interface names (e.g., ["poe0", "poe1", ...])
     
     Returns:
         Dictionary mapping interface name to port status

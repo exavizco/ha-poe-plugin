@@ -78,7 +78,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         )
         _LOGGER.info("Port reset completed for %s", entity_id)
 
-    # Register services
     hass.services.async_register(
         DOMAIN, "refresh_data", refresh_data, schema=REFRESH_DATA_SCHEMA
     )

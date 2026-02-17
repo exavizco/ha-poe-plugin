@@ -23,7 +23,7 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class PoESystemType(Enum):
     ONBOARD_NETWORK = "onboard"  # Network interfaces (poe0-poe7)
 
 
-async def _detect_from_device_tree() -> Optional[BoardType]:
+async def _detect_from_device_tree() -> BoardType | None:
     """Tier 1: Detect board type from device tree property.
 
     Some boards set /proc/device-tree/chosen/board via the DT overlay.
@@ -78,7 +78,7 @@ async def _detect_from_device_tree() -> Optional[BoardType]:
         return None
 
 
-async def _detect_from_config_txt() -> Optional[BoardType]:
+async def _detect_from_config_txt() -> BoardType | None:
     """Tier 2: Detect board type from /boot/firmware/config.txt.
 
     The exaviz-dkms postinst script writes a dtoverlay line like:
@@ -123,7 +123,7 @@ async def _detect_from_config_txt() -> Optional[BoardType]:
         return None
 
 
-async def _detect_from_pse_interface() -> Optional[BoardType]:
+async def _detect_from_pse_interface() -> BoardType | None:
     """Tier 3: Detect board type from PoE interface presence.
 
     - Cruiser: /dev/pse exists (udev symlink to ttyAMA3, rule 60-pse.rules)
@@ -245,7 +245,7 @@ async def detect_board_type() -> BoardType:
     return BoardType.UNKNOWN
 
 
-async def detect_addon_boards() -> List[str]:
+async def detect_addon_boards() -> list[str]:
     """Detect add-on PoE boards (IP808ar PSE controllers).
 
     The IP808AR kernel driver (v2.0) exposes a single streaming file at
@@ -259,7 +259,7 @@ async def detect_addon_boards() -> List[str]:
       3. Determine which PSE controllers are present from the port prefixes
 
     Returns:
-        List of PSE identifiers (e.g., ["pse0"] or ["pse0", "pse1"])
+        list of PSE identifiers (e.g., ["pse0"] or ["pse0", "pse1"])
     """
     addon_boards = []
 
@@ -316,7 +316,7 @@ async def detect_addon_boards() -> List[str]:
         return []
 
 
-async def detect_onboard_poe() -> List[str]:
+async def detect_onboard_poe() -> list[str]:
     """Detect onboard PoE ports via network interfaces.
 
     Scans /proc/sys/net/ipv4/conf/poe* to find PoE network interfaces.
@@ -324,7 +324,7 @@ async def detect_onboard_poe() -> List[str]:
     overlay (cruiser-raspberrypi-cm5.dtbo) and managed by exaviz-dkms.
 
     Returns:
-        List of interface names (e.g., ["poe0", "poe1", ..., "poe7"])
+        list of interface names (e.g., ["poe0", "poe1", ..., "poe7"])
     """
     conf_path = Path("/proc/sys/net/ipv4/conf")
     onboard_ports = []

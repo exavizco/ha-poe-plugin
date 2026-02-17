@@ -1,217 +1,128 @@
-"""
-Copyright (c) 2026 Axzez LLC.
-Licensed under MIT with Commons Clause. See LICENSE for details.
-"""
+"""Shared test configuration and fixtures.
 
-"""Shared test configuration and fixtures."""
-
+Home Assistant is not installed in the test venv, so we mock its modules
+at the sys.modules level before any custom_components imports occur.
+"""
 import sys
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, AsyncMock
+
 import pytest
 
-# Mock additional third-party modules that might cause issues
-sys.modules['voluptuous'] = MagicMock()
-# Note: Don't mock aiohttp completely as it breaks real aiohttp imports in http_bridge
-sys.modules['async_timeout'] = MagicMock()
+# ---------------------------------------------------------------------------
+# Mock Home Assistant modules (required — HA is not installed in test venv)
+# ---------------------------------------------------------------------------
 
-# Mock Home Assistant modules before any imports
-homeassistant_mock = MagicMock()
-sys.modules['homeassistant'] = homeassistant_mock
-sys.modules['homeassistant.core'] = MagicMock()
-sys.modules['homeassistant.config_entries'] = MagicMock()
-sys.modules['homeassistant.helpers'] = MagicMock()
-sys.modules['homeassistant.helpers.entity'] = MagicMock()
-sys.modules['homeassistant.helpers.entity_platform'] = MagicMock()
-sys.modules['homeassistant.helpers.entity_component'] = MagicMock()
-sys.modules['homeassistant.helpers.update_coordinator'] = MagicMock()
-sys.modules['homeassistant.helpers.aiohttp_client'] = MagicMock()
-sys.modules['homeassistant.helpers.service'] = MagicMock()
-sys.modules['homeassistant.helpers.event'] = MagicMock()
-sys.modules['homeassistant.helpers.device_registry'] = MagicMock()
-sys.modules['homeassistant.helpers.entity_registry'] = MagicMock()
-sys.modules['homeassistant.helpers.storage'] = MagicMock()
-sys.modules['homeassistant.components'] = MagicMock()
-sys.modules['homeassistant.components.sensor'] = MagicMock()
-sys.modules['homeassistant.components.camera'] = MagicMock()
-sys.modules['homeassistant.components.frontend'] = MagicMock()
-sys.modules['homeassistant.components.websocket_api'] = MagicMock()
-sys.modules['homeassistant.components.persistent_notification'] = MagicMock()
-sys.modules['homeassistant.const'] = MagicMock()
-sys.modules['homeassistant.exceptions'] = MagicMock()
-sys.modules['homeassistant.loader'] = MagicMock()
-sys.modules['homeassistant.data_entry_flow'] = MagicMock()
+_HA_MODULES = [
+    "homeassistant",
+    "homeassistant.config_entries",
+    "homeassistant.components",
+    "homeassistant.components.binary_sensor",
+    "homeassistant.components.button",
+    "homeassistant.components.camera",
+    "homeassistant.components.frontend",
+    "homeassistant.components.http",
+    "homeassistant.components.lovelace",
+    "homeassistant.components.lovelace.resources",
+    "homeassistant.components.persistent_notification",
+    "homeassistant.components.sensor",
+    "homeassistant.components.switch",
+    "homeassistant.components.websocket_api",
+    "homeassistant.const",
+    "homeassistant.core",
+    "homeassistant.data_entry_flow",
+    "homeassistant.exceptions",
+    "homeassistant.helpers",
+    "homeassistant.helpers.aiohttp_client",
+    "homeassistant.helpers.config_validation",
+    "homeassistant.helpers.device_registry",
+    "homeassistant.helpers.entity",
+    "homeassistant.helpers.entity_component",
+    "homeassistant.helpers.entity_platform",
+    "homeassistant.helpers.entity_registry",
+    "homeassistant.helpers.event",
+    "homeassistant.helpers.service",
+    "homeassistant.helpers.storage",
+    "homeassistant.helpers.update_coordinator",
+    "homeassistant.loader",
+    "voluptuous",
+    "async_timeout",
+]
 
-# Mock specific functions that are imported
-sys.modules['homeassistant.helpers.aiohttp_client'].async_get_clientsession = MagicMock()
-sys.modules['homeassistant.helpers.service'].async_extract_entity_ids = MagicMock()
-sys.modules['homeassistant.helpers.event'].async_track_time_interval = MagicMock()
-sys.modules['homeassistant.components.websocket_api'].websocket_command = MagicMock()
-sys.modules['homeassistant.components.frontend'].add_extra_js_url = MagicMock()
+for _mod in _HA_MODULES:
+    sys.modules.setdefault(_mod, MagicMock())
 
-# Create mock classes for commonly used HA classes
-class MockConfigEntry:
-    """Mock ConfigEntry class."""
-    def __init__(self, version=1, domain="exaviz", title="Test VMS", 
-                 data=None, source="test", entry_id="test_entry"):
-        self.version = version
-        self.domain = domain
-        self.title = title
-        self.data = data or {}
-        self.source = source
-        self.entry_id = entry_id
-
-class MockHomeAssistant:
-    """Mock HomeAssistant class."""
-    def __init__(self):
-        self.data = {}
-        self.config_entries = MagicMock()
-        self.services = MagicMock()
-
-# Mock sensor classes
-class MockSensorEntity:
-    """Mock SensorEntity class."""
+# Stub base classes that source code inherits from — must be real classes,
+# not MagicMock, to avoid metaclass conflicts in multiple-inheritance.
+class _StubEntity:
+    """Base for all mocked HA entity classes."""
     def __init__(self, *args, **kwargs):
         pass
 
-class MockCoordinatorEntity:
-    """Mock CoordinatorEntity class."""
-    def __init__(self, coordinator):
+class _StubCoordinatorEntity(_StubEntity):
+    def __init__(self, coordinator, *args, **kwargs):
         self.coordinator = coordinator
 
-class MockCamera:
-    """Mock Camera class."""
-    def __init__(self):
-        pass
-
-class MockCameraEntityFeature:
-    """Mock CameraEntityFeature enum."""
-    STREAM = 1
-    ON_OFF = 2
-
-class MockSensorDeviceClass:
-    """Mock SensorDeviceClass enum."""
-    TIMESTAMP = "timestamp"
-    TEMPERATURE = "temperature"
-    DATA_SIZE = "data_size"
-    DURATION = "duration"
-    POWER = "power"
-    VOLTAGE = "voltage"
-    CURRENT = "current"
-
-class MockSensorStateClass:
-    """Mock SensorStateClass enum."""
-    MEASUREMENT = "measurement"
-    TOTAL = "total"
-    TOTAL_INCREASING = "total_increasing"
-
-class MockSensorEntityDescription:
-    """Mock SensorEntityDescription class."""
-    def __init__(self, key, name=None, icon=None, **kwargs):
-        self.key = key
+class _StubDataUpdateCoordinator:
+    """Minimal DataUpdateCoordinator stub."""
+    def __init__(self, hass, logger, *, name="", update_interval=None, **kwargs):
+        self.hass = hass
+        self.logger = logger
         self.name = name
-        self.icon = icon
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        self.update_interval = update_interval
+        self.data = None
+        self.last_update_success = True
 
-class MockDeviceInfo(dict):
-    """Mock DeviceInfo class that behaves like a dict."""
-    def __init__(self, **kwargs):
-        super().__init__(kwargs)
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+    async def async_config_entry_first_refresh(self):
+        self.data = await self._async_update_data()
 
-class MockPlatform:
-    """Mock Platform enum for testing."""
+    async def _async_update_data(self):
+        raise NotImplementedError
+
+sys.modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = _StubCoordinatorEntity
+sys.modules["homeassistant.helpers.update_coordinator"].DataUpdateCoordinator = _StubDataUpdateCoordinator
+sys.modules["homeassistant.helpers.update_coordinator"].UpdateFailed = Exception
+sys.modules["homeassistant.components.sensor"].SensorEntity = _StubEntity
+sys.modules["homeassistant.components.sensor"].SensorDeviceClass = MagicMock()
+sys.modules["homeassistant.components.sensor"].SensorStateClass = MagicMock()
+sys.modules["homeassistant.components.switch"].SwitchEntity = _StubEntity
+sys.modules["homeassistant.components.switch"].SwitchDeviceClass = MagicMock()
+sys.modules["homeassistant.components.binary_sensor"].BinarySensorEntity = _StubEntity
+sys.modules["homeassistant.components.binary_sensor"].BinarySensorDeviceClass = MagicMock()
+sys.modules["homeassistant.components.button"].ButtonEntity = _StubEntity
+sys.modules["homeassistant.components.button"].ButtonDeviceClass = MagicMock()
+sys.modules["homeassistant.components.camera"].Camera = _StubEntity
+sys.modules["homeassistant.exceptions"].HomeAssistantError = Exception
+sys.modules["homeassistant.exceptions"].ConfigEntryNotReady = Exception
+sys.modules["homeassistant.exceptions"].ServiceValidationError = Exception
+
+# Constants — Platform values must be real strings so `'sensor' in PLATFORMS` works
+class _Platform:
     SENSOR = "sensor"
     SWITCH = "switch"
     BINARY_SENSOR = "binary_sensor"
     BUTTON = "button"
 
-class MockUnitOfInformation:
-    """Mock UnitOfInformation enum."""
-    GIGABYTES = "GB"
+sys.modules["homeassistant.const"].Platform = _Platform
+sys.modules["homeassistant.const"].UnitOfPower = MagicMock()
+sys.modules["homeassistant.const"].UnitOfTemperature = MagicMock()
+sys.modules["homeassistant.const"].UnitOfElectricPotential = MagicMock()
+sys.modules["homeassistant.const"].UnitOfElectricCurrent = MagicMock()
+sys.modules["homeassistant.const"].PERCENTAGE = "%"
 
-class MockUnitOfTime:
-    """Mock UnitOfTime enum."""
-    SECONDS = "s"
+# Lovelace resource type must be a real class for isinstance() checks
+class _ResourceStorageCollection:
+    pass
 
-class MockUnitOfPower:
-    """Mock UnitOfPower enum."""
-    WATT = "W"
+sys.modules["homeassistant.components.lovelace.resources"].ResourceStorageCollection = _ResourceStorageCollection
 
-class MockUnitOfElectricPotential:
-    """Mock UnitOfElectricPotential enum."""
-    VOLT = "V"
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
-class MockUnitOfElectricCurrent:
-    """Mock UnitOfElectricCurrent enum."""
-    AMPERE = "A"
-    MILLIAMPERE = "mA"
-
-# Add mock classes to the mocked modules
-sys.modules['homeassistant.config_entries'].ConfigEntry = MockConfigEntry
-sys.modules['homeassistant.core'].HomeAssistant = MockHomeAssistant
-sys.modules['homeassistant.components.sensor'].SensorEntity = MockSensorEntity
-sys.modules['homeassistant.components.sensor'].SensorDeviceClass = MockSensorDeviceClass
-sys.modules['homeassistant.components.sensor'].SensorStateClass = MockSensorStateClass
-sys.modules['homeassistant.components.sensor'].SensorEntityDescription = MockSensorEntityDescription
-sys.modules['homeassistant.helpers.update_coordinator'].CoordinatorEntity = MockCoordinatorEntity
-sys.modules['homeassistant.helpers.entity'].DeviceInfo = MockDeviceInfo
-sys.modules['homeassistant.components.camera'].Camera = MockCamera
-sys.modules['homeassistant.components.camera'].CameraEntityFeature = MockCameraEntityFeature
-sys.modules['homeassistant.const'].Platform = MockPlatform
-sys.modules['homeassistant.const'].UnitOfInformation = MockUnitOfInformation
-sys.modules['homeassistant.const'].UnitOfTime = MockUnitOfTime
-sys.modules['homeassistant.const'].UnitOfPower = MockUnitOfPower
-sys.modules['homeassistant.const'].UnitOfElectricPotential = MockUnitOfElectricPotential
-sys.modules['homeassistant.const'].UnitOfElectricCurrent = MockUnitOfElectricCurrent
-sys.modules['homeassistant.const'].PERCENTAGE = "%"
-
-# ============================================================================
-# ASYNC HANGING SOLUTION: aiosqlite daemon threads
-# The hanging issue was caused by aiosqlite threads not being marked as daemon.
-# Fixed in database_reader.py with: awaitable_db.daemon = True
-# No custom event loop fixture needed.
-# ============================================================================
 
 @pytest.fixture
-def mock_platform():
-    """Provide mock Platform for tests."""
-    return MockPlatform
-
-# Mock HA components and dependencies
-@pytest.fixture(autouse=True)
-def mock_ha_dependencies():
-    """Mock all Home Assistant dependencies."""
-    mocks = {}
-    
-    # Mock homeassistant.const
-    with patch("homeassistant.const.Platform", MockPlatform):
-        # Mock other homeassistant modules that might be imported
-        mock_modules = [
-            "homeassistant.config_entries",
-            "homeassistant.core", 
-            "homeassistant.helpers.update_coordinator",
-            "homeassistant.helpers.entity_platform",
-            "homeassistant.components.sensor",
-            "homeassistant.components.switch",
-            "homeassistant.components.binary_sensor",
-            "homeassistant.components.button",
-            "homeassistant.exceptions",
-            "homeassistant.helpers.entity",
-            "homeassistant.helpers.service",
-            "homeassistant.helpers",
-        ]
-        
-        for module in mock_modules:
-            mocks[module] = MagicMock()
-        
-        with patch.dict("sys.modules", mocks):
-            yield mocks
-
-@pytest.fixture 
 def mock_hass():
-    """Create a mock Home Assistant instance."""
+    """Minimal mock Home Assistant instance."""
     hass = MagicMock()
     hass.data = {}
     hass.bus = MagicMock()
@@ -219,89 +130,21 @@ def mock_hass():
     hass.config_entries = MagicMock()
     return hass
 
+
 @pytest.fixture
 def mock_config_entry():
-    """Create a mock config entry."""
+    """Mock config entry."""
     entry = MagicMock()
     entry.entry_id = "test_entry_id"
-    entry.data = {
-        "host": "192.168.1.100",
-        "port": 8080,
-        "username": "test_user", 
-        "password": "test_pass",
-        "mock_mode": True
-    }
+    entry.data = {}
     entry.options = {}
     entry.title = "Exaviz PoE Test"
     return entry
 
-@pytest.fixture
-def sample_poe_data():
-    """Provide sample PoE data for testing."""
-    return {
-        "poe": {
-            "poe0": {
-                "switch_id": "poe0",
-                "name": "Main PoE Switch",
-                "model": "EX-POE24-PLUS",
-                "total_ports": 8,
-                "power_budget_watts": 240,
-                "power_consumption_watts": 85.4,
-                "ports": [
-                    {
-                        "port": 0,
-                        "enabled": True,
-                        "status": "active",
-                        "power_consumption_watts": 12.5,
-                        "voltage_volts": 48.2,
-                        "current_milliamps": 260,
-                        "connected_device": {
-                            "name": "IP Camera 1",
-                            "device_type": "ip_camera",
-                            "power_class": "Class 3",
-                            "ip_address": "192.168.1.201",
-                            "mac_address": "00:11:22:33:44:55"
-                        }
-                    },
-                    {
-                        "port": 1,
-                        "enabled": True,
-                        "status": "active", 
-                        "power_consumption_watts": 8.2,
-                        "voltage_volts": 48.1,
-                        "current_milliamps": 171,
-                        "connected_device": {
-                            "name": "Access Point 1",
-                            "device_type": "wireless_ap",
-                            "power_class": "Class 2",
-                            "ip_address": "192.168.1.202",
-                            "mac_address": "00:11:22:33:44:56"
-                        }
-                    },
-                    {
-                        "port": 2,
-                        "enabled": False,
-                        "status": "disabled",
-                        "power_consumption_watts": 0.0,
-                        "voltage_volts": 0.0,
-                        "current_milliamps": 0
-                    },
-                    {
-                        "port": 3,
-                        "enabled": True,
-                        "status": "fault",
-                        "power_consumption_watts": 0.0,
-                        "voltage_volts": 0.0,
-                        "current_milliamps": 0
-                    }
-                ]
-            }
-        }
-    }
 
 @pytest.fixture
 def mock_coordinator():
-    """Create a mock data update coordinator."""
+    """Mock data update coordinator."""
     coordinator = MagicMock()
     coordinator.last_update_success = True
     coordinator.data = None
@@ -311,75 +154,58 @@ def mock_coordinator():
     coordinator.async_shutdown = AsyncMock()
     return coordinator
 
-@pytest.fixture
-def mock_coordinator_with_poe_data(mock_coordinator, sample_poe_data):
-    """Create a coordinator with PoE data."""
-    mock_coordinator.data = sample_poe_data
-    return mock_coordinator
 
-# Additional fixtures for PoE-specific testing
 @pytest.fixture
-def poe_port_entity_data():
-    """Sample data for a PoE port entity."""
+def sample_poe_data():
+    """Realistic PoE data matching coordinator output format."""
     return {
-        "port": 0,
-        "enabled": True,
-        "status": "active",
-        "power_consumption_watts": 12.5,
-        "voltage_volts": 48.2,
-        "current_milliamps": 260,
-        "connected_device": {
-            "name": "IP Camera 1",
-            "device_type": "ip_camera", 
-            "power_class": "Class 3",
-            "ip_address": "192.168.1.201",
-            "mac_address": "00:11:22:33:44:55"
-        }
+        "poe": {
+            "onboard": {
+                "total_ports": 8,
+                "active_ports": 2,
+                "used_power_watts": 20.7,
+                "total_power_budget": 240.0,
+                "ports": [
+                    {
+                        "port": 0,
+                        "interface": "poe0",
+                        "enabled": True,
+                        "status": "power on",
+                        "power_consumption_watts": 12.5,
+                        "voltage_volts": 48.2,
+                        "current_milliamps": 260,
+                        "poe_system": "onboard",
+                        "connected_device": {
+                            "name": "Device on poe0",
+                            "device_type": "Network Device",
+                            "ip_address": "192.168.1.201",
+                            "mac_address": "00:11:22:33:44:55",
+                            "manufacturer": "GeoVision",
+                            "hostname": "camera-1",
+                        },
+                    },
+                    {
+                        "port": 1,
+                        "interface": "poe1",
+                        "enabled": True,
+                        "status": "power on",
+                        "power_consumption_watts": 8.2,
+                        "voltage_volts": 48.1,
+                        "current_milliamps": 171,
+                        "poe_system": "onboard",
+                        "connected_device": None,
+                    },
+                    {
+                        "port": 2,
+                        "interface": "poe2",
+                        "enabled": False,
+                        "status": "disabled",
+                        "power_consumption_watts": 0.0,
+                        "voltage_volts": 0.0,
+                        "current_milliamps": 0,
+                        "poe_system": "onboard",
+                    },
+                ],
+            },
+        },
     }
-
-@pytest.fixture
-def mock_poe_entities():
-    """Mock PoE entities for testing."""
-    entities = {
-        "sensor.poe0_port0_current": {
-            "state": "12.5",
-            "attributes": {
-                "unit_of_measurement": "W",
-                "device_class": "power",
-                "port_number": 0,
-                "poe_set": "poe0",
-                "status": "active"
-            }
-        },
-        "switch.poe0_port0": {
-            "state": "on",
-            "attributes": {
-                "port_number": 0,
-                "poe_set": "poe0"
-            }
-        },
-        "binary_sensor.poe0_port0_powered": {
-            "state": "on",
-            "attributes": {
-                "device_class": "power",
-                "port_number": 0,
-                "poe_set": "poe0"
-            }
-        },
-        "binary_sensor.poe0_port0_plug": {
-            "state": "on", 
-            "attributes": {
-                "device_class": "plug",
-                "port_number": 0,
-                "poe_set": "poe0"
-            }
-        },
-        "button.poe0_port0_reset": {
-            "state": "unknown",
-            "attributes": {
-                "port_number": 0,
-                "poe_set": "poe0"
-            }
-        }
-    }
-    return entities 

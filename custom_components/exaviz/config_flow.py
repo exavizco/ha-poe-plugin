@@ -89,7 +89,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception during board detection")
                 errors["base"] = "unknown"
             else:
-                # Create unique ID based on board type
                 await self.async_set_unique_id(f"exaviz_{info['board_info']['board_type']}")
                 self._abort_if_unique_id_configured()
                 

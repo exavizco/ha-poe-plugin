@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
-from typing import Any, Dict, Optional
+from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,7 +80,6 @@ def get_mac_vendor(mac_address: str) -> str:
     # Extract OUI (first 3 bytes)
     oui = mac_address[:8].upper()
     
-    # Look up in database
     vendor = MAC_VENDOR_DB.get(oui)
     if vendor:
         return vendor
@@ -93,7 +92,7 @@ def get_mac_vendor(mac_address: str) -> str:
     return "Unknown"
 
 
-async def get_hostname_from_ip(ip_address: str, timeout: float = 2.0) -> Optional[str]:
+async def get_hostname_from_ip(ip_address: str, timeout: float = 2.0) -> str | None:
     """Perform reverse DNS lookup to get hostname from IP address.
     
     Args:
@@ -117,7 +116,7 @@ async def get_hostname_from_ip(ip_address: str, timeout: float = 2.0) -> Optiona
         return None
 
 
-async def enrich_device_info(device_info: Dict[str, Any]) -> Dict[str, Any]:
+async def enrich_device_info(device_info: dict[str, Any]) -> dict[str, Any]:
     """Enrich device information with vendor and hostname lookups.
     
     Args:

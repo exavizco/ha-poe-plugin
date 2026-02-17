@@ -32,6 +32,68 @@ PLATFORMS: list[Platform] = [
 ]
 
 
+async def _register_frontend(hass: HomeAssistant) -> None:
+    """Register bundled Lovelace frontend cards (once per HA session).
+
+    1. Register a static HTTP path so the JS file is accessible.
+    2. Create a Lovelace resource entry so HA loads the module in the browser.
+    """
+    if "frontend_registered" in hass.data.get(DOMAIN, {}):
+        return
+
+    www_path = Path(__file__).parent / "www"
+    if not www_path.is_dir():
+        return
+
+    resource_url = f"{FRONTEND_URL_BASE}/exaviz-cards.js"
+
+    # Step 1: static HTTP path
+    try:
+        from homeassistant.components.http import StaticPathConfig
+
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(FRONTEND_URL_BASE, str(www_path), False)]
+        )
+    except (ImportError, AttributeError) as exc:
+        _LOGGER.warning(
+            "Could not register static path for frontend cards: %s. "
+            "Manually copy www/ contents to /config/www/community/exaviz/",
+            exc,
+        )
+        hass.data[DOMAIN]["frontend_registered"] = True
+        return
+
+    # Step 2: Lovelace resource (storage mode only)
+    try:
+        from homeassistant.components.lovelace import LOVELACE_DATA
+        from homeassistant.components.lovelace.resources import ResourceStorageCollection
+
+        lovelace_data = hass.data.get(LOVELACE_DATA)
+        resources = getattr(lovelace_data, "resources", None) if lovelace_data else None
+
+        if isinstance(resources, ResourceStorageCollection):
+            existing = [r for r in resources.async_items() if r.get("url") == resource_url]
+            if not existing:
+                await resources.async_create_item({"res_type": "module", "url": resource_url})
+                _LOGGER.info("Exaviz frontend resource auto-registered: %s", resource_url)
+            else:
+                _LOGGER.debug("Exaviz frontend resource already registered: %s", resource_url)
+        else:
+            _LOGGER.info(
+                "Lovelace not using storage mode — add %s as a resource (type: module) manually",
+                resource_url,
+            )
+    except (ImportError, AttributeError, KeyError) as exc:
+        _LOGGER.warning(
+            "Could not auto-register Lovelace resource: %s. "
+            "Add %s as a resource (type: module) manually in Settings > Dashboards > Resources",
+            exc,
+            resource_url,
+        )
+
+    hass.data[DOMAIN]["frontend_registered"] = True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Exaviz PoE Management from a config entry."""
     _LOGGER.debug("Setting up Exaviz PoE integration for entry: %s", entry.entry_id)
@@ -51,7 +113,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = ExavizDataUpdateCoordinator(hass, entry)
 
-    # Set up the coordinator (detects local board and PoE systems)
     if not await coordinator.async_setup():
         _LOGGER.error("Could not detect PoE systems on local board")
         raise ConfigEntryNotReady("Board detection failed")
@@ -65,81 +126,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # Register static path AND Lovelace resource for the bundled frontend
-    # cards (once per HA session).  Two steps are needed:
-    #   1. async_register_static_paths  → makes the JS file accessible via HTTP
-    #   2. Lovelace resource creation   → tells HA to load the JS module in the
-    #      browser, so the card appears in the card picker automatically.
-    if "frontend_registered" not in hass.data[DOMAIN]:
-        www_path = Path(__file__).parent / "www"
-        if www_path.is_dir():
-            resource_url = f"{FRONTEND_URL_BASE}/exaviz-cards.js"
-            try:
-                from homeassistant.components.http import StaticPathConfig
-
-                await hass.http.async_register_static_paths(
-                    [StaticPathConfig(FRONTEND_URL_BASE, str(www_path), False)]
-                )
-            except (ImportError, AttributeError) as exc:
-                _LOGGER.warning(
-                    "Could not register static path for frontend cards: %s. "
-                    "Manually copy www/ contents to /config/www/community/exaviz/",
-                    exc,
-                )
-                resource_url = None  # Skip Lovelace registration too
-
-            # Register as a Lovelace resource so the browser loads the JS
-            # module automatically — no manual resource URL step for users.
-            if resource_url is not None:
-                try:
-                    from homeassistant.components.lovelace import (  # noqa: E402
-                        LOVELACE_DATA,
-                    )
-                    from homeassistant.components.lovelace.resources import (  # noqa: E402
-                        ResourceStorageCollection,
-                    )
-
-                    lovelace_data = hass.data.get(LOVELACE_DATA)
-                    resources = (
-                        getattr(lovelace_data, "resources", None)
-                        if lovelace_data is not None
-                        else None
-                    )
-                    if isinstance(resources, ResourceStorageCollection):
-                        existing = [
-                            r
-                            for r in resources.async_items()
-                            if r.get("url") == resource_url
-                        ]
-                        if not existing:
-                            await resources.async_create_item(
-                                {"res_type": "module", "url": resource_url}
-                            )
-                            _LOGGER.info(
-                                "Exaviz frontend resource auto-registered: %s",
-                                resource_url,
-                            )
-                        else:
-                            _LOGGER.debug(
-                                "Exaviz frontend resource already registered: %s",
-                                resource_url,
-                            )
-                    else:
-                        _LOGGER.info(
-                            "Lovelace resources not using storage mode — "
-                            "add %s as a Lovelace resource (type: module) manually",
-                            resource_url,
-                        )
-                except (ImportError, AttributeError, KeyError) as exc:
-                    _LOGGER.warning(
-                        "Could not auto-register Lovelace resource: %s. "
-                        "Add %s as a resource (type: module) manually in "
-                        "Settings > Dashboards > Resources",
-                        exc,
-                        resource_url,
-                    )
-
-            hass.data[DOMAIN]["frontend_registered"] = True
+    await _register_frontend(hass)
 
     # Register the parent board device BEFORE forwarding platforms.
     # Child entities reference this device via via_device=(DOMAIN, entry.entry_id).
@@ -172,7 +159,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Set up PoE management services (only once)
     if not hass.services.has_service(DOMAIN, "refresh_data"):
         await async_setup_services(hass)
 

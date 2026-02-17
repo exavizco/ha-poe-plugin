@@ -85,7 +85,6 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             poe_data: dict[str, Any] = {}
             
-            # Read add-on board ports
             for idx, pse_id in enumerate(self.addon_boards):
                 port_data = await read_all_addon_ports(pse_id, port_count=8)
                 pse_num = pse_id.replace("pse", "")
@@ -132,7 +131,6 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                     "ports": ports_list,
                 }
             
-            # Read onboard network interface ports
             if self.onboard_ports:
                 onboard_data = await read_all_onboard_ports(self.onboard_ports)
                 

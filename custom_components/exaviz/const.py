@@ -1,11 +1,9 @@
-from __future__ import annotations
+"""Constants for the Exaviz PoE Management integration.
 
-"""
 Copyright (c) 2026 Axzez LLC.
 Licensed under MIT with Commons Clause. See LICENSE for details.
 """
-
-"""Constants for the Exaviz PoE Management integration."""
+from __future__ import annotations
 
 from typing import Final
 
