@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Exaviz PoE Management Integration for Home Assistant."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,14 @@ from .services import async_setup_services, async_unload_services
 FRONTEND_URL_BASE = "/exaviz_static"
 
 _LOGGER = logging.getLogger(__name__)
+
+# Read integration version from manifest.json once at import time.
+# Used to cache-bust the Lovelace JS resource URL on upgrades.
+_manifest_path = Path(__file__).parent / "manifest.json"
+try:
+    _INTEGRATION_VERSION: str = json.loads(_manifest_path.read_text()).get("version", "0")
+except Exception:  # pragma: no cover
+    _INTEGRATION_VERSION = "0"
 
 # PoE-only platforms: sensor, switch, binary_sensor, button
 PLATFORMS: list[Platform] = [
@@ -45,9 +54,12 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     if not www_path.is_dir():
         return
 
-    resource_url = f"{FRONTEND_URL_BASE}/exaviz-cards.js"
+    # Versioned URL — the ?v= parameter changes each release so browsers
+    # always fetch the new JS instead of serving a stale cached copy.
+    resource_url = f"{FRONTEND_URL_BASE}/exaviz-cards.js?v={_INTEGRATION_VERSION}"
+    resource_url_base = f"{FRONTEND_URL_BASE}/exaviz-cards.js"
 
-    # Step 1: static HTTP path
+    # Step 1: static HTTP path (cache_headers=False → no Expires/Cache-Control)
     try:
         from homeassistant.components.http import StaticPathConfig
 
@@ -64,6 +76,8 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         return
 
     # Step 2: Lovelace resource (storage mode only)
+    # Replace any stale entry (unversioned URL or an older ?v= tag) with the
+    # current versioned URL so the browser always fetches the latest JS.
     try:
         from homeassistant.components.lovelace import LOVELACE_DATA
         from homeassistant.components.lovelace.resources import ResourceStorageCollection
@@ -72,12 +86,27 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         resources = getattr(lovelace_data, "resources", None) if lovelace_data else None
 
         if isinstance(resources, ResourceStorageCollection):
-            existing = [r for r in resources.async_items() if r.get("url") == resource_url]
-            if not existing:
+            all_items = resources.async_items()
+            # Any entry pointing at our JS file, regardless of version param
+            stale = [
+                r for r in all_items
+                if r.get("url", "").split("?")[0] == resource_url_base
+                and r.get("url") != resource_url
+            ]
+            exact = [r for r in all_items if r.get("url") == resource_url]
+
+            # Remove stale entries (old version or unversioned)
+            for item in stale:
+                await resources.async_delete_item(item["id"])
+                _LOGGER.info(
+                    "Removed stale Exaviz Lovelace resource: %s", item.get("url")
+                )
+
+            if not exact:
                 await resources.async_create_item({"res_type": "module", "url": resource_url})
-                _LOGGER.info("Exaviz frontend resource auto-registered: %s", resource_url)
+                _LOGGER.info("Exaviz frontend resource registered: %s", resource_url)
             else:
-                _LOGGER.debug("Exaviz frontend resource already registered: %s", resource_url)
+                _LOGGER.debug("Exaviz frontend resource up to date: %s", resource_url)
         else:
             _LOGGER.info(
                 "Lovelace not using storage mode — add %s as a resource (type: module) manually",
@@ -154,7 +183,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=f"Exaviz {board_name}",
         manufacturer="Exaviz (by Axzez LLC)",
         model=f"{board_name} Carrier Board",
-        sw_version="1.0.0",
+        sw_version=_INTEGRATION_VERSION,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
