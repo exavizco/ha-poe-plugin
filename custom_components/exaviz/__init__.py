@@ -87,15 +87,24 @@ async def _register_frontend(hass: HomeAssistant) -> None:
 
         if isinstance(resources, ResourceStorageCollection):
             all_items = resources.async_items()
-            # Any entry pointing at our JS file, regardless of version param
+
+            # Stale patterns we recognise and must remove:
+            #   1. Old /local/ path used before v1.0.2 (manual copy to www/)
+            #   2. Same /exaviz_static/ base URL but a different (older) ?v= tag
+            _LEGACY_LOCAL_PREFIX = "/local/custom_components/exaviz/"
             stale = [
                 r for r in all_items
-                if r.get("url", "").split("?")[0] == resource_url_base
-                and r.get("url") != resource_url
+                if (
+                    r.get("url", "").startswith(_LEGACY_LOCAL_PREFIX)
+                    or (
+                        r.get("url", "").split("?")[0] == resource_url_base
+                        and r.get("url") != resource_url
+                    )
+                )
             ]
             exact = [r for r in all_items if r.get("url") == resource_url]
 
-            # Remove stale entries (old version or unversioned)
+            # Remove stale entries (old /local/ path, old version, or unversioned)
             for item in stale:
                 await resources.async_delete_item(item["id"])
                 _LOGGER.info(
