@@ -362,6 +362,7 @@ export class ExavizPoECard extends LitElement {
         mac_address: currentState?.attributes?.device_mac,
         manufacturer: currentState?.attributes?.device_manufacturer,
         hostname: currentState?.attributes?.device_hostname,
+        traffic_detected: currentState?.attributes?.device_traffic_detected ?? false,
       },
     };
   }
@@ -469,7 +470,7 @@ export class ExavizPoECard extends LitElement {
                   <span>Device Powered:</span>
                   <span>${selectedPortDetails.powered ? 'Yes' : 'No'}</span>
                 </div>
-                ${selectedPortDetails.deviceInfo.manufacturer || selectedPortDetails.deviceInfo.mac_address || selectedPortDetails.deviceInfo.ip_address ? html`
+                ${selectedPortDetails.deviceInfo.manufacturer || selectedPortDetails.deviceInfo.mac_address || selectedPortDetails.deviceInfo.ip_address || selectedPortDetails.deviceInfo.traffic_detected ? html`
                   ${selectedPortDetails.deviceInfo.manufacturer ? html`
                     <div class="detail-row">
                       <span>Manufacturer:</span>
@@ -481,9 +482,18 @@ export class ExavizPoECard extends LitElement {
                       <span>IP Address:</span>
                       <span style="font-family: monospace;">${selectedPortDetails.deviceInfo.ip_address}</span>
                     </div>
+                  ` : selectedPortDetails.deviceInfo.traffic_detected ? html`
+                    <div class="detail-row">
+                      <span
+                        class="tooltip-trigger"
+                        @mouseenter=${(e: Event) => this._showTooltip(e, 'This port has active network traffic but no ARP entry. A device is present and communicating, but it likely has a static IP on a different subnet, or the port is in switch/bridge mode. Discovery cannot resolve its address from here.')}
+                        @mouseleave=${() => this._hideTooltip()}
+                      >IP Address:</span>
+                      <span style="color: var(--info-color, #2196F3);">Device detected - not on this subnet</span>
+                    </div>
                   ` : selectedPortDetails.deviceInfo.manufacturer ? html`
                     <div class="detail-row">
-                      <span 
+                      <span
                         class="tooltip-trigger"
                         @mouseenter=${(e: Event) => this._showTooltip(e, 'Device detected but has no IP address. Possible causes: DHCP server not running, static IP configuration, or network issue.')}
                         @mouseleave=${() => this._hideTooltip()}

@@ -156,6 +156,28 @@ class TestDataUpdate:
         port = data["poe"]["onboard"]["ports"][0]
         assert port["connected_device"] is not None
         assert port["connected_device"]["device_type"] == "Unknown Device (No Network Activity)"
+        assert port["connected_device"]["traffic_detected"] is False
+
+    @pytest.mark.asyncio
+    async def test_active_port_with_traffic_no_arp_flags_undiscovered(self, coordinator):
+        """Active port with RX traffic but no ARP entry is flagged undiscovered."""
+        coordinator.board_type = BoardType.CRUISER
+        coordinator.onboard_ports = ["poe0"]
+        coordinator.addon_boards = []
+
+        mock_port_data = {
+            "poe0": {"available": True, "enabled": True, "state": "active",
+                      "power_watts": 10.0, "rx_bytes": 50000, "tx_bytes": 0,
+                      "connected_device": None},
+        }
+
+        with patch("custom_components.exaviz.coordinator.read_all_onboard_ports", return_value=mock_port_data):
+            data = await coordinator._async_update_data()
+
+        dev = data["poe"]["onboard"]["ports"][0]["connected_device"]
+        assert dev["traffic_detected"] is True
+        assert dev["device_type"] == "Undiscovered Device (Traffic Seen, No ARP Entry)"
+        assert dev["ip_address"] is None
 
     @pytest.mark.asyncio
     async def test_read_error_raises_update_failed(self, coordinator):

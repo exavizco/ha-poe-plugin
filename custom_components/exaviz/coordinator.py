@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .board_detector import BoardType, detect_all_poe_systems
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, PLUGIN_VERSION
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MIN_TRAFFIC_BYTES, PLUGIN_VERSION
 from .poe_readers import read_all_addon_ports, read_all_onboard_ports
 
 _LOGGER = logging.getLogger(__name__)
@@ -220,14 +220,23 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 "power_class": f"Unknown ({power_class_label})",
             }
         if is_active:
+            # Traffic without an ARP entry means a device is present but not
+            # discoverable here (static IP on another subnet, or switch/bridge
+            # mode where neighbours attach to the bridge, not poeN).
+            traffic = (
+                port_status.get("rx_bytes", 0) > MIN_TRAFFIC_BYTES
+                or port_status.get("tx_bytes", 0) > MIN_TRAFFIC_BYTES
+            )
             return {
                 "name": f"Device on {interface}",
-                "device_type": "Unknown Device (No Network Activity)",
+                "device_type": "Undiscovered Device (Traffic Seen, No ARP Entry)"
+                if traffic else "Unknown Device (No Network Activity)",
                 "ip_address": None,
                 "mac_address": None,
                 "manufacturer": "Unknown",
                 "hostname": None,
                 "power_class": f"Unknown ({power_class_label})",
+                "traffic_detected": traffic,
             }
         return None
 

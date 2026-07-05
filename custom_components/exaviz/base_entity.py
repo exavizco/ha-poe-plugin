@@ -100,6 +100,7 @@ class ExavizPoEBaseEntity(CoordinatorEntity):
                 "device_manufacturer": connected_device.get("manufacturer"),
                 "device_hostname": connected_device.get("hostname"),
                 "power_class": connected_device.get("power_class"),
+                "device_traffic_detected": connected_device.get("traffic_detected", False),
             })
         
         return attrs
