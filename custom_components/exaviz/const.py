@@ -28,6 +28,15 @@ MIN_TRAFFIC_BYTES: Final = 1000  # Minimum bytes to consider port active
 TCPDUMP_TIMEOUT: Final = 10  # Seconds to wait for packet capture
 BOSCH_PACKET_COUNT: Final = 20  # Number of packets to capture for Bosch detection
 
+# Switch/bridge-mode device discovery (issue #10)
+# When a poeN interface is enslaved to a bridge (e.g. br0), per-port ARP is
+# empty because neighbours attach to the bridge, not to poeN. We resolve the
+# device via the bridge FDB (MAC learned on the port) + arp-scan (MAC->IP+OUI).
+# Kill switch: flip to False to disable the active arp-scan probe in the field
+# without a release rollback.
+SWITCH_MODE_DISCOVERY_ENABLED: Final = True
+ARP_SCAN_TIMEOUT: Final = 5  # Seconds to wait for arp-scan on the bridge subnet
+
 # Binary sensor thresholds
 POWER_ON_THRESHOLD_WATTS: Final = 0.5  # Minimum watts to consider port "powered"
 PLUGGED_THRESHOLD_MILLIAMPS: Final = 10  # Minimum mA to consider port "plugged"

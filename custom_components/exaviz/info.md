@@ -51,6 +51,13 @@ homeassistant ALL=(ALL) NOPASSWD: /usr/sbin/ip link set poe* up
 homeassistant ALL=(ALL) NOPASSWD: /usr/sbin/ip link set poe* down
 ```
 
+Switch/bridge-mode device discovery additionally needs `arp-scan` installed
+and whitelisted (harmless to omit; discovery degrades to MAC-only):
+
+```sudoers
+homeassistant ALL=(ALL) NOPASSWD: /usr/bin/arp-scan *
+```
+
 Set permissions:
 
 ```bash
