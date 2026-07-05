@@ -173,7 +173,7 @@ automation:
 
 Copyright © 2026 Axzez LLC
 
-Licensed under MIT with Commons Clause. See [LICENSE](https://github.com/exavizco/ha-poe-plugin/blob/main/LICENSE) for details.
+Licensed under the MIT License. See [LICENSE](https://github.com/exavizco/ha-poe-plugin/blob/main/LICENSE) for details.
 
 ## About Exaviz
 

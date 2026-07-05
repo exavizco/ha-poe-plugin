@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2026 Axzez LLC.
- * Licensed under MIT with Commons Clause. See LICENSE for details.
+ * Licensed under the MIT License. See LICENSE for details.
  */
 
 /**

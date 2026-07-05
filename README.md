@@ -139,6 +139,6 @@ npm run build
 
 ## License
 
-MIT License with Commons Clause -- see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 Copyright (c) 2026 Axzez LLC (aka Exaviz)
