@@ -60,8 +60,8 @@ an `arp-scan` of the bridge subnet, so install `arp-scan` and whitelist it
 homeassistant ALL=(root) NOPASSWD: /usr/sbin/arp-scan
 ```
 
-(Bare path, no argument wildcards - modern sudo rejects `*` in command
-arguments. `arp-scan` cannot exec other commands, so this stays tightly scoped.)
+(Bare path, no argument wildcards. `arp-scan` cannot exec other commands, so
+this stays tightly scoped.)
 
 Set permissions:
 

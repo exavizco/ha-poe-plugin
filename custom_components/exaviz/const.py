@@ -37,11 +37,11 @@ BOSCH_PACKET_COUNT: Final = 20  # Number of packets to capture for Bosch detecti
 # empty because neighbours attach to the bridge, not to poeN. We resolve the
 # device via the bridge FDB (MAC learned on the port) + arp-scan (MAC->IP+OUI).
 # Enable/disable per integration via CONF_SWITCH_MODE_DISCOVERY (options flow).
-# arp-scan is run directly under sudo (NOT wrapped in `timeout`): modern sudo
-# rejects wildcards in command arguments, so the only valid NOPASSWD rule for a
-# variable-arg command is the bare binary path -- and whitelisting `arp-scan`
-# (which cannot exec anything else) is far tighter than whitelisting `timeout`
-# (which can run anything as root). We bound the run with asyncio.wait_for.
+# arp-scan is run directly under sudo (NOT wrapped in `timeout`): whitelisting
+# `arp-scan` (which cannot exec anything else) is far tighter than whitelisting
+# `timeout` (which can run anything as root), and a bare-path NOPASSWD rule
+# needs no argument globs -- some of which Ubuntu 26.04's sudo-rs rejects. We
+# bound the run with asyncio.wait_for instead.
 ARP_SCAN_BIN: Final = "/usr/sbin/arp-scan"
 ARP_SCAN_TIMEOUT: Final = 5  # Seconds to wait for an arp-scan sweep before giving up
 ARP_SCAN_CACHE_TTL: Final = 25  # Seconds a bridge sweep is reused across ports
