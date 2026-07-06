@@ -24,6 +24,7 @@ import asyncio
 import logging
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -32,8 +33,10 @@ from .const import (
     TCPDUMP_TIMEOUT,
     BOSCH_PACKET_COUNT,
     POE_CLASS_POWER_ALLOCATION,
-    SWITCH_MODE_DISCOVERY_ENABLED,
+    ARP_SCAN_BIN,
     ARP_SCAN_TIMEOUT,
+    ARP_SCAN_CACHE_TTL,
+    ARP_SCAN_OUI_FILE,
 )
 from .device_identifier import enrich_device_info
 
@@ -548,33 +551,112 @@ def _parse_arp_scan(output: str) -> dict[str, dict[str, str]]:
     for line in output.splitlines():
         m = line_re.match(line.strip())
         if m:
+            vendor = m.group(3).strip()
+            # arp-scan appends "(DUP: N)" to duplicate responses; drop it.
+            vendor = re.sub(r"\s*\(DUP:\s*\d+\)\s*$", "", vendor).strip()
+            # arp-scan prints "(Unknown)" / "(Unknown: locally administered)"
+            # when it cannot name the OUI; treat that as no vendor so it never
+            # clobbers our built-in lookup.
+            if vendor.startswith("(") and "Unknown" in vendor:
+                vendor = ""
             result[m.group(2).lower()] = {
                 "ip_address": m.group(1),
-                "vendor": m.group(3).strip(),
+                "vendor": vendor,
             }
     return result
 
 
-async def _run_arp_scan(bridge: str) -> dict[str, dict[str, str]]:
-    """Active-scan the bridge subnet, returning {mac: {ip, vendor}}.
+async def _bridge_has_ipv4(bridge: str) -> bool:
+    """True if the bridge has an IPv4 address (required for --localnet).
 
-    arp-scan needs raw-socket privileges, so we run it via sudo. Returns an
-    empty map if arp-scan is missing, unprivileged, or times out.
+    A pure L2 bridge (or one whose DHCP lease has not landed yet) has no IPv4,
+    so ``arp-scan --localnet`` has no subnet to derive and would just error. In
+    that case we skip the sweep and resolve MAC-only via the FDB.
     """
     try:
         proc = await asyncio.create_subprocess_exec(
-            # --plain keeps the machine-parsable "ip\tmac\tvendor" format; do
-            # NOT add --quiet, which drops the vendor column we enrich from.
-            "sudo", "timeout", str(ARP_SCAN_TIMEOUT),
-            "arp-scan", "--interface", bridge, "--localnet", "--plain",
+            "ip", "-4", "-o", "addr", "show", "dev", bridge, "scope", "global",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await proc.communicate()
-        # timeout returns 124 if it exceeded ARP_SCAN_TIMEOUT
-        if proc.returncode not in (0, 124):
+        return proc.returncode == 0 and bool(stdout.strip())
+    except (OSError, FileNotFoundError):
+        return False
+
+
+# One arp-scan sweep is shared across all ports on the same bridge: every poeN
+# port polls concurrently (read_all_onboard_ports gathers them), so without this
+# a single cycle would fire N identical --localnet sweeps at the same subnet.
+# {bridge: (monotonic_ts, result)} plus a per-bridge lock to collapse the herd.
+_arp_scan_cache: dict[str, tuple[float, dict[str, dict[str, str]]]] = {}
+_arp_scan_locks: dict[str, asyncio.Lock] = {}
+
+
+async def _run_arp_scan(bridge: str) -> dict[str, dict[str, str]]:
+    """Active-scan the bridge subnet once per cache window, {mac: {ip, vendor}}.
+
+    Result is cached for ARP_SCAN_CACHE_TTL and shared across every port on the
+    bridge, so a poll cycle sweeps the subnet at most once. arp-scan needs
+    raw-socket privileges, so we run it via sudo. EVERY outcome (success, no
+    IPv4, failure, timeout) is cached, so a failing sweep does not make all 8
+    concurrently-polling ports re-spawn arp-scan every cycle. Returns an empty
+    map if the bridge has no IPv4, or arp-scan is missing/unprivileged/slow.
+    """
+    lock = _arp_scan_locks.setdefault(bridge, asyncio.Lock())
+    async with lock:
+        cached = _arp_scan_cache.get(bridge)
+        if cached and (time.monotonic() - cached[0]) < ARP_SCAN_CACHE_TTL:
+            return cached[1]
+
+        result = await _do_arp_scan(bridge)
+        _arp_scan_cache[bridge] = (time.monotonic(), result)
+        return result
+
+
+async def _do_arp_scan(bridge: str) -> dict[str, dict[str, str]]:
+    """One uncached arp-scan sweep; returns {} on any non-success path."""
+    if not await _bridge_has_ipv4(bridge):
+        _LOGGER.debug("%s has no IPv4; skipping arp-scan sweep", bridge)
+        return {}
+
+    # Run arp-scan directly under sudo (no `timeout` wrapper): the NOPASSWD rule
+    # can then whitelist just /usr/sbin/arp-scan, which cannot exec other
+    # commands. asyncio.wait_for bounds the run instead.
+    cmd = [
+        "sudo", ARP_SCAN_BIN,
+        # --plain keeps the machine-parsable "ip\tmac\tvendor" format; do NOT
+        # add --quiet, which drops the vendor column we enrich from.
+        "--interface", bridge, "--localnet", "--plain",
+    ]
+    # Ubuntu 26.04's arp-scan can't find its default OUI db; point it at the
+    # packaged file so the vendor column resolves. Skip if absent.
+    if Path(ARP_SCAN_OUI_FILE).exists():
+        cmd.append(f"--ouifile={ARP_SCAN_OUI_FILE}")
+
+    proc = None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(
+            proc.communicate(), timeout=ARP_SCAN_TIMEOUT
+        )
+        if proc.returncode != 0:
             return {}
         return _parse_arp_scan(stdout.decode(errors="ignore"))
+    except asyncio.TimeoutError:
+        _LOGGER.debug("arp-scan on %s exceeded %ss; giving up", bridge, ARP_SCAN_TIMEOUT)
+        if proc is not None:
+            # Best-effort; the sudo child runs as root so we likely cannot signal
+            # it, but arp-scan self-terminates once its (subnet-bounded) sweep ends.
+            try:
+                proc.kill()
+            except (ProcessLookupError, PermissionError):
+                pass
+        return {}
     except (OSError, FileNotFoundError) as ex:
         _LOGGER.debug("arp-scan failed on %s: %s", bridge, ex)
         return {}
@@ -584,14 +666,15 @@ async def _resolve_bridged_device(
     interface: str,
     link_state: str,
     connected_device: dict[str, Any] | None,
+    enabled: bool = False,
 ) -> dict[str, Any] | None:
     """Resolve a device on a switch/bridge-mode port via bridge FDB + arp-scan.
 
-    No-op unless the feature is enabled, the port is up, per-port ARP came back
-    empty, and the port is actually a bridge member. This means non-switch-mode
-    boards see zero behaviour change.
+    No-op unless the feature is enabled (operator opt-in), the port is up,
+    per-port ARP came back empty, and the port is actually a bridge member. This
+    means non-switch-mode boards see zero behaviour change.
     """
-    if not SWITCH_MODE_DISCOVERY_ENABLED or connected_device or link_state != "up":
+    if not enabled or connected_device or link_state != "up":
         return connected_device
 
     bridge = await _get_bridge_master(interface)
@@ -696,7 +779,7 @@ def _build_onboard_result(
     }
 
 
-async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[int, int], dict[str, Any]] | None = None) -> dict[str, Any]:
+async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[int, int], dict[str, Any]] | None = None, switch_mode_discovery: bool = False) -> dict[str, Any]:
     """Read onboard PoE network interface status (Cruiser Carrier Board).
 
     Reads real power data from /dev/pse* (ESP32/TPS23861) when available,
@@ -732,7 +815,7 @@ async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[in
         # Switch/bridge mode: per-port ARP is empty, resolve via bridge FDB +
         # arp-scan before the (slower) proprietary-protocol tcpdump fallback.
         connected_device = await _resolve_bridged_device(
-            interface, link_state, connected_device,
+            interface, link_state, connected_device, switch_mode_discovery,
         )
         connected_device = await _try_bosch_detection(
             interface, link_state, rx_bytes, tx_bytes, connected_device,
@@ -1037,24 +1120,25 @@ async def _read_all_esp32_data() -> dict[tuple[int, int], dict[str, Any]]:
     return esp32_data
 
 
-async def read_all_onboard_ports(interfaces: list[str]) -> dict[str, dict[str, Any]]:
+async def read_all_onboard_ports(interfaces: list[str], switch_mode_discovery: bool = False) -> dict[str, dict[str, Any]]:
     """Read all onboard PoE network interfaces.
-    
+
     Reads ESP32 data once for all ports to avoid serial port conflicts,
     then reads network status for each interface.
-    
+
     Args:
         interfaces: list of interface names (e.g., ["poe0", "poe1", ...])
-    
+        switch_mode_discovery: resolve bridge-member ports via FDB + arp-scan
+
     Returns:
         Dictionary mapping interface name to port status
     """
     # Read all ESP32 data in one pass
     esp32_data_map = await _read_all_esp32_data()
-    
+
     # Now read network status for each interface (can be parallel)
     tasks = [
-        read_network_port_status(interface, esp32_data_map)
+        read_network_port_status(interface, esp32_data_map, switch_mode_discovery)
         for interface in interfaces
     ]
     

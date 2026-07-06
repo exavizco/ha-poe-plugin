@@ -29,10 +29,12 @@
         "title": "Exaviz Options",
         "description": "Update configuration options for the Exaviz board integration.",
         "data": {
-          "update_interval": "Update Interval (seconds)"
+          "update_interval": "Update Interval (seconds)",
+          "switch_mode_discovery": "Switch-mode device discovery"
         },
         "data_description": {
-          "update_interval": "How often to scan PoE port status"
+          "update_interval": "How often to scan PoE port status",
+          "switch_mode_discovery": "In switch/bridge mode, resolve the device on each PoE port via the bridge FDB and an arp-scan of the bridge subnet. Leave off for per-port mode."
         }
       }
     },

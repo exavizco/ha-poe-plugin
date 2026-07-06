@@ -130,7 +130,7 @@ class TestReadAllOnboardPorts:
 
     @pytest.mark.asyncio
     async def test_eight_ports(self):
-        async def mock_read(interface, esp32_data_map=None):
+        async def mock_read(interface, esp32_data_map=None, switch_mode_discovery=False):
             port_num = int(interface.replace("poe", ""))
             return {
                 "available": True,
@@ -262,7 +262,7 @@ class TestIntegrationScenarios:
 
     @pytest.mark.asyncio
     async def test_cruiser_full_config(self):
-        async def mock_read(interface, esp32_data_map=None):
+        async def mock_read(interface, esp32_data_map=None, switch_mode_discovery=False):
             port_num = int(interface.replace("poe", ""))
             return {"available": True, "enabled": True, "state": "active", "power_watts": 10.0 + port_num}
 

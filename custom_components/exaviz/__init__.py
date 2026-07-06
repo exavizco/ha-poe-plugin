@@ -164,6 +164,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
+    # Reload when the user changes options (update interval, switch-mode
+    # discovery) so the coordinator picks up the new values.
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+
     await _register_frontend(hass)
 
     # Register the parent board device BEFORE forwarding platforms.

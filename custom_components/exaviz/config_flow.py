@@ -7,12 +7,18 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .board_detector import check_prerequisites, detect_all_poe_systems
-from .const import CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL, DOMAIN
+from .const import (
+    CONF_SWITCH_MODE_DISCOVERY,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_SWITCH_MODE_DISCOVERY,
+    DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +75,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Exaviz local board PoE management."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> ExavizOptionsFlow:
+        """Return the options flow handler."""
+        return ExavizOptionsFlow(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -143,6 +157,40 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+
+class ExavizOptionsFlow(config_entries.OptionsFlow):
+    """Handle Exaviz integration options (post-setup)."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Stash the entry (private attr avoids the HA deprecation warning)."""
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the integration options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        opts = self._config_entry.options
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_UPDATE_INTERVAL,
+                        default=opts.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+                    vol.Optional(
+                        CONF_SWITCH_MODE_DISCOVERY,
+                        default=opts.get(
+                            CONF_SWITCH_MODE_DISCOVERY, DEFAULT_SWITCH_MODE_DISCOVERY
+                        ),
+                    ): bool,
+                }
+            ),
         )
 
 
