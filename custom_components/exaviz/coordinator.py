@@ -12,7 +12,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .board_detector import BoardType, detect_all_poe_systems
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MIN_TRAFFIC_BYTES, PLUGIN_VERSION
+from .const import (
+    CONF_SWITCH_MODE_DISCOVERY,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SWITCH_MODE_DISCOVERY,
+    DOMAIN,
+    MIN_TRAFFIC_BYTES,
+    PLUGIN_VERSION,
+)
 from .poe_readers import read_all_addon_ports, read_all_onboard_ports
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,12 +36,18 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         self.onboard_ports: list[str] = []
         self.total_poe_ports = 0
         self.system_info: dict[str, str] = {}
+        self.entry = entry
 
+        # Options (set post-setup) win over the value captured at config time.
+        interval = entry.options.get(
+            CONF_UPDATE_INTERVAL,
+            entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        )
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(seconds=interval),
         )
 
     async def async_setup(self) -> bool:
@@ -132,7 +146,12 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 }
             
             if self.onboard_ports:
-                onboard_data = await read_all_onboard_ports(self.onboard_ports)
+                switch_mode_discovery = self.entry.options.get(
+                    CONF_SWITCH_MODE_DISCOVERY, DEFAULT_SWITCH_MODE_DISCOVERY
+                )
+                onboard_data = await read_all_onboard_ports(
+                    self.onboard_ports, switch_mode_discovery
+                )
                 
                 ports_list = []
                 for interface in sorted(self.onboard_ports):

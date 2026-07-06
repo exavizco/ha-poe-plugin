@@ -51,6 +51,18 @@ homeassistant ALL=(ALL) NOPASSWD: /usr/sbin/ip link set poe* up
 homeassistant ALL=(ALL) NOPASSWD: /usr/sbin/ip link set poe* down
 ```
 
+Switch/bridge-mode device discovery is **opt-in** - enable it under the
+integration's **Configure** (options) once your PoE ports are bridged. It runs
+an `arp-scan` of the bridge subnet, so install `arp-scan` and whitelist it
+(harmless to omit; discovery degrades to MAC-only):
+
+```sudoers
+homeassistant ALL=(root) NOPASSWD: /usr/sbin/arp-scan
+```
+
+(Bare path, no argument wildcards - modern sudo rejects `*` in command
+arguments. `arp-scan` cannot exec other commands, so this stays tightly scoped.)
+
 Set permissions:
 
 ```bash
