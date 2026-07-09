@@ -254,9 +254,11 @@ class TestRunArpScan:
     @pytest.mark.asyncio
     async def test_runs_arp_scan_directly_no_timeout_wrapper(self):
         # Must sudo the absolute arp-scan binary directly (no `timeout` wrapper),
-        # so the NOPASSWD rule can whitelist just /usr/sbin/arp-scan.
+        # so the NOPASSWD rule can whitelist just /usr/sbin/arp-scan. Force
+        # non-root so the sudo prefix is present regardless of the CI uid.
         spawn = AsyncMock(return_value=_fake_proc(ARP_SCAN_OUTPUT.encode()))
-        with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
+        with patch("custom_components.exaviz.utils.os.geteuid", return_value=1000), \
+             patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
              patch("asyncio.create_subprocess_exec", spawn):
             await _run_arp_scan("br0")
@@ -264,6 +266,20 @@ class TestRunArpScan:
         assert argv[0] == "sudo"
         assert argv[1] == "/usr/sbin/arp-scan"
         assert "timeout" not in argv
+
+    @pytest.mark.asyncio
+    async def test_arp_scan_drops_sudo_when_root(self):
+        # In an HA container (uid 0, often no sudo binary) the sweep must exec
+        # arp-scan directly, without a sudo prefix that would ENOENT.
+        spawn = AsyncMock(return_value=_fake_proc(ARP_SCAN_OUTPUT.encode()))
+        with patch("custom_components.exaviz.utils.os.geteuid", return_value=0), \
+             patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
+                   AsyncMock(return_value=True)), \
+             patch("asyncio.create_subprocess_exec", spawn):
+            await _run_arp_scan("br0")
+        argv = list(spawn.call_args[0])
+        assert argv[0] == "/usr/sbin/arp-scan"
+        assert "sudo" not in argv
 
     @pytest.mark.asyncio
     async def test_failure_is_cached_no_herd(self):

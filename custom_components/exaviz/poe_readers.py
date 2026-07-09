@@ -39,6 +39,7 @@ from .const import (
     ARP_SCAN_OUI_FILE,
 )
 from .device_identifier import enrich_device_info
+from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -598,7 +599,8 @@ async def _run_arp_scan(bridge: str) -> dict[str, dict[str, str]]:
 
     Result is cached for ARP_SCAN_CACHE_TTL and shared across every port on the
     bridge, so a poll cycle sweeps the subnet at most once. arp-scan needs
-    raw-socket privileges, so we run it via sudo. EVERY outcome (success, no
+    raw-socket privileges, so we run it via sudo (or directly when already
+    root, e.g. in an HA container). EVERY outcome (success, no
     IPv4, failure, timeout) is cached, so a failing sweep does not make all 8
     concurrently-polling ports re-spawn arp-scan every cycle. Returns an empty
     map if the bridge has no IPv4, or arp-scan is missing/unprivileged/slow.
@@ -624,7 +626,7 @@ async def _do_arp_scan(bridge: str) -> dict[str, dict[str, str]]:
     # can then whitelist just /usr/sbin/arp-scan, which cannot exec other
     # commands. asyncio.wait_for bounds the run instead.
     cmd = [
-        "sudo", ARP_SCAN_BIN,
+        *sudo_argv(ARP_SCAN_BIN),
         # --plain keeps the machine-parsable "ip\tmac\tvendor" format; do NOT
         # add --quiet, which drops the vendor column we enrich from.
         "--interface", bridge, "--localnet", "--plain",
@@ -948,10 +950,11 @@ async def _detect_bosch_camera(interface: str) -> dict[str, str] | None:
     """
     try:
         # Capture a few packets to look for Bosch protocol
-        # Note: tcpdump requires root privileges, so we use sudo
+        # tcpdump requires root privileges, so we use sudo (or run directly
+        # when already root, e.g. in an HA container)
         proc = await asyncio.create_subprocess_exec(
-            "sudo", "timeout", str(TCPDUMP_TIMEOUT),
-            "tcpdump", "-i", interface,
+            *sudo_argv("timeout", str(TCPDUMP_TIMEOUT), "tcpdump"),
+            "-i", interface,
             "-c", str(BOSCH_PACKET_COUNT),  # Capture packets for detection
             "-XX",  # Hex dump with ASCII
             "-n",  # Don't resolve names

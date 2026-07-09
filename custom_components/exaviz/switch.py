@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .base_entity import ExavizPoEBaseEntity
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
+from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     async def _run_ip_link(self, interface: str, action: str) -> bool:
         """Run 'ip link set' asynchronously. Returns True on success."""
         proc = await asyncio.create_subprocess_exec(
-            "sudo", "ip", "link", "set", interface, action,
+            *sudo_argv("ip", "link", "set", interface, action),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -333,7 +334,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                 raise HomeAssistantError(f"Reset file not found: {reset_file}")
 
             proc = await asyncio.create_subprocess_exec(
-                "sudo", "tee", str(reset_file),
+                *sudo_argv("tee", str(reset_file)),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
