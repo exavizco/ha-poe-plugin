@@ -198,3 +198,7 @@ class TestVersionAlignment:
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject)
         assert match, "No version in pyproject.toml"
         assert manifest["version"] == match.group(1)
+        # const.PLUGIN_VERSION is surfaced to users in device diagnostics, so it
+        # must track the manifest too.
+        from custom_components.exaviz.const import PLUGIN_VERSION
+        assert manifest["version"] == PLUGIN_VERSION

@@ -14,6 +14,7 @@ from .base_entity import ExavizPoEBaseEntity
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 from .switch import ESP32_RESET_SETTLE_SECONDS, ExavizPoEPortSwitch
+from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,7 +164,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
 
         # Step 2: Bring down the network interface
         proc = await asyncio.create_subprocess_exec(
-            "sudo", "ip", "link", "set", interface, "down",
+            *sudo_argv("ip", "link", "set", interface, "down"),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -174,7 +175,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
 
         # Step 3: Bring up network interface
         proc = await asyncio.create_subprocess_exec(
-            "sudo", "ip", "link", "set", interface, "up",
+            *sudo_argv("ip", "link", "set", interface, "up"),
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -205,7 +206,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         reset_file = f"/proc/{pse_id}/port{self._port_number}/reset"
         try:
             proc = await asyncio.create_subprocess_exec(
-                "sudo", "tee", reset_file,
+                *sudo_argv("tee", reset_file),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
@@ -222,7 +223,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             await asyncio.sleep(3)
 
             proc = await asyncio.create_subprocess_exec(
-                "sudo", "tee", reset_file,
+                *sudo_argv("tee", reset_file),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
