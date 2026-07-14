@@ -22,7 +22,6 @@ _LOGGER = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # ESP32 serial command interface (/dev/pse)
 #
-# The ESP32 firmware exposes a UART command interface for PoE port control.
 # Commands are written as text lines to /dev/pse (symlink to /dev/ttyAMA3).
 # Available commands: disable-port, enable-port, reset-port, reset
 #
@@ -30,28 +29,14 @@ _LOGGER = logging.getLogger(__name__)
 #   Linux poe0-3 → PSE 1, ports 0-3  (left side of Cruiser board)
 #   Linux poe4-7 → PSE 0, ports 0-3  (right side of Cruiser board)
 #
-# ⚠️ WORKAROUND (remove when firmware is updated):
-# The ESP32 firmware has a bug where enable-port sets the operating_mode
-# back to semi_auto but does NOT re-write the detect_class_enable
-# register. This leaves the port stuck in "detecting" state. As a
-# workaround, after enabling a port we send a full "reset" command
-# which reboots the ESP32 and re-runs init(), properly re-writing
-# detect_class_enable. The hardware maintains power to other ports
-# during the reboot, so other ports are NOT disrupted.
-#
-# TODO(firmware-fix): Once the firmware fix is deployed:
-#   1. Remove the "reset" call in _esp32_enable_port()
-#   2. Remove the ESP32_RESET_SETTLE_SECONDS sleep
-#   3. Just send "enable-port <pse> <port>" directly
+# Requires ESP32 firmware that re-arms detect_class_enable on
+# enable-from-disabled (os-support #57 / 1.1.0+4d918bf or later).
+# Do NOT send bare "reset" after enable — that reboots the chip and
+# re-inits every port (mass re-power of previously disabled siblings).
 # ---------------------------------------------------------------------------
 
 # Device path for ESP32 serial interface (udev symlink or direct UART)
 _PSE_DEVICE_PATHS = [Path("/dev/pse"), Path("/dev/ttyAMA3")]
-
-# Seconds to wait after ESP32 reset for re-init + PoE detection cycle
-# The ESP32 reboots (~1s), runs init() (~0.5s), then TPS23861 needs
-# time to detect and classify the device (~3-5s for full cycle)
-ESP32_RESET_SETTLE_SECONDS = 8
 
 
 async def async_setup_entry(
@@ -256,38 +241,11 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         )
 
     async def _esp32_enable_port(self) -> bool:
-        """Enable a port on the TPS23861 via ESP32 command.
-
-        ⚠️ BANDAID WORKAROUND: The firmware's enable-port command has a bug
-        where it does not re-write detect_class_enable after changing the
-        operating_mode register from OFF to SEMI_AUTO. The port gets stuck
-        in 'detecting' state forever.
-
-        As a workaround, we send 'reset' which reboots the ESP32 and runs
-        init(), properly re-writing detect_class_enable = 0xff. The TPS23861
-        hardware maintains power to other active ports during the reboot.
-
-        TODO(firmware-fix): Replace this entire method body with:
-            pse_num, pse_port = self._linux_port_to_esp32(self._port_number)
-            return await self._send_esp32_command(
-                f"enable-port {pse_num} {pse_port}"
-            )
-        """
-        # Step 1: Send enable-port (sets internal state to .detecting)
+        """Enable a port on the TPS23861 via ESP32 enable-port command."""
         pse_num, pse_port = self._linux_port_to_esp32(self._port_number)
-        await self._send_esp32_command(f"enable-port {pse_num} {pse_port}")
-
-        # Step 2: BANDAID — full ESP32 reset to force detect_class_enable
-        # re-write. Remove this once firmware is fixed.
-        _LOGGER.info(
-            "Sending ESP32 reset (bandaid for detect_class_enable bug) "
-            "— waiting %ds for re-init and PoE detection cycle",
-            ESP32_RESET_SETTLE_SECONDS,
+        return await self._send_esp32_command(
+            f"enable-port {pse_num} {pse_port}"
         )
-        ok = await self._send_esp32_command("reset")
-        if ok:
-            await asyncio.sleep(ESP32_RESET_SETTLE_SECONDS)
-        return ok
 
     async def _control_onboard_port(self, action: str) -> None:
         """Enable or disable an onboard PoE port.
