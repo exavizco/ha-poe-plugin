@@ -13,7 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .base_entity import ExavizPoEBaseEntity
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
-from .switch import ESP32_RESET_SETTLE_SECONDS, ExavizPoEPortSwitch
+from .switch import ExavizPoEPortSwitch
 from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
@@ -129,40 +129,20 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             )
 
     async def _reset_onboard_port(self) -> None:
-        """Reset an onboard PoE port via ESP32 reset-port command.
+        """Power-cycle an onboard PoE port without rebooting the ESP32.
 
-        Sends 'reset-port <pse> <port>' which triggers the TPS23861 to
-        power-cycle the port (disable then re-detect/re-enable).
-        Also bounces the network interface for a clean link reset.
-
-        NOTE: reset-port in the firmware sets the port state to .reset,
-        which transitions to .detecting on the next poll cycle. Unlike
-        enable-port, this does NOT have the detect_class_enable bug
-        because the port was never set to .disabled/.off mode — it
-        goes directly from .reset → .detecting while still in semi_auto
-        operating mode. However, we still use the full ESP32 reset as
-        a safety measure until the firmware bug is confirmed fixed.
-
-        TODO(firmware-fix): Once firmware is fixed, simplify to:
-            pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
-                self._port_number
-            )
-            await ExavizPoEPortSwitch._send_esp32_command(
-                f"reset-port {pse_num} {pse_port}"
-            )
-            await asyncio.sleep(3)
+        disable-port → link down → settle → link up → enable-port.
+        Bare chip 'reset' is forbidden (mass re-power of siblings).
         """
         interface = f"poe{self._port_number}"
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
             self._port_number
         )
 
-        # Step 1: Disable the port via ESP32 (cuts PoE power immediately)
         await ExavizPoEPortSwitch._send_esp32_command(
             f"disable-port {pse_num} {pse_port}"
         )
 
-        # Step 2: Bring down the network interface
         proc = await asyncio.create_subprocess_exec(
             *sudo_argv("ip", "link", "set", interface, "down"),
             stdout=asyncio.subprocess.DEVNULL,
@@ -173,7 +153,6 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         _LOGGER.info("Port %s power cut for reset, waiting 3 seconds...", interface)
         await asyncio.sleep(3)
 
-        # Step 3: Bring up network interface
         proc = await asyncio.create_subprocess_exec(
             *sudo_argv("ip", "link", "set", interface, "up"),
             stdout=asyncio.subprocess.DEVNULL,
@@ -181,17 +160,9 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         )
         await proc.communicate()
 
-        # Step 4: Re-enable via ESP32 (bandaid: full reset for detect_class_enable)
-        # TODO(firmware-fix): Replace with just enable-port once fixed.
-        _LOGGER.info(
-            "Re-enabling port via ESP32 reset (bandaid) — waiting %ds",
-            ESP32_RESET_SETTLE_SECONDS,
-        )
         await ExavizPoEPortSwitch._send_esp32_command(
             f"enable-port {pse_num} {pse_port}"
         )
-        await ExavizPoEPortSwitch._send_esp32_command("reset")
-        await asyncio.sleep(ESP32_RESET_SETTLE_SECONDS)
 
         _LOGGER.info("Successfully reset PoE port %s", interface)
 
