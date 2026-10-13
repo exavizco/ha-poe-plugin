@@ -11,9 +11,17 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .base_entity import ExavizPoEBaseEntity
-from .const import DOMAIN, POWER_ON_THRESHOLD_WATTS, PLUGGED_THRESHOLD_MILLIAMPS
+from .board_detector import BoardType
+from .const import (
+    DOMAIN,
+    PLUGGED_THRESHOLD_MILLIAMPS,
+    POWER_ON_THRESHOLD_WATTS,
+    ZIGBEE_FIRMWARE_VARIANTS,
+    ZIGBEE_MISSING_MESSAGE,
+)
 from .coordinator import ExavizDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +56,10 @@ async def async_setup_entry(
                         )
                     )
     
+    # Zigbee coordinator lives on the Cruiser's ESP32-C6
+    if coordinator.board_type == BoardType.CRUISER:
+        entities.append(ExavizZigbeeCoordinatorSensor(coordinator, config_entry.entry_id))
+
     async_add_entities(entities)
 
 
@@ -136,3 +148,46 @@ class ExavizPoEPortPluggedSensor(ExavizPoEBaseEntity, BinarySensorEntity):
     def available(self) -> bool:
         """Return if entity is available."""
         return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
+class ExavizZigbeeCoordinatorSensor(CoordinatorEntity, BinarySensorEntity):
+    """Whether the ESP32-C6 runs Zigbee coordinator firmware.
+
+    On = Zigbee firmware installed, off = not installed (the attributes carry
+    the helper message), unknown = firmware too old to report its variant.
+    """
+
+    def __init__(self, coordinator: ExavizDataUpdateCoordinator, entry_id: str) -> None:
+        """Initialize the Zigbee coordinator sensor."""
+        super().__init__(coordinator)
+        self._entry_id = entry_id
+        self._attr_name = "Zigbee Coordinator"
+        self._attr_unique_id = f"{entry_id}_zigbee_coordinator"
+        self._attr_icon = "mdi:zigbee"
+        self.entity_id = "binary_sensor.zigbee_coordinator"
+
+    @property
+    def _variant(self) -> str | None:
+        return self.coordinator.system_info.get("esp32_firmware_variant")
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device information (same parent device as board status)."""
+        return {"identifiers": {(DOMAIN, self._entry_id)}}
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true if the ESP32 firmware includes the Zigbee coordinator."""
+        if self._variant is None:
+            return None
+        return self._variant in ZIGBEE_FIRMWARE_VARIANTS
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the firmware variant and, when Zigbee is missing, the helper message."""
+        if self._variant is None:
+            return None
+        attrs: dict[str, Any] = {"firmware_variant": self._variant}
+        if not self.is_on:
+            attrs["message"] = ZIGBEE_MISSING_MESSAGE
+        return attrs

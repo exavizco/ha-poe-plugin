@@ -22,6 +22,7 @@ Click any port tile to see detailed information:
 - **Real-time Monitoring** -- Port status, power consumption, connected devices
 - **PoE Port Control** -- Enable/disable individual PoE ports
 - **Device Discovery** -- Identifies connected devices by IP, MAC, and manufacturer
+- **Zigbee Coordinator Status** -- Cruiser only: shows whether the ESP32-C6 has Zigbee firmware, with a helper message when it does not
 - **Modern Dashboard** -- Lovelace card with dark/light theme support
 - **Multi-language** -- 10 languages included (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH)
 

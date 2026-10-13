@@ -184,6 +184,7 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
             "netplan_version",
             "poe_controller",
             "esp32_firmware_version",
+            "esp32_firmware_variant",
             "board_model_esp32",
             "board_hw_version",
             "board_serial",

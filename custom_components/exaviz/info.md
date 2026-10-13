@@ -9,6 +9,7 @@ Monitor and control Power over Ethernet ports on Exaviz hardware platforms direc
 - **Real-time Monitoring**: View PoE port status, power consumption, voltage, and current
 - **Port Control**: Enable/disable PoE power on individual ports with a single click
 - **Device Identification**: Automatic detection of connected devices (IP, MAC, Manufacturer)
+- **Zigbee Coordinator Status** (Cruiser): shows whether the ESP32-C6 has Zigbee firmware, with a helper message when it does not
 - **Beautiful UI**: Custom Lovelace card with Exaviz branding and modern design
 - **Multi-language**: Support for 10 languages (EN, ES, DE, FR, IT, JA, ZH, KO, PT, NL)
 - **Local Polling**: No cloud dependency, all data stays local

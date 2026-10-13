@@ -50,6 +50,15 @@ ARP_SCAN_CACHE_TTL: Final = 25  # Seconds a bridge sweep is reused across ports
 # explicitly so vendor enrichment works. Ignored if the file is absent.
 ARP_SCAN_OUI_FILE: Final = "/usr/share/arp-scan/ieee-oui.txt"
 
+# Zigbee coordinator status (os-support #175). The ESP32 `info` command prints
+# "firmware variant: <name>"; only these variants carry the Zigbee NCP.
+ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "all-unsupported"})
+# Helper text shown when the ESP32-C6 has no Zigbee firmware. Draft wording:
+# final text is pending Shannon's approval, so change it here only.
+ZIGBEE_MISSING_MESSAGE: Final = (
+    "You don't have Zigbee firmware installed on this Cruiser board."
+)
+
 # Binary sensor thresholds
 POWER_ON_THRESHOLD_WATTS: Final = 0.5  # Minimum watts to consider port "powered"
 PLUGGED_THRESHOLD_MILLIAMPS: Final = 10  # Minimum mA to consider port "plugged"
