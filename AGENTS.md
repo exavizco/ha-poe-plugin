@@ -6,6 +6,13 @@ Hive-wide rules: `~/dev/shared-memory/COMMON.md` (imported via `~/AGENTS.md`). H
 Workspace: `~/dev/ha-plugin` (git worktree of `~/dev/github/ha-poe-plugin`, remote github.com/exavizco/ha-poe-plugin).
 Read `agent-memory/MEMORY.md` first. Add durable lessons there.
 
+## Source of truth
+
+- GitHub `exavizco/ha-poe-plugin` is the canonical repo and the only one customers know about.
+- The local clone `~/dev/github/ha-poe-plugin` and this worktree `~/dev/ha-plugin` are working copies.
+- All releases and pushes go to GitHub. Any Forgejo copy or mirror (for example the old private `shannon/ha-client-plugin`) is secondary and is not a release source.
+- Lane setup files (this AGENTS.md, `agent-memory/`) stay off the public main branch unless they genuinely belong there.
+
 ## Ownership
 - The Exaviz Home Assistant plugin: code (`custom_components/`, `lovelace-cards/`), tests, releases (HACS, PLUGIN_VERSION).
 - The exa-pedia HA setup guide (`~/dev/documentation/content/en/docs/home-assistant/`). Edits go through the docs lane's normal PR flow.
