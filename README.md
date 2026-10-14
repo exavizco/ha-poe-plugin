@@ -109,11 +109,13 @@ is installed. The integration adds a **Zigbee Coordinator** binary sensor
 | **Off** | Zigbee firmware is not installed. The sensor's `message` attribute explains what to do |
 | **Unknown** | The ESP32 firmware is too old to report its variant |
 
-The PoE card shows the same status under the port grid ("Zigbee coordinator: Firmware
-installed" or "Not installed", plus the helper message). The line is hidden when the state
-is unknown. Interceptor boards have no Zigbee coordinator and get no sensor.
+The `firmware_variant` attribute names the firmware the board reported (absent when the
+state is unknown). The PoE card shows the same status under the port grid ("Zigbee
+coordinator: Firmware installed", or "Not installed" plus the helper message). The line is
+hidden when the state is unknown or unavailable. Interceptor boards have no Zigbee coordinator and get no sensor.
 
-To install the Zigbee firmware, run `sudo exaviz-flash zigbee` on the board. See the
+To install the Zigbee firmware, run `sudo exaviz-flash zigbee` on the board (two runs with
+a reboot between them). See the
 [Cruiser Zigbee guide](https://exa-pedia.com/docs/cruiser/zigbee/) for the full steps.
 
 ## Documentation
