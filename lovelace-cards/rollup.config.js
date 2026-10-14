@@ -1,7 +1,7 @@
 import resolve from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
-import copy from 'rollup-plugin-copy';
+import { cpSync } from 'node:fs';
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -21,16 +21,12 @@ export default {
       declaration: false,
       outDir: null,
     }),
-    copy({
-      targets: [
-        {
-          src: 'src/assets/images/*',
-          dest: '../custom_components/exaviz/www/assets'
-        }
-      ],
-      verbose: true,
-      flatten: true
-    }),
+    {
+      name: 'copy-assets',
+      writeBundle() {
+        cpSync('src/assets/images', '../custom_components/exaviz/www/assets', { recursive: true });
+      },
+    },
     production && terser(),
   ],
   external: [],
