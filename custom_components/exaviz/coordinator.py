@@ -26,6 +26,24 @@ from .poe_readers import read_all_addon_ports, read_all_onboard_ports
 _LOGGER = logging.getLogger(__name__)
 
 
+def parse_esp32_info(output: str) -> dict[str, str]:
+    """Parse the ESP32 `info` command output."""
+    info: dict[str, str] = {}
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("Exaviz PoE monitor version "):
+            info["esp32_firmware_version"] = line.split("version ", 1)[1].strip()
+        elif line.startswith("firmware variant:"):
+            info["esp32_firmware_variant"] = line.split(":", 1)[1].strip()
+        elif line.startswith("board model:"):
+            info["board_model_esp32"] = line.split(":", 1)[1].strip().title()
+        elif line.startswith("board version:"):
+            info["board_hw_version"] = line.split(":", 1)[1].strip()
+        elif line.startswith("board serial:"):
+            info["board_serial"] = line.split(":", 1)[1].strip()
+    return info
+
+
 class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching PoE data from local Cruiser/Interceptor board."""
 
@@ -607,18 +625,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             stdout, _ = await proc.communicate()
             output = stdout.decode(errors="replace")
 
-            for line in output.splitlines():
-                line = line.strip()
-                if line.startswith("Exaviz PoE monitor version "):
-                    info["esp32_firmware_version"] = line.split(
-                        "version ", 1
-                    )[1].strip()
-                elif line.startswith("board model:"):
-                    info["board_model_esp32"] = line.split(":", 1)[1].strip().title()
-                elif line.startswith("board version:"):
-                    info["board_hw_version"] = line.split(":", 1)[1].strip()
-                elif line.startswith("board serial:"):
-                    info["board_serial"] = line.split(":", 1)[1].strip()
+            info = parse_esp32_info(output)
 
         except (OSError, asyncio.TimeoutError) as exc:
             _LOGGER.debug("Could not query ESP32 info: %s", exc)

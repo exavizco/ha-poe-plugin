@@ -442,6 +442,8 @@ export class ExavizPoECard extends LitElement {
           <div class="poe-grid layout-${layout}">
             ${this._ports.map(portConfig => this._renderPort(portConfig))}
           </div>
+
+          ${this._renderZigbeeStatus()}
           
           ${this.config.show_details && selectedPortDetails ? html`
             <div class="port-details">
@@ -672,6 +674,25 @@ Right-click to reset"
 
     // Fallback to just current if no allocated power available
     return html`${current.toFixed(1)}W`;
+  }
+
+  /**
+   * Zigbee coordinator status (Cruiser only). The helper message comes from the
+   * backend sensor attribute, so its wording is changed in one place (const.py).
+   */
+  private _renderZigbeeStatus(): TemplateResult {
+    const zigbee = this.hass.states['binary_sensor.zigbee_coordinator'];
+    if (!zigbee || zigbee.state === 'unknown' || zigbee.state === 'unavailable') {
+      return html``;
+    }
+    const installed = zigbee.state === 'on';
+    return html`
+      <div class="zigbee-status ${installed ? 'installed' : 'missing'}">
+        <span class="label">Zigbee coordinator:</span>
+        <span class="value">${installed ? 'Firmware installed' : 'Not installed'}</span>
+        ${installed ? '' : html`<div class="zigbee-message">${zigbee.attributes.message}</div>`}
+      </div>
+    `;
   }
 
   private _renderServerStatus(): TemplateResult {
@@ -937,6 +958,29 @@ Right-click to reset"
         font-size: 16px;
         font-weight: bold;
         color: var(--primary-text-color);
+      }
+
+      .zigbee-status {
+        margin: 8px 0;
+        padding: 8px;
+        background: var(--secondary-background-color);
+        border-radius: 8px;
+        font-size: 13px;
+      }
+
+      .zigbee-status .label {
+        color: var(--secondary-text-color);
+        margin-right: 4px;
+      }
+
+      .zigbee-status .value {
+        font-weight: bold;
+        color: var(--primary-text-color);
+      }
+
+      .zigbee-message {
+        margin-top: 4px;
+        color: var(--secondary-text-color);
       }
 
       /* Server Status */

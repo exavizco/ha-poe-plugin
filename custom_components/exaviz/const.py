@@ -13,7 +13,7 @@ DOMAIN: Final = "exaviz"
 # Plugin version (semver + git hash for build metadata)
 # Format: MAJOR.MINOR.PATCH+<git-short-hash>
 # Update MAJOR.MINOR.PATCH here; the hash is appended at build/tag time.
-PLUGIN_VERSION: Final = "1.2.2"
+PLUGIN_VERSION: Final = "1.3.0"
 
 # Configuration keys
 CONF_SCAN_INTERVAL: Final = "scan_interval"
@@ -49,6 +49,16 @@ ARP_SCAN_CACHE_TTL: Final = 25  # Seconds a bridge sweep is reused across ports
 # maps MAC->IP, but the vendor column comes back "(Unknown)"); pass this path
 # explicitly so vendor enrichment works. Ignored if the file is absent.
 ARP_SCAN_OUI_FILE: Final = "/usr/share/arp-scan/ieee-oui.txt"
+
+# Zigbee coordinator status (os-support #175). The ESP32 `info` command prints
+# "firmware variant: <name>"; only these variants carry the Zigbee NCP.
+ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "all-unsupported"})
+# Helper text shown when the ESP32-C6 has no Zigbee firmware (wording approved
+# by Shannon 2026-10-13; change it here only).
+ZIGBEE_MISSING_MESSAGE: Final = (
+    "Zigbee firmware isn't installed on this Cruiser board. "
+    "Install it with the Exaviz tools to use Zigbee."
+)
 
 # Binary sensor thresholds
 POWER_ON_THRESHOLD_WATTS: Final = 0.5  # Minimum watts to consider port "powered"
