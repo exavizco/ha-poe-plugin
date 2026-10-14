@@ -97,6 +97,25 @@ sudo reboot
 4. For boards with multiple PoE sets (e.g., Cruiser onboard + add-on, or dual Interceptor),
    add one card per set
 
+### 4. Check Zigbee Status (Cruiser only)
+
+The Cruiser's ESP32-C6 can act as a Zigbee coordinator, but only when the Zigbee firmware
+is installed. The integration adds a **Zigbee Coordinator** binary sensor
+(`binary_sensor.zigbee_coordinator`) that reports which firmware is running:
+
+| State | Meaning |
+|-------|---------|
+| **On** | Zigbee firmware is installed |
+| **Off** | Zigbee firmware is not installed. The sensor's `message` attribute explains what to do |
+| **Unknown** | The ESP32 firmware is too old to report its variant |
+
+The PoE card shows the same status under the port grid ("Zigbee coordinator: Firmware
+installed" or "Not installed", plus the helper message). The line is hidden when the state
+is unknown. Interceptor boards have no Zigbee coordinator and get no sensor.
+
+To install the Zigbee firmware, run `sudo exaviz-flash zigbee` on the board. See the
+[Cruiser Zigbee guide](https://exa-pedia.com/docs/cruiser/zigbee/) for the full steps.
+
 ## Documentation
 
 Full documentation is available at **[exa-pedia.com](https://exa-pedia.com/docs/home-assistant/)**:
@@ -104,6 +123,7 @@ Full documentation is available at **[exa-pedia.com](https://exa-pedia.com/docs/
 - [Installation Guide](https://exa-pedia.com/docs/home-assistant/installation/)
 - [Configuration](https://exa-pedia.com/docs/home-assistant/configuration/)
 - [Dashboard Setup](https://exa-pedia.com/docs/home-assistant/dashboard/)
+- [Zigbee on the Cruiser](https://exa-pedia.com/docs/cruiser/zigbee/)
 - [Troubleshooting](https://exa-pedia.com/docs/home-assistant/troubleshooting/)
 - [FAQ](https://exa-pedia.com/docs/home-assistant/faq/)
 
