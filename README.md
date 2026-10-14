@@ -114,8 +114,8 @@ state is unknown). The PoE card shows the same status under the port grid ("Zigb
 coordinator: Firmware installed", or "Not installed" plus the helper message). The line is
 hidden when the state is unknown or unavailable. Interceptor boards have no Zigbee coordinator and get no sensor.
 
-![PoE card with Zigbee firmware not installed](images/cruiser-zigbee-not-installed.png)
-![PoE card with Zigbee firmware installed](images/cruiser-zigbee-installed.png)
+<img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/cruiser-zigbee-not-installed.png" alt="PoE card with Zigbee firmware not installed" width="400">
+<img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/cruiser-zigbee-installed.png" alt="PoE card with Zigbee firmware installed" width="400">
 
 The firmware variant is read when Home Assistant starts. After installing the Zigbee
 firmware, restart Home Assistant or reload the integration to refresh the status.
