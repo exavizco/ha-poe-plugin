@@ -52,7 +52,7 @@ ARP_SCAN_OUI_FILE: Final = "/usr/share/arp-scan/ieee-oui.txt"
 
 # Zigbee coordinator status (os-support #175). The ESP32 `info` command prints
 # "firmware variant: <name>"; only these variants carry the Zigbee NCP.
-ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "all-unsupported"})
+ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "zigbee-rcp", "all-unsupported"})
 # Helper text shown when the ESP32-C6 has no Zigbee firmware (wording approved
 # by Shannon 2026-10-13; change it here only).
 ZIGBEE_MISSING_MESSAGE: Final = (

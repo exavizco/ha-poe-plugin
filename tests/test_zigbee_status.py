@@ -1,7 +1,7 @@
 """Zigbee coordinator status next to the PoE ports (os-support #175).
 
-The ESP32 `info` command prints "firmware variant: <name>". Only the "zigbee"
-and "all-unsupported" images carry the Zigbee NCP; "stock" and "poe-only" do not.
+The ESP32 `info` command prints "firmware variant: <name>". Only the "zigbee",
+"zigbee-rcp" and "all-unsupported" images carry the Zigbee NCP; "stock" and "poe-only" do not.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ INFO = (
 )
 
 
-@pytest.mark.parametrize("variant", ["zigbee", "stock", "poe-only", "all-unsupported"])
+@pytest.mark.parametrize("variant", ["zigbee", "zigbee-rcp", "stock", "poe-only", "all-unsupported"])
 def test_parse_reads_variant(variant):
     info = parse_esp32_info(INFO.format(variant=variant))
     assert info["esp32_firmware_variant"] == variant
@@ -43,7 +43,7 @@ def _sensor(system_info):
     return ExavizZigbeeCoordinatorSensor(coordinator, "entry")
 
 
-@pytest.mark.parametrize("variant", ["zigbee", "all-unsupported"])
+@pytest.mark.parametrize("variant", ["zigbee", "zigbee-rcp", "all-unsupported"])
 def test_on_when_firmware_has_zigbee(variant):
     s = _sensor({"esp32_firmware_variant": variant})
     assert s.is_on is True
