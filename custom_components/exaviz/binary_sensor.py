@@ -176,6 +176,11 @@ class ExavizZigbeeCoordinatorSensor(CoordinatorEntity, BinarySensorEntity):
         return {"identifiers": {(DOMAIN, self._entry_id)}}
 
     @property
+    def available(self) -> bool:
+        """Firmware variant is static startup info, so a failed PoE poll does not hide it."""
+        return True
+
+    @property
     def is_on(self) -> bool | None:
         """Return true if the ESP32 firmware includes the Zigbee coordinator."""
         if self._variant is None:

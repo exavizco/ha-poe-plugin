@@ -75,3 +75,10 @@ def test_sensor_ids():
     s = _sensor({})
     assert s.entity_id == "binary_sensor.zigbee_coordinator"
     assert s._attr_unique_id == "entry_zigbee_coordinator"
+
+
+def test_sensor_stays_available_when_poll_fails():
+    sensor = _sensor({"esp32_firmware_variant": "zigbee"})
+    sensor.coordinator.last_update_success = False
+    assert sensor.available is True
+    assert sensor.is_on is True
