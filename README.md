@@ -117,12 +117,13 @@ hidden when the state is unknown or unavailable. Interceptor boards have no Zigb
 <img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/cruiser-zigbee-not-installed.png" alt="PoE card with Zigbee firmware not installed" width="400">
 <img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/cruiser-zigbee-installed.png" alt="PoE card with Zigbee firmware installed" width="400">
 
+*Screenshots show sample data, not a live board.*
+
 The firmware variant is read when Home Assistant starts. After installing the Zigbee
 firmware, restart Home Assistant or reload the integration to refresh the status.
 
 To install the Zigbee firmware, run `sudo exaviz-flash zigbee` on the board (two runs with
-a reboot between them). See the
-[Cruiser Zigbee guide](https://exa-pedia.com/docs/cruiser/zigbee/) for the full steps.
+a reboot between them).
 
 ## Documentation
 
@@ -131,7 +132,6 @@ Full documentation is available at **[exa-pedia.com](https://exa-pedia.com/docs/
 - [Installation Guide](https://exa-pedia.com/docs/home-assistant/installation/)
 - [Configuration](https://exa-pedia.com/docs/home-assistant/configuration/)
 - [Dashboard Setup](https://exa-pedia.com/docs/home-assistant/dashboard/)
-- [Zigbee on the Cruiser](https://exa-pedia.com/docs/cruiser/zigbee/)
 - [Troubleshooting](https://exa-pedia.com/docs/home-assistant/troubleshooting/)
 - [FAQ](https://exa-pedia.com/docs/home-assistant/faq/)
 
