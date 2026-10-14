@@ -122,8 +122,9 @@ hidden when the state is unknown or unavailable. Interceptor boards have no Zigb
 The firmware variant is read when Home Assistant starts. After installing the Zigbee
 firmware, restart Home Assistant or reload the integration to refresh the status.
 
-To install the Zigbee firmware, run `sudo exaviz-flash zigbee` on the board (two runs with
-a reboot between them).
+To install the Zigbee firmware, run `sudo exaviz-flash zigbee` once on the board. It reboots
+the board once and finishes by itself in about five minutes. Setup steps, the antenna you need
+and troubleshooting are on the [Zigbee page](https://exa-pedia.com/docs/cruiser/zigbee/).
 
 ## Documentation
 
