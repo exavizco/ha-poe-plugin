@@ -64,8 +64,11 @@ def test_unknown_when_firmware_does_not_report_variant():
     assert "message" not in (s.extra_state_attributes or {})
 
 
-def test_message_is_the_approved_draft_wording():
-    assert ZIGBEE_MISSING_MESSAGE == "You don't have Zigbee firmware installed on this Cruiser board."
+def test_message_is_the_approved_wording():
+    assert ZIGBEE_MISSING_MESSAGE == (
+        "Zigbee firmware isn't installed on this Cruiser board. "
+        "Install it with the Exaviz tools to use Zigbee."
+    )
 
 
 def test_sensor_ids():
