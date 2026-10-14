@@ -13,7 +13,7 @@ DOMAIN: Final = "exaviz"
 # Plugin version (semver + git hash for build metadata)
 # Format: MAJOR.MINOR.PATCH+<git-short-hash>
 # Update MAJOR.MINOR.PATCH here; the hash is appended at build/tag time.
-PLUGIN_VERSION: Final = "1.3.0"
+PLUGIN_VERSION: Final = "1.3.1"
 
 # Configuration keys
 CONF_SCAN_INTERVAL: Final = "scan_interval"
@@ -52,7 +52,7 @@ ARP_SCAN_OUI_FILE: Final = "/usr/share/arp-scan/ieee-oui.txt"
 
 # Zigbee coordinator status (os-support #175). The ESP32 `info` command prints
 # "firmware variant: <name>"; only these variants carry the Zigbee NCP.
-ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "all-unsupported"})
+ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "zigbee-rcp", "all-unsupported"})
 # Helper text shown when the ESP32-C6 has no Zigbee firmware (wording approved
 # by Shannon 2026-10-13; change it here only).
 ZIGBEE_MISSING_MESSAGE: Final = (
