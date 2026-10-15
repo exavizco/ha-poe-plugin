@@ -1,0 +1,93 @@
+"""T-30: golden snapshot of every entity for a local Cruiser (1.3.1 behaviour).
+
+Recorded against unchanged code. Later commits must leave it equal.
+Set EXAVIZ_RECORD_GOLDEN=1 to re-record.
+"""
+
+import json
+import os
+from pathlib import Path
+
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.exaviz.const import DOMAIN
+
+from .local_board import patch_local_board
+
+GOLDEN = Path(__file__).parent / "golden"
+VOLATILE = {"plugin_version", "last_updated"}
+
+
+def snapshot(hass) -> list[dict]:
+    registry = er.async_get(hass)
+    rows = []
+    for entry in sorted(registry.entities.values(), key=lambda e: e.entity_id):
+        if entry.platform != DOMAIN:
+            continue
+        state = hass.states.get(entry.entity_id)
+        attrs = {
+            k: v
+            for k, v in (state.attributes if state else {}).items()
+            if k not in VOLATILE
+        }
+        rows.append(
+            {
+                "entity_id": entry.entity_id,
+                "unique_id": entry.unique_id,
+                "platform": entry.domain,
+                "state": state.state if state else None,
+                "available": bool(state) and state.state != "unavailable",
+                "attributes": json.loads(json.dumps(attrs, default=str)),
+            }
+        )
+    return rows
+
+
+async def setup_local(hass, after_setup=None):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        unique_id="exaviz_cruiser",
+        title="Exaviz Cruiser",
+        entry_id="golden_entry",
+    )
+    entry.add_to_hass(hass)
+    stack, reader = patch_local_board()
+    with stack:
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        if after_setup:
+            await after_setup(hass, entry, reader)
+        rows = snapshot(hass)
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+    return entry, rows
+
+
+def check_golden(name: str, rows: list[dict]) -> None:
+    path = GOLDEN / f"{name}.json"
+    if os.environ.get("EXAVIZ_RECORD_GOLDEN"):
+        GOLDEN.mkdir(exist_ok=True)
+        path.write_text(json.dumps(rows, indent=2, sort_keys=True) + "\n")
+    assert rows == json.loads(path.read_text())
+
+
+async def test_local_cruiser_golden(hass, freezer):
+    entry, rows = await setup_local(hass)
+    assert len(rows) > 8 * 4
+    check_golden("local_cruiser", rows)
+
+
+async def test_local_cruiser_poll_failure_golden(hass, freezer):
+    """A good first poll, then the reader fails: records availability."""
+
+    async def fail_poll(hass, entry, reader):
+        reader.side_effect = OSError("serial gone")
+        await hass.data[DOMAIN][entry.entry_id].async_refresh()
+        await hass.async_block_till_done()
+
+    entry, rows = await setup_local(hass, fail_poll)
+    assert len(rows) > 8 * 4
+    assert any(not r["available"] for r in rows)
+    check_golden("local_cruiser_poll_failure", rows)
