@@ -44,14 +44,29 @@ def snapshot(hass) -> list[dict]:
     return rows
 
 
-async def setup_local(hass, after_setup=None):
-    entry = MockConfigEntry(
+def local_entry() -> MockConfigEntry:
+    return MockConfigEntry(
         domain=DOMAIN,
         data={},
         unique_id="exaviz_cruiser",
         title="Exaviz Cruiser",
         entry_id="golden_entry",
     )
+
+
+async def setup_local_entry(hass) -> MockConfigEntry:
+    """Set up a local entry. Callers patch the board for later polls."""
+    entry = local_entry()
+    entry.add_to_hass(hass)
+    stack, _reader = patch_local_board()
+    with stack:
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    return entry
+
+
+async def setup_local(hass, after_setup=None):
+    entry = local_entry()
     entry.add_to_hass(hass)
     stack, reader = patch_local_board()
     with stack:
