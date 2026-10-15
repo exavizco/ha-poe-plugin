@@ -35,18 +35,15 @@ class TestAsyncReloadEntry:
 
     @pytest.mark.asyncio
     async def test_async_reload_entry(self):
-        """Test async_reload_entry calls unload and setup."""
+        """Test async_reload_entry schedules a reload via the entry state machine."""
         mock_hass = Mock()
         mock_entry = Mock()
-        
-        # Mock the functions that reload calls
-        with patch.object(exaviz_init, 'async_unload_entry', new_callable=AsyncMock) as mock_unload:
-            with patch.object(exaviz_init, 'async_setup_entry', new_callable=AsyncMock) as mock_setup:
-                await exaviz_init.async_reload_entry(mock_hass, mock_entry)
-                
-                # Verify both functions were called with correct arguments
-                mock_unload.assert_called_once_with(mock_hass, mock_entry)
-                mock_setup.assert_called_once_with(mock_hass, mock_entry)
+
+        await exaviz_init.async_reload_entry(mock_hass, mock_entry)
+
+        mock_hass.config_entries.async_schedule_reload.assert_called_once_with(
+            mock_entry.entry_id
+        )
 
 
 class TestModuleStructure:
