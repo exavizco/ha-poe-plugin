@@ -54,10 +54,9 @@ ARP_SCAN_OUI_FILE: Final = "/usr/share/arp-scan/ieee-oui.txt"
 # "firmware variant: <name>"; only these variants carry the Zigbee NCP.
 ZIGBEE_FIRMWARE_VARIANTS: Final = frozenset({"zigbee", "zigbee-rcp", "all-unsupported"})
 # Helper text shown when the ESP32-C6 has no Zigbee firmware (wording approved
-# by Shannon 2026-10-13; change it here only).
+# by Shannon 2026-10-15; change it here only).
 ZIGBEE_MISSING_MESSAGE: Final = (
-    "Zigbee firmware isn't installed on this Cruiser board. "
-    "Install it with the Exaviz tools to use Zigbee."
+    "You don't have Zigbee firmware installed on this Cruiser board."
 )
 
 # Binary sensor thresholds
