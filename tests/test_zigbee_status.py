@@ -66,8 +66,7 @@ def test_unknown_when_firmware_does_not_report_variant():
 
 def test_message_is_the_approved_wording():
     assert ZIGBEE_MISSING_MESSAGE == (
-        "Zigbee firmware isn't installed on this Cruiser board. "
-        "Install it with the Exaviz tools to use Zigbee."
+        "You don't have Zigbee firmware installed on this Cruiser board."
     )
 
 
