@@ -122,7 +122,6 @@ export class ExavizIconManager {
     const proFeatures = requiredFeatures.filter(feature => this.isProFeature(feature));
 
     if (this.enableProIcons && proFeatures.length > 0) {
-      console.log(`Loading Font Awesome Pro for features: ${proFeatures.join(', ')}`);
       await this.loadFontAwesome();
     }
   }
