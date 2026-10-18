@@ -558,7 +558,6 @@ export class ExavizPoECard extends LitElement {
 
   private _renderPort(portConfig: any): TemplateResult {
     const status = this._getPortStatus(portConfig);
-    const current = this._getPortCurrent(portConfig);
     // Read enabled state from backend abstraction (sensor entity attributes)
     const currentState = this.hass.states[portConfig.currentEntity];
     const isEnabled = currentState?.attributes?.enabled ?? false;
