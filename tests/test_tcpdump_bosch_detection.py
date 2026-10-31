@@ -146,6 +146,8 @@ class TestBoschModelName:
             ("Bosch.NBN-73013-BA", "NBN-73013-BA"),
             # A printable length byte right before a long family name.
             ("Bosch.QFLEXIDOME.IP.5000i", "FLEXIDOME.IP.5000i"),
+            # Title case, as the old case-blind match allowed.
+            ("Bosch.Flexidome.IP.5000i", "Flexidome.IP.5000i"),
         ],
     )
     async def test_full_model_name(self, ascii_column, expected):

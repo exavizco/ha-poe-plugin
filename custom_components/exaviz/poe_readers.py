@@ -919,17 +919,16 @@ async def _get_connected_device_from_arp(interface: str) -> dict[str, str] | Non
 # A 0x2070 capture is Bosch when any of these appears in the ASCII column.
 BOSCH_SIGNATURES: tuple[str, ...] = ("Bosch", "FLEXIDOME", "DINION", "AUTODOME")
 
-# Model families, in the order we prefer them when several appear. Matched
-# case-sensitively (Bosch prints them in capitals; a case-blind "MIC" matched
-# "dynamic") and only to the end of that line. The short names also need no
-# letter right before them; the long ones may follow a printable length byte.
+# Model families, in the order we prefer them when several appear, matched
+# only to the end of that line. The long names match in any case and may
+# follow a printable length byte. The short names are capitals only, with no
+# letter on either side: a case-blind "MIC" matched "dynamic".
 BOSCH_MODEL_FAMILIES: tuple[str, ...] = ("FLEXIDOME", "DINION", "AUTODOME", "MIC", "NBN")
 _BOSCH_SHORT_FAMILIES: frozenset[str] = frozenset({"MIC", "NBN"})
 _BOSCH_MODEL_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(
-        ("(?<![A-Za-z])" if family in _BOSCH_SHORT_FAMILIES else "")
-        + rf"({family}(?![a-z])[^\n]*)"
-    )
+    re.compile(rf"(?<![A-Za-z])({family}(?![a-z])[^\n]*)")
+    if family in _BOSCH_SHORT_FAMILIES
+    else re.compile(rf"({family}[^\n]*)", re.IGNORECASE)
     for family in BOSCH_MODEL_FAMILIES
 )
 
