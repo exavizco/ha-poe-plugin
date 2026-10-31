@@ -884,17 +884,7 @@ async def _get_connected_device_from_arp(interface: str) -> dict[str, str] | Non
             # Enrich with manufacturer and hostname
             enriched_info = await enrich_device_info(device_info)
             
-            # VCS Video Communication Systems is used by Bosch cameras
-            # Verify if this VCS device is actually a Bosch camera via tcpdump
-            manufacturer = enriched_info.get("manufacturer", "") if enriched_info else ""
-            if manufacturer.startswith("VCS Video Communication Systems"):
-                _LOGGER.debug("VCS device detected on %s, checking if it's a Bosch camera", interface)
-                bosch_info = await _detect_bosch_camera(interface)
-                if bosch_info:
-                    _LOGGER.info("Confirmed VCS device on %s is a Bosch camera: %s", interface, bosch_info.get("model", "Unknown"))
-                    # Replace VCS with Bosch in manufacturer field
-                    enriched_info["manufacturer"] = "Bosch"
-                    enriched_info["model"] = bosch_info.get("model", "Camera")
+            await _confirm_vcs_as_bosch(interface, enriched_info)
             
             return enriched_info
         
@@ -915,17 +905,7 @@ async def _get_connected_device_from_arp(interface: str) -> dict[str, str] | Non
                 # Enrich with manufacturer and hostname
                 enriched_info = await enrich_device_info(device_info)
                 
-                # VCS Video Communication Systems is used by Bosch cameras
-                # Verify if this VCS device is actually a Bosch camera via tcpdump
-                manufacturer = enriched_info.get("manufacturer", "") if enriched_info else ""
-                if manufacturer.startswith("VCS Video Communication Systems"):
-                    _LOGGER.debug("VCS device detected on %s, checking if it's a Bosch camera", interface)
-                    bosch_info = await _detect_bosch_camera(interface)
-                    if bosch_info:
-                        _LOGGER.info("Confirmed VCS device on %s is a Bosch camera: %s", interface, bosch_info.get("model", "Unknown"))
-                        # Replace VCS with Bosch in manufacturer field
-                        enriched_info["manufacturer"] = "Bosch"
-                        enriched_info["model"] = bosch_info.get("model", "Camera")
+                await _confirm_vcs_as_bosch(interface, enriched_info)
                 
                 return enriched_info
         
@@ -934,6 +914,47 @@ async def _get_connected_device_from_arp(interface: str) -> dict[str, str] | Non
     except Exception as ex:
         _LOGGER.debug("Failed to get ARP info for %s: %s", interface, ex)
         return None
+
+
+# A 0x2070 capture is Bosch when any of these appears in the ASCII column.
+BOSCH_SIGNATURES: tuple[str, ...] = ("Bosch", "FLEXIDOME", "DINION", "AUTODOME")
+
+# Model families, in the order we prefer them when several appear, matched
+# only to the end of that line. The long names match in any case and may
+# follow a printable length byte. The short names are capitals only, with no
+# letter on either side: a case-blind "MIC" matched "dynamic".
+BOSCH_MODEL_FAMILIES: tuple[str, ...] = ("FLEXIDOME", "DINION", "AUTODOME", "MIC", "NBN")
+_BOSCH_SHORT_FAMILIES: frozenset[str] = frozenset({"MIC", "NBN"})
+_BOSCH_MODEL_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(rf"(?<![A-Za-z])({family}(?![a-z])[^\n]*)")
+    if family in _BOSCH_SHORT_FAMILIES
+    else re.compile(rf"({family}[^\n]*)", re.IGNORECASE)
+    for family in BOSCH_MODEL_FAMILIES
+)
+
+
+def _bosch_model_from_capture(output: str) -> str:
+    """Return the Bosch model name in a tcpdump -XX capture, or "Unknown Model"."""
+    for pattern in _BOSCH_MODEL_PATTERNS:
+        match = pattern.search(output)
+        if match:
+            model = re.sub(r"[^\x20-\x7E]+", " ", match.group(1)).strip()
+            if model:
+                return model
+    return "Unknown Model"
+
+
+async def _confirm_vcs_as_bosch(interface: str, enriched_info: dict[str, Any] | None) -> None:
+    """VCS Video Communication Systems is the OUI Bosch cameras use. Confirm by capture."""
+    manufacturer = enriched_info.get("manufacturer", "") if enriched_info else ""
+    if not manufacturer.startswith("VCS Video Communication Systems"):
+        return
+    _LOGGER.debug("VCS device detected on %s, checking if it's a Bosch camera", interface)
+    bosch_info = await _detect_bosch_camera(interface)
+    if bosch_info:
+        _LOGGER.info("Confirmed VCS device on %s is a Bosch camera: %s", interface, bosch_info.get("model", "Unknown"))
+        enriched_info["manufacturer"] = "Bosch"
+        enriched_info["model"] = bosch_info.get("model", "Camera")
 
 
 async def _detect_bosch_camera(interface: str) -> dict[str, str] | None:
@@ -970,29 +991,10 @@ async def _detect_bosch_camera(interface: str) -> dict[str, str] | None:
         output = stdout.decode(errors='ignore')
         
         # Look for Bosch signatures in the capture
-        if 'Bosch' in output or 'FLEXIDOME' in output or 'DINION' in output or 'AUTODOME' in output:
-            # Try to extract model name
-            model = "Unknown Model"
+        if any(sig in output for sig in BOSCH_SIGNATURES):
+            model = _bosch_model_from_capture(output)
             manufacturer = "Bosch Security Systems"
             device_type = "Camera"
-            
-            # Common Bosch camera model patterns
-            patterns = [
-                r'(FLEXIDOME[^\\n]*)',
-                r'(DINION[^\\n]*)',
-                r'(AUTODOME[^\\n]*)',
-                r'(MIC[^\\n]*)',  # Bosch MIC series
-                r'(NBN[^\\n]*)',  # Bosch NBN series
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, output, re.IGNORECASE)
-                if match:
-                    model = match.group(1).strip()
-                    # Clean up common artifacts
-                    model = re.sub(r'[^\x20-\x7E]+', ' ', model)  # Remove non-printable
-                    model = model.strip()
-                    break
             
             _LOGGER.info("Detected Bosch camera on %s: %s", interface, model)
             
