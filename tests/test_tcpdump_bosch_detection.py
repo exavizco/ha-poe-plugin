@@ -144,6 +144,8 @@ class TestBoschModelName:
             ("Bosch.DINION.inteox.7100i", "DINION.inteox.7100i"),
             ("Bosch.AUTODOME.inteox.7000i", "AUTODOME.inteox.7000i"),
             ("Bosch.NBN-73013-BA", "NBN-73013-BA"),
+            # A printable length byte right before a long family name.
+            ("Bosch.QFLEXIDOME.IP.5000i", "FLEXIDOME.IP.5000i"),
         ],
     )
     async def test_full_model_name(self, ascii_column, expected):
