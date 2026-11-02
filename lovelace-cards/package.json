@@ -55,5 +55,9 @@
     "url": "https://github.com/exavizco/ha-poe-plugin.git",
     "directory": "lovelace-cards"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "minimatch": "^11.0.4",
+    "serialize-javascript": "^7.1.4"
+  }
 }
