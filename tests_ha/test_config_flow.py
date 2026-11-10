@@ -582,6 +582,22 @@ async def test_t28_trust_mode(hass, board, monkeypatch, tmp_path, names, bundle_
     assert board.cert.sha256 in checks
 
 
+async def test_ca_trust_needs_the_confirmed_leaf(hass, board, monkeypatch, tmp_path):
+    """A CA-valid certificate from another server must not earn CA trust."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(bundle))
+    await board.restart(make_cert(("127.0.0.1",), issuer=ca))
+    other = make_cert(("127.0.0.1",), issuer=ca)
+
+    async def other_server(host, port, ctx, timeout=10):
+        return other.der
+
+    monkeypatch.setattr(remote, "ca_verified_leaf", other_server)
+    assert await _trust_mode(hass, board) == "pin"
+
+
 # --- T-29: options -------------------------------------------------------------
 
 

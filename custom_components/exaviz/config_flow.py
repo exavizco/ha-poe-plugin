@@ -385,14 +385,21 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _ca_context(self):
         return await self.hass.async_add_executor_job(remote.build_ca_context)
 
-    async def _decide_trust_mode(self) -> str:
-        """CA when the leaf verifies for this host against HA's CA bundle."""
+    async def _ca_verifies_confirmed_leaf(self) -> bool:
+        """The confirmed leaf, and no other, verifies for this host."""
         try:
-            if await remote.tls_verifies(self._host, self._port, await self._ca_context()):
-                return TRUST_CA
+            der = await remote.ca_verified_leaf(
+                self._host, self._port, await self._ca_context()
+            )
         except remote.CannotConnect:
-            pass
-        return TRUST_PIN
+            return False
+        return der is not None and remote.fingerprint_of(der) == remote.fingerprint_of(
+            self._der
+        )
+
+    async def _decide_trust_mode(self) -> str:
+        """CA when the confirmed leaf verifies for this host against HA's CA bundle."""
+        return TRUST_CA if await self._ca_verifies_confirmed_leaf() else TRUST_PIN
 
     async def _same_certificate(self, data: dict[str, Any]) -> bool:
         """Pin: same leaf. CA: same key, and it verifies for this host."""
@@ -402,10 +409,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # leaf is not enough when the address changed.
         if remote.spki_of(self._der) != data[CONF_SPKI]:
             return False
-        try:
-            return await remote.tls_verifies(self._host, self._port, await self._ca_context())
-        except remote.CannotConnect:
-            return False
+        return await self._ca_verifies_confirmed_leaf()
 
     async def _refetch_fingerprint(self) -> FlowResult:
         try:

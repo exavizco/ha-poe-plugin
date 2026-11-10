@@ -262,11 +262,11 @@ async def test_ca_mode_verifies_against_the_bundle(session, tmp_path):
         ctx = remote.build_ca_context(str(bundle))
         c = RemoteClient(session, fake.url, ssl_context=ctx)
         assert (await c.get_board())["serial"] == "CRU-TEST-0001"
-        assert await remote.tls_verifies("127.0.0.1", fake.port, ctx)
+        assert await remote.ca_verified_leaf("127.0.0.1", fake.port, ctx) == fake.cert.der
 
         await fake.restart(make_cert(("127.0.0.1",)))
         with pytest.raises(CertificateChanged):
             await RemoteClient(session, fake.url, ssl_context=ctx).get_board()
-        assert not await remote.tls_verifies("127.0.0.1", fake.port, ctx)
+        assert await remote.ca_verified_leaf("127.0.0.1", fake.port, ctx) is None
     finally:
         await fake.stop()

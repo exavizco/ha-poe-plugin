@@ -207,17 +207,20 @@ async def fetch_leaf_certificate(
         raise CannotConnect(f"cannot reach {host}:{port}") from err
 
 
-async def tls_verifies(
+async def ca_verified_leaf(
     host: str, port: int, ctx: ssl.SSLContext, timeout: float = DEFAULT_TIMEOUT
-) -> bool:
-    """True when the board's certificate verifies for host under ctx."""
+) -> bytes | None:
+    """The leaf DER when it verifies for host under ctx, else None.
+
+    Callers compare it with the leaf the user confirmed: a verifying
+    certificate from some other server must not earn CA trust.
+    """
     try:
-        await _tls_connect(host, port, ctx, timeout)
+        return await _tls_connect(host, port, ctx, timeout)
     except ssl.SSLCertVerificationError:
-        return False
+        return None
     except (OSError, asyncio.TimeoutError, ssl.SSLError) as err:
         raise CannotConnect(f"cannot reach {host}:{port}") from err
-    return True
 
 
 class RemoteClient:
