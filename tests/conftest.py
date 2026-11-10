@@ -43,6 +43,7 @@ _HA_MODULES = [
     "homeassistant.helpers.event",
     "homeassistant.helpers.service",
     "homeassistant.helpers.storage",
+    "homeassistant.helpers.typing",
     "homeassistant.helpers.update_coordinator",
     "homeassistant.loader",
     "voluptuous",

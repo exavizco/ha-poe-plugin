@@ -62,8 +62,8 @@ class TestDeviceInfoValidation:
         # Test the device info structure by checking the source file
         from pathlib import Path
         
-        base_entity_path = Path(__file__).parent.parent / "custom_components" / "exaviz" / "base_entity.py"
-        assert base_entity_path.exists(), "base_entity.py should exist"
+        base_entity_path = Path(__file__).parent.parent / "custom_components" / "exaviz" / "entity.py"
+        assert base_entity_path.exists(), "entity.py should exist"
         
         # Read the file to check for device_info property
         with open(base_entity_path, 'r') as f:

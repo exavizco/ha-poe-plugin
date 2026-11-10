@@ -39,7 +39,7 @@ async def setup_remote(hass, board, **overrides):
 
 
 async def poll(hass, entry):
-    await hass.data[DOMAIN][entry.entry_id].async_refresh()
+    await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
 
 
@@ -301,7 +301,7 @@ async def test_t37_other_serial_makes_entities_unavailable(hass, board):
     await poll(hass, entry)
     assert state(hass, "switch.onboard_port0").state == "unavailable"
     assert state(hass, "sensor.board_status").state == "Error"
-    assert hass.data[DOMAIN][entry.entry_id].serial_mismatch is True
+    assert entry.runtime_data.serial_mismatch is True
 
 
 @pytest.mark.parametrize("problem", ["no_contract", "404"])
@@ -372,7 +372,7 @@ async def test_ca_mode_sends_the_token_only_to_the_confirmed_key(hass, board):
 
     await board.restart(make_cert(("127.0.0.1",), issuer=ca, key=first.key))
     await poll(hass, entry)
-    assert hass.data[DOMAIN][entry.entry_id].last_update_success
+    assert entry.runtime_data.last_update_success
     assert reauth_flows(hass) == []
 
     await board.restart(make_cert(("127.0.0.1",), issuer=ca))
@@ -448,7 +448,7 @@ async def test_unreadable_port_data_marks_the_poll_failed(hass, board, caplog):
     reply["body"]["ports"][0]["power_w"] = "lots"
     board.reply("GET", "/poe/ports", reply)
     await poll(hass, entry)
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     assert not coordinator.last_update_success
     assert hass.states.get("switch.onboard_port0").state == "unavailable"
     errors = [r for r in caplog.records if r.levelno >= logging.ERROR]

@@ -181,7 +181,7 @@ async def test_t37_other_serial_refuses_control_without_request(hass, board):
     other = case("board")
     other["body"]["serial"] = "CRU-OTHER-0002"
     board.reply("GET", "/board", other)
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     await coordinator.async_refresh()
     with pytest.raises(HomeAssistantError):
         await coordinator.async_port_action(0, "disable")
@@ -220,7 +220,7 @@ async def test_t43_read_scope(hass, board, request):
     assert status.attributes["control_note"] == READ_ONLY_NOTE
     assert status.attributes["management_version"] == "1.0.8+test"
 
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     with pytest.raises(HomeAssistantError):
         await coordinator.async_port_action(0, "disable")
     assert posts(board) == []
@@ -275,7 +275,7 @@ async def test_t44_control_401_starts_reauth(hass, board):
 async def test_t44_control_refused_raises(hass, board):
     entry = await setup_remote(hass, board)
     await board.stop()
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     with pytest.raises(HomeAssistantError, match="did not answer"):
         await coordinator.async_port_action(0, "disable")
 
@@ -331,5 +331,5 @@ async def test_only_poe_control_scope_controls(hass, board, scope):
     entry = await setup_remote(hass, board, scope=scope)
     assert hass.states.get("switch.onboard_port0").state == "unavailable"
     with pytest.raises(HomeAssistantError):
-        await hass.data[DOMAIN][entry.entry_id].async_port_action(0, "disable")
+        await entry.runtime_data.async_port_action(0, "disable")
     assert posts(board) == []

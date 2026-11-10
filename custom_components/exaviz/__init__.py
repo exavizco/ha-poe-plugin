@@ -15,12 +15,14 @@ from homeassistant.exceptions import (
     ConfigEntryError,
     ConfigEntryNotReady,
 )
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.typing import ConfigType
 
 from .board_detector import check_prerequisites
 from .const import CONF_CONNECTION, CONNECTION_REMOTE, DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
-from .services import async_setup_services, async_unload_services
+from .services import async_setup_services
 
 # URL prefix for the bundled Lovelace frontend cards.
 # Users add this as a Lovelace resource: /exaviz_static/exaviz-cards.js
@@ -35,6 +37,8 @@ try:
     _INTEGRATION_VERSION: str = json.loads(_manifest_path.read_text()).get("version", "0")
 except Exception:  # pragma: no cover
     _INTEGRATION_VERSION = "0"
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # PoE-only platforms: sensor, switch, binary_sensor, button
 PLATFORMS: list[Platform] = [
@@ -55,7 +59,7 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         return
 
     www_path = Path(__file__).parent / "www"
-    if not www_path.is_dir():
+    if not await hass.async_add_executor_job(www_path.is_dir):
         return
 
     # Versioned URL — the ?v= parameter changes each release so browsers
@@ -136,6 +140,13 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     hass.data[DOMAIN]["frontend_registered"] = True
 
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the integration's actions once, whatever entries exist."""
+    hass.data.setdefault(DOMAIN, {})
+    await async_setup_services(hass)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Exaviz PoE Management from a config entry."""
     _LOGGER.debug("Setting up Exaviz PoE integration for entry: %s", entry.entry_id)
@@ -173,8 +184,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Unable to read PoE data from %s: %s", where, ex)
         raise ConfigEntryNotReady from ex
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
 
     # Reload when the user changes options (update interval, switch-mode
     # discovery) so the coordinator picks up the new values.
@@ -213,9 +223,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    if not hass.services.has_service(DOMAIN, "refresh_data"):
-        await async_setup_services(hass)
-
     return True
 
 
@@ -226,15 +233,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
-
-        # Clean up coordinator resources
-        if hasattr(coordinator, "async_shutdown"):
-            await coordinator.async_shutdown()
-
-        # Remove services if this was the last entry
-        if not hass.data[DOMAIN]:
-            await async_unload_services(hass)
+        await entry.runtime_data.async_shutdown()
 
     return unload_ok
 

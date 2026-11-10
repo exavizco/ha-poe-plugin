@@ -104,7 +104,7 @@ async def test_local_cruiser_poll_failure_golden(hass, freezer):
 
     async def fail_poll(hass, entry, reader):
         reader.side_effect = OSError("serial gone")
-        await hass.data[DOMAIN][entry.entry_id].async_refresh()
+        await entry.runtime_data.async_refresh()
         await hass.async_block_till_done()
 
     entry, rows = await setup_local(hass, fail_poll)
@@ -125,3 +125,11 @@ async def test_port_device_links_to_the_board_device(hass, freezer, caplog):
     port = devices[(DOMAIN, f"{entry.entry_id}_onboard")]
     assert port.via_device_id == board.id
     assert "via_device" not in caplog.text
+
+
+async def test_actions_are_registered_once_and_outlive_entries(hass, freezer):
+    """Quality scale action-setup: actions come from async_setup, not an entry."""
+    entry, _rows = await setup_local(hass)  # sets up, then unloads the entry
+    assert entry.state.name == "NOT_LOADED"
+    for action in ("refresh_data", "turn_on_port", "reset_port"):
+        assert hass.services.has_service(DOMAIN, action)

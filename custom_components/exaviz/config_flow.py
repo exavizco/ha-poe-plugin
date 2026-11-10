@@ -53,7 +53,7 @@ async def validate_board_detection(hass: HomeAssistant) -> dict[str, Any]:
     # not the host's, so we log a warning instead of blocking setup.
     prereqs = await check_prerequisites()
     if not prereqs["all_ok"]:
-        in_docker = Path("/.dockerenv").exists()
+        in_docker = await hass.async_add_executor_job(Path("/.dockerenv").exists)
         if in_docker:
             _LOGGER.warning(
                 "Prerequisite check found missing packages (%s) but running "

@@ -30,7 +30,7 @@ async def _walk_everything(hass, board) -> None:
     )
     entry = result["result"]
     await hass.async_block_till_done()
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     await coordinator.async_refresh()
     await hass.services.async_call(
         "switch", "turn_off", {"entity_id": "switch.onboard_port0"}, blocking=True
@@ -86,7 +86,7 @@ async def test_t47_only_the_board_is_contacted(hass, board):
             {"status": 308, "headers": {"Location": f"https://127.0.0.2:{board.port}/"}},
         )
         with pytest.raises(HomeAssistantError):
-            await hass.data[DOMAIN][entry.entry_id].async_port_action(0, "disable")
+            await entry.runtime_data.async_port_action(0, "disable")
     finally:
         del loop.sock_connect
     assert seen == {("127.0.0.1", board.port)}

@@ -119,40 +119,14 @@ class TestAsyncUnloadEntryBasic:
 
     @pytest.mark.asyncio
     async def test_async_unload_entry_success_path(self):
-        """Test successful unload path."""
+        """Unloading shuts the entry's coordinator down; actions stay registered."""
         mock_hass = Mock()
         mock_entry = Mock()
-        mock_entry.entry_id = "test_entry"
-        
-        # Mock successful platform unload
         mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-        
-        # Mock coordinator with async_shutdown method
-        mock_coordinator = AsyncMock()
-        mock_coordinator.async_shutdown = AsyncMock()
-        
-        # Mock hass.data structure with coordinator
-        mock_hass.data = {
-            'exaviz': {
-                'test_entry': mock_coordinator
-            }
-        }
-        
-        # Mock services
-        mock_hass.services = Mock()
-        
-        # Mock async_unload_services
-        with patch('custom_components.exaviz.async_unload_services', new_callable=AsyncMock) as mock_unload_services:
-            result = await exaviz_init.async_unload_entry(mock_hass, mock_entry)
-            
-            # Should return True on success
-            assert result is True
-            
-            # Verify coordinator was removed from hass.data
-            assert 'test_entry' not in mock_hass.data['exaviz']
-            
-            # Verify coordinator shutdown was called
-            mock_coordinator.async_shutdown.assert_called_once()
-            
-            # Verify services were unloaded (since hass.data[DOMAIN] is now empty)
-            mock_unload_services.assert_called_once_with(mock_hass) 
+        mock_entry.runtime_data = AsyncMock()
+
+        result = await exaviz_init.async_unload_entry(mock_hass, mock_entry)
+
+        assert result is True
+        mock_entry.runtime_data.async_shutdown.assert_called_once()
+        mock_hass.services.async_remove.assert_not_called() 

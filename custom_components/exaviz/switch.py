@@ -12,8 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .base_entity import ExavizPoEBaseEntity, async_setup_port_entities
-from .const import DOMAIN
+from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .coordinator import ExavizDataUpdateCoordinator
 from .utils import sudo_argv
 
@@ -48,7 +47,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up PoE switch entities from a config entry."""
-    coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator: ExavizDataUpdateCoordinator = config_entry.runtime_data
     async_setup_port_entities(
         coordinator,
         config_entry,
@@ -329,11 +328,13 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
             else:
                 await self._control_pse_port("enable")
                 await self.coordinator.async_request_refresh()
+        except HomeAssistantError:
+            raise
         except Exception as e:
-            _LOGGER.error(
-                "Error enabling PoE port %s:%d - %s",
-                self._poe_set, self._port_number, e,
-            )
+            # Raise so the UI and automations see the failure.
+            raise HomeAssistantError(
+                f"Could not enable PoE port {self._poe_set}:{self._port_number}: {e}"
+            ) from e
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the PoE port."""
@@ -346,8 +347,9 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
             else:
                 await self._control_pse_port("disable")
                 await self.coordinator.async_request_refresh()
+        except HomeAssistantError:
+            raise
         except Exception as e:
-            _LOGGER.error(
-                "Error disabling PoE port %s:%d - %s",
-                self._poe_set, self._port_number, e,
-            )
+            raise HomeAssistantError(
+                f"Could not disable PoE port {self._poe_set}:{self._port_number}: {e}"
+            ) from e

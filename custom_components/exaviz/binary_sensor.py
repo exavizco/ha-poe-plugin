@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .base_entity import ExavizPoEBaseEntity, async_setup_port_entities
+from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .board_detector import BoardType
 from .const import (
     DOMAIN,
@@ -36,7 +36,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up PoE binary sensor entities from a config entry."""
-    coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator: ExavizDataUpdateCoordinator = config_entry.runtime_data
     entry_id = config_entry.entry_id
     async_setup_port_entities(
         coordinator,

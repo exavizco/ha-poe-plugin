@@ -5,6 +5,7 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
@@ -37,9 +38,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def refresh_data(call: ServiceCall) -> None:
         """Refresh integration data from all coordinators."""
         _LOGGER.info("Refreshing Exaviz integration data")
-        for coordinator in hass.data.get(DOMAIN, {}).values():
-            if hasattr(coordinator, "async_request_refresh"):
-                await coordinator.async_request_refresh()
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.state is ConfigEntryState.LOADED:
+                await entry.runtime_data.async_request_refresh()
 
     async def turn_on_port(call: ServiceCall) -> None:
         """Turn on a PoE port."""
@@ -124,11 +125,3 @@ async def _control_poe_port(
     )
     _LOGGER.info("PoE port %s: %s completed", entity_id, action)
 
-
-async def async_unload_services(hass: HomeAssistant) -> None:
-    """Unload services for Exaviz integration."""
-    for service_name in (
-        "refresh_data", "turn_on_port", "turn_off_port",
-        "toggle_port", "control_port", "reset_port",
-    ):
-        hass.services.async_remove(DOMAIN, service_name)

@@ -17,7 +17,7 @@ def test_required_files_exist():
         "custom_components/exaviz/sensor.py",
         "custom_components/exaviz/switch.py",
         "custom_components/exaviz/services.py",
-        "custom_components/exaviz/base_entity.py",
+        "custom_components/exaviz/entity.py",
         "custom_components/exaviz/utils.py",
     ]
     for path in required:

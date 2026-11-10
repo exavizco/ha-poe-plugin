@@ -5,7 +5,7 @@ from unittest.mock import patch
 from homeassistant.config_entries import ConfigEntryState
 
 import custom_components.exaviz as exaviz
-from custom_components.exaviz.const import CONF_UPDATE_INTERVAL, DOMAIN
+from custom_components.exaviz.const import CONF_UPDATE_INTERVAL
 
 from .local_board import patch_local_board
 from .test_golden_local import setup_local_entry
@@ -38,7 +38,7 @@ async def test_local_options_change_reloads_once_via_state_machine(hass, freezer
         assert setup.call_count == 1
         schedule.assert_called_once_with(entry.entry_id)
         assert entry.state is ConfigEntryState.LOADED
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator = entry.runtime_data
         assert coordinator.update_interval.total_seconds() == 45
 
         await hass.config_entries.async_unload(entry.entry_id)
