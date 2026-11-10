@@ -8,15 +8,18 @@ from typing import Any
 from homeassistant.components.button import ButtonEntity, ButtonDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .base_entity import ExavizPoEBaseEntity
-from .const import DOMAIN
+from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .coordinator import ExavizDataUpdateCoordinator
 from .switch import ExavizPoEPortSwitch
 from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
+
+# One port action at a time, so two cannot race on the board.
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
@@ -25,26 +28,15 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up PoE button entities from a config entry."""
-    coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-    
-    entities = []
-    if coordinator.data and "poe" in coordinator.data:
-        poe_data = coordinator.data["poe"]
-        
-        for poe_set_name, poe_set_data in poe_data.items():
-            if isinstance(poe_set_data, dict) and "ports" in poe_set_data:
-                for port in poe_set_data["ports"]:
-                    port_num = port.get("port", 0)
-                    entities.append(
-                        ExavizPoEPortResetButton(
-                            coordinator,
-                            poe_set_name,
-                            port_num,
-                            config_entry.entry_id
-                        )
-                    )
-    
-    async_add_entities(entities)
+    coordinator: ExavizDataUpdateCoordinator = config_entry.runtime_data
+    async_setup_port_entities(
+        coordinator,
+        config_entry,
+        async_add_entities,
+        lambda poe_set, port: [
+            ExavizPoEPortResetButton(coordinator, poe_set, port, config_entry.entry_id)
+        ],
+    )
 
 
 class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
@@ -69,14 +61,14 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         )
 
     @property
+    def available(self) -> bool:
+        """Unavailable on a read-only remote pairing."""
+        return self.coordinator.can_control and super().available
+
+    @property
     def device_class(self) -> ButtonDeviceClass:
         """Return the device class."""
         return ButtonDeviceClass.RESTART
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return self.coordinator.last_update_success and self.coordinator.data is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -108,6 +100,10 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             "Resetting (power cycling) PoE port %s:%d",
             self._poe_set, self._port_number,
         )
+        if self.coordinator.remote is not None:
+            # The board runs the whole power cycle itself.
+            await self.coordinator.async_port_action(self._port_number, "reset")
+            return
         try:
             port_data = self._get_port_data()
             is_onboard = (
@@ -122,11 +118,13 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
 
             await self.coordinator.async_request_refresh()
 
+        except HomeAssistantError:
+            raise
         except Exception as ex:
-            _LOGGER.error(
-                "Failed to reset PoE port %s:%d: %s",
-                self._poe_set, self._port_number, ex,
-            )
+            # Raise so the UI and automations see the failure.
+            raise HomeAssistantError(
+                f"Could not reset PoE port {self._poe_set}:{self._port_number}: {ex}"
+            ) from ex
 
     async def _reset_onboard_port(self) -> None:
         """Power-cycle an onboard PoE port without rebooting the ESP32.

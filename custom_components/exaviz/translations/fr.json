@@ -2,7 +2,7 @@
   "title": "Gestion PoE Exaviz",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Gestion PoE Carte Locale Exaviz",
         "description": "Détecté : Carte {board_type} avec {total_ports} ports PoE ({addon_boards} cartes supplémentaires, {onboard_ports} ports intégrés). Configurez l'intervalle de mise à jour ci-dessous.",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "Impossible de détecter le matériel de la carte. Assurez-vous d'utiliser une carte Exaviz Interceptor ou Cruiser.",
       "no_poe_detected": "Aucun système PoE détecté sur cette carte. Vérifiez les connexions matérielles.",
-      "unknown": "Une erreur inattendue s'est produite. Veuillez réessayer."
+      "unknown": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+      "missing_packages": "Les paquets Exaviz requis (exaviz-dkms, exaviz-netplan) ne sont pas installés sur le système d'exploitation hôte. Installez-les depuis le dépôt apt d'Exaviz (apt.exaviz.com) avant d'ajouter cette intégration."
     },
     "abort": {
       "already_configured": "Cette carte est déjà configurée."

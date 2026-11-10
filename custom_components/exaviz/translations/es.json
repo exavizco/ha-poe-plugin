@@ -2,7 +2,7 @@
   "title": "Gestión PoE de Exaviz",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Gestión PoE de Placa Local Exaviz",
         "description": "Detectado: Placa {board_type} con {total_ports} puertos PoE ({addon_boards} placas adicionales, {onboard_ports} puertos integrados). Configure el intervalo de actualización a continuación.",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "No se puede detectar el hardware de la placa. Asegúrese de estar ejecutando en una placa Exaviz Interceptor o Cruiser.",
       "no_poe_detected": "No se detectaron sistemas PoE en esta placa. Verifique las conexiones de hardware.",
-      "unknown": "Ocurrió un error inesperado. Por favor, inténtelo de nuevo."
+      "unknown": "Ocurrió un error inesperado. Por favor, inténtelo de nuevo.",
+      "missing_packages": "Los paquetes de Exaviz necesarios (exaviz-dkms, exaviz-netplan) no están instalados en el sistema operativo del host. Instálelos desde el repositorio apt de Exaviz (apt.exaviz.com) antes de añadir esta integración."
     },
     "abort": {
       "already_configured": "Esta placa ya está configurada."

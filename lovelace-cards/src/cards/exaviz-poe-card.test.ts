@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ExavizPoECard } from './exaviz-poe-card';
+import readScopeStates from '../test/fixtures/read-scope-states.json';
 
 type States = Record<string, { state: string; attributes?: Record<string, unknown> }>;
 
@@ -153,5 +154,15 @@ describe('card title', () => {
   it('falls back to the poe_set name', () => {
     expect(makeCard({}, { poe_set: 'addon_1' })._getDefaultCardTitle()).toBe('Add-on Board 1 PoE');
     expect(makeCard({}, { poe_set: 'addon_2' })._getDefaultCardTitle()).toBe('ADDON 2 PoE Management');
+  });
+});
+
+describe('read-only network pairing', () => {
+  // States recorded from the integration by its T-43 test: switches and reset
+  // buttons are unavailable, sensors are not.
+  it('still shows all 8 ports', () => {
+    const card = makeCard(readScopeStates as States);
+    card._discoverPorts();
+    expect(card._ports.map((p: { port: number }) => p.port)).toEqual([0, 2, 4, 6, 1, 3, 5, 7]);
   });
 });

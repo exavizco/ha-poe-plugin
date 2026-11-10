@@ -4,6 +4,7 @@ Home Assistant is not installed in the test venv, so we mock its modules
 at the sys.modules level before any custom_components imports occur.
 """
 import sys
+from typing import TypedDict
 from unittest.mock import MagicMock, AsyncMock
 
 import pytest
@@ -42,6 +43,7 @@ _HA_MODULES = [
     "homeassistant.helpers.event",
     "homeassistant.helpers.service",
     "homeassistant.helpers.storage",
+    "homeassistant.helpers.typing",
     "homeassistant.helpers.update_coordinator",
     "homeassistant.loader",
     "voluptuous",
@@ -78,6 +80,13 @@ class _StubDataUpdateCoordinator:
     async def _async_update_data(self):
         raise NotImplementedError
 
+class _StubDeviceInfo(TypedDict, total=False):
+    """DeviceInfo as on the HA 2024.12 floor: children link with via_device."""
+    via_device: tuple[str, str]
+
+sys.modules["homeassistant.helpers.device_registry"].DeviceInfo = _StubDeviceInfo
+# `from homeassistant.helpers import device_registry` reads the package attribute.
+sys.modules["homeassistant.helpers"].device_registry = sys.modules["homeassistant.helpers.device_registry"]
 sys.modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = _StubCoordinatorEntity
 sys.modules["homeassistant.helpers.update_coordinator"].DataUpdateCoordinator = _StubDataUpdateCoordinator
 sys.modules["homeassistant.helpers.update_coordinator"].UpdateFailed = Exception
@@ -94,6 +103,18 @@ sys.modules["homeassistant.components.camera"].Camera = _StubEntity
 sys.modules["homeassistant.exceptions"].HomeAssistantError = Exception
 sys.modules["homeassistant.exceptions"].ConfigEntryNotReady = Exception
 sys.modules["homeassistant.exceptions"].ServiceValidationError = Exception
+
+
+class _StubConfigEntryAuthFailed(Exception):
+    """Distinct class so `except (ConfigEntryAuthFailed, ...)` works."""
+
+
+class _StubConfigEntryError(Exception):
+    """Distinct class so `except (ConfigEntryError, ...)` works."""
+
+
+sys.modules["homeassistant.exceptions"].ConfigEntryAuthFailed = _StubConfigEntryAuthFailed
+sys.modules["homeassistant.exceptions"].ConfigEntryError = _StubConfigEntryError
 
 # Constants — Platform values must be real strings so `'sensor' in PLATFORMS` works
 class _Platform:

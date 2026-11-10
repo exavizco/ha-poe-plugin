@@ -12,12 +12,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .base_entity import ExavizPoEBaseEntity
-from .const import DOMAIN
+from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .coordinator import ExavizDataUpdateCoordinator
 from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
+
+# One port action at a time, so two cannot race on the board.
+PARALLEL_UPDATES = 1
 
 # ---------------------------------------------------------------------------
 # ESP32 serial command interface (/dev/pse)
@@ -45,26 +47,15 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up PoE switch entities from a config entry."""
-    coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-    
-    entities = []
-    if coordinator.data and "poe" in coordinator.data:
-        poe_data = coordinator.data["poe"]
-        
-        for poe_set_name, poe_set_data in poe_data.items():
-            if isinstance(poe_set_data, dict) and "ports" in poe_set_data:
-                for port in poe_set_data["ports"]:
-                    port_num = port.get("port", 0)
-                    entities.append(
-                        ExavizPoEPortSwitch(
-                            coordinator,
-                            poe_set_name,
-                            port_num,
-                            config_entry.entry_id
-                        )
-                    )
-    
-    async_add_entities(entities)
+    coordinator: ExavizDataUpdateCoordinator = config_entry.runtime_data
+    async_setup_port_entities(
+        coordinator,
+        config_entry,
+        async_add_entities,
+        lambda poe_set, port: [
+            ExavizPoEPortSwitch(coordinator, poe_set, port, config_entry.entry_id)
+        ],
+    )
 
 
 class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
@@ -115,9 +106,9 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         Add-on board switches are disabled until kernel driver supports
         /proc/pse write interface.
         """
-        if self._is_addon_board:
+        if self._is_addon_board or not self.coordinator.can_control:
             return False
-        return self.coordinator.last_update_success and self.coordinator.data is not None
+        return super().available
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -328,28 +319,37 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the PoE port."""
+        if self.coordinator.remote is not None:
+            await self.coordinator.async_port_action(self._port_number, "enable")
+            return
         try:
             if self._is_onboard_poe_system():
                 await self._control_onboard_port("enable")
             else:
                 await self._control_pse_port("enable")
                 await self.coordinator.async_request_refresh()
+        except HomeAssistantError:
+            raise
         except Exception as e:
-            _LOGGER.error(
-                "Error enabling PoE port %s:%d - %s",
-                self._poe_set, self._port_number, e,
-            )
+            # Raise so the UI and automations see the failure.
+            raise HomeAssistantError(
+                f"Could not enable PoE port {self._poe_set}:{self._port_number}: {e}"
+            ) from e
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the PoE port."""
+        if self.coordinator.remote is not None:
+            await self.coordinator.async_port_action(self._port_number, "disable")
+            return
         try:
             if self._is_onboard_poe_system():
                 await self._control_onboard_port("disable")
             else:
                 await self._control_pse_port("disable")
                 await self.coordinator.async_request_refresh()
+        except HomeAssistantError:
+            raise
         except Exception as e:
-            _LOGGER.error(
-                "Error disabling PoE port %s:%d - %s",
-                self._poe_set, self._port_number, e,
-            )
+            raise HomeAssistantError(
+                f"Could not disable PoE port {self._poe_set}:{self._port_number}: {e}"
+            ) from e

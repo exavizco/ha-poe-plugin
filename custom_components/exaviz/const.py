@@ -13,12 +13,31 @@ DOMAIN: Final = "exaviz"
 # Plugin version (semver + git hash for build metadata)
 # Format: MAJOR.MINOR.PATCH+<git-short-hash>
 # Update MAJOR.MINOR.PATCH here; the hash is appended at build/tag time.
-PLUGIN_VERSION: Final = "1.3.3"
+PLUGIN_VERSION: Final = "1.4.0"
 
 # Configuration keys
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 CONF_UPDATE_INTERVAL: Final = "update_interval"
 CONF_SWITCH_MODE_DISCOVERY: Final = "switch_mode_discovery"
+
+# Remote board (Home Assistant on another host than the board). An entry
+# without CONF_CONNECTION is a local board.
+CONF_CONNECTION: Final = "connection"
+CONNECTION_REMOTE: Final = "remote"
+CONF_HOST: Final = "host"
+CONF_PORT: Final = "port"
+CONF_TOKEN: Final = "token"
+CONF_TOKEN_ID: Final = "token_id"
+CONF_SCOPE: Final = "scope"
+CONF_FINGERPRINT: Final = "fingerprint"
+CONF_SPKI: Final = "spki"
+CONF_TRUST_MODE: Final = "trust_mode"
+CONF_SERIAL: Final = "serial"
+CONF_BOARD_TYPE: Final = "board_type"
+DEFAULT_HTTPS_PORT: Final = 443
+SCOPE_CONTROL: Final = "poe_control"
+TRUST_PIN: Final = "pin"
+TRUST_CA: Final = "ca"
 
 # Default values
 DEFAULT_SCAN_INTERVAL: Final = 30

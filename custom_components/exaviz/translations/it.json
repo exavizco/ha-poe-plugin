@@ -2,7 +2,7 @@
   "title": "Gestione PoE Exaviz",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Gestione PoE Scheda Locale Exaviz",
         "description": "Rilevato: Scheda {board_type} con {total_ports} porte PoE ({addon_boards} schede aggiuntive, {onboard_ports} porte integrate). Configura l'intervallo di aggiornamento di seguito.",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "Impossibile rilevare l'hardware della scheda. Assicurati di utilizzare una scheda Exaviz Interceptor o Cruiser.",
       "no_poe_detected": "Nessun sistema PoE rilevato su questa scheda. Verifica le connessioni hardware.",
-      "unknown": "Si è verificato un errore imprevisto. Riprova."
+      "unknown": "Si è verificato un errore imprevisto. Riprova.",
+      "missing_packages": "I pacchetti Exaviz richiesti (exaviz-dkms, exaviz-netplan) non sono installati sul sistema operativo host. Installali dal repository apt di Exaviz (apt.exaviz.com) prima di aggiungere questa integrazione."
     },
     "abort": {
       "already_configured": "Questa scheda è già configurata."

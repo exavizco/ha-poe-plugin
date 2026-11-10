@@ -57,11 +57,12 @@ class TestViaDeviceRegistration:
         call_order: list[str] = []
 
         mock_hass = Mock()
-        mock_hass.data = {}
+        mock_hass.data = {"exaviz": {}}  # async_setup ran first
         mock_hass.http = Mock()
         mock_hass.http.async_register_static_paths = AsyncMock()
         mock_hass.services = Mock()
         mock_hass.services.has_service = Mock(return_value=False)
+        mock_hass.async_add_executor_job = AsyncMock(side_effect=lambda f, *a: f(*a))
 
         mock_entry = Mock()
         mock_entry.entry_id = "test_entry_id"
@@ -82,9 +83,8 @@ class TestViaDeviceRegistration:
         mock_hass.config_entries.async_forward_entry_setups = track_forward
 
         with patch("custom_components.exaviz.ExavizDataUpdateCoordinator", return_value=mock_coordinator):
-            with patch("custom_components.exaviz.async_setup_services", new_callable=AsyncMock):
-                with patch("custom_components.exaviz.dr.async_get", return_value=mock_device_reg):
-                    await exaviz_init.async_setup_entry(mock_hass, mock_entry)
+            with patch("custom_components.exaviz.dr.async_get", return_value=mock_device_reg):
+                await exaviz_init.async_setup_entry(mock_hass, mock_entry)
 
         assert call_order.index("device_create") < call_order.index("platform_forward")
 

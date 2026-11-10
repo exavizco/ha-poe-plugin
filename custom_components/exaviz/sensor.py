@@ -15,11 +15,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .base_entity import ExavizPoEBaseEntity
-from .const import DOMAIN
+from .entity import ExavizPoEBaseEntity, async_setup_port_entities
+from .const import CONF_SCOPE, DOMAIN, PLUGIN_VERSION
 from .coordinator import ExavizDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Coordinator-driven: no per-entity polling.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
@@ -28,30 +31,23 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up PoE sensor entities from a config entry."""
-    coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-    
-    entities: list[SensorEntity] = []
-    if coordinator.data and "poe" in coordinator.data:
-        poe_data = coordinator.data["poe"]
-        
-        for poe_set_name, poe_set_data in poe_data.items():
-            if isinstance(poe_set_data, dict) and "ports" in poe_set_data:
-                for port in poe_set_data["ports"]:
-                    port_num = port.get("port", 0)
-                    entities.append(
-                        ExavizPoECurrentSensor(
-                            coordinator,
-                            poe_set_name,
-                            port_num,
-                            config_entry.entry_id
-                        )
-                    )
-    
-    # Always add the board-level sensors
-    entities.append(ExavizServerStatusSensor(coordinator, config_entry.entry_id))
-    entities.append(ExavizBoardTemperatureSensor(coordinator, config_entry.entry_id))
+    coordinator: ExavizDataUpdateCoordinator = config_entry.runtime_data
+    async_setup_port_entities(
+        coordinator,
+        config_entry,
+        async_add_entities,
+        lambda poe_set, port: [
+            ExavizPoECurrentSensor(coordinator, poe_set, port, config_entry.entry_id)
+        ],
+    )
 
-    async_add_entities(entities)
+    # Always add the board-level sensors
+    async_add_entities(
+        [
+            ExavizServerStatusSensor(coordinator, config_entry.entry_id),
+            ExavizBoardTemperatureSensor(coordinator, config_entry.entry_id),
+        ]
+    )
 
 
 class ExavizPoECurrentSensor(ExavizPoEBaseEntity, SensorEntity):
@@ -147,7 +143,7 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
             "name": f"Exaviz {board_name}",
             "manufacturer": "Exaviz (by Axzez LLC)",
             "model": f"{board_name} Carrier Board",
-            "sw_version": "1.0.0",
+            "sw_version": PLUGIN_VERSION,
         }
 
     @property
@@ -190,10 +186,17 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
             "board_serial",
             "board_identifier",
             "poe_driver_version",
+            "management_version",
             "plugin_version",
         ):
             if key in board_info:
                 attrs[key] = board_info[key]
+
+        # A remote pairing's scope; read scope carries the way to get control.
+        if self.coordinator.remote is not None:
+            attrs["pairing_scope"] = self.coordinator.entry.data.get(CONF_SCOPE)
+            if not self.coordinator.can_control:
+                attrs["control_note"] = self.coordinator.read_only_note
 
         # Live PoE stats (updated each poll cycle)
         if self.coordinator.data:
@@ -259,7 +262,7 @@ class ExavizBoardTemperatureSensor(CoordinatorEntity, SensorEntity):
             "name": f"Exaviz {board_name}",
             "manufacturer": "Exaviz (by Axzez LLC)",
             "model": f"{board_name} Carrier Board",
-            "sw_version": "1.0.0",
+            "sw_version": PLUGIN_VERSION,
         }
 
     @property

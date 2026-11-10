@@ -7,20 +7,46 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryError,
+    HomeAssistantError,
+)
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from . import remote
 from .board_detector import BoardType, detect_all_poe_systems
 from .const import (
+    CONF_BOARD_TYPE,
+    CONF_CONNECTION,
+    CONF_FINGERPRINT,
+    CONF_HOST,
+    CONF_PORT,
+    CONF_SCOPE,
+    CONF_SERIAL,
+    CONF_SPKI,
     CONF_SWITCH_MODE_DISCOVERY,
+    CONF_TOKEN,
+    CONF_TOKEN_ID,
+    CONF_TRUST_MODE,
     CONF_UPDATE_INTERVAL,
+    CONNECTION_REMOTE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SWITCH_MODE_DISCOVERY,
     DOMAIN,
     MIN_TRAFFIC_BYTES,
     PLUGIN_VERSION,
+    SCOPE_CONTROL,
+    TRUST_CA,
 )
+
+# A 200 on a port action means the command reached the controller, not that
+# power changed; enable takes a few seconds, so poll again after this delay.
+REMOTE_SETTLE_SECONDS = 3
 from .poe_readers import read_all_addon_ports, read_all_onboard_ports
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,6 +81,11 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         self.total_poe_ports = 0
         self.system_info: dict[str, str] = {}
         self.entry = entry
+        # Remote board (HA on another host): set in async_setup.
+        self.remote: remote.RemoteClient | None = None
+        self.serial_mismatch = False
+        self._remote_ports: list[dict[str, Any]] = []
+        self._cancel_settle_refresh: CALLBACK_TYPE | None = None
 
         # Options (set post-setup) win over the value captured at config time.
         interval = entry.options.get(
@@ -64,12 +95,16 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
             update_interval=timedelta(seconds=interval),
         )
 
     async def async_setup(self) -> bool:
         """Detect board type and PoE systems."""
+        if self.entry.data.get(CONF_CONNECTION) == CONNECTION_REMOTE:
+            await self._async_setup_remote()
+            return True
         try:
             detection_result = await detect_all_poe_systems()
             
@@ -114,6 +149,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch PoE port data from local board."""
+        if self.remote is not None:
+            return await self._async_update_remote()
         try:
             poe_data: dict[str, Any] = {}
             
@@ -276,6 +313,204 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 "traffic_detected": traffic,
             }
         return None
+
+    # ------------------------------------------------------------------
+    # Remote board (Home Assistant on another host)
+    # ------------------------------------------------------------------
+
+    async def _async_setup_remote(self) -> None:
+        """Build the HTTPS client. No request is made until the first poll."""
+        data = self.entry.data
+        # CA mode pins the confirmed key, so a renewed certificate with the
+        # same key keeps working; pin mode pins the confirmed certificate.
+        trust = (
+            {"spki_pin": data[CONF_SPKI]}
+            if data[CONF_TRUST_MODE] == TRUST_CA
+            else {"pin": data[CONF_FINGERPRINT]}
+        )
+        self.remote = remote.RemoteClient(
+            async_get_clientsession(self.hass),
+            remote.board_url(data[CONF_HOST], data[CONF_PORT]),
+            token=data[CONF_TOKEN],
+            **trust,
+        )
+        self.board_type = BoardType(data[CONF_BOARD_TYPE])
+        self.entry.async_on_unload(self._async_cancel_settle_refresh)
+
+    @property
+    def can_control(self) -> bool:
+        """False for a remote pairing with read scope."""
+        return self.remote is None or self.entry.data.get(CONF_SCOPE) == SCOPE_CONTROL
+
+    @property
+    def read_only_note(self) -> str:
+        """How to get PoE control: the only working upgrade path."""
+        return (
+            "This pairing is read-only. To switch ports, revoke token "
+            f"`{self.entry.data.get(CONF_TOKEN_ID)}` on the board in More > Home "
+            "Assistant, start a new pairing there with PoE control, and enter the "
+            "code when Home Assistant asks."
+        )
+
+    @callback
+    def _async_cancel_settle_refresh(self) -> None:
+        if self._cancel_settle_refresh:
+            self._cancel_settle_refresh()
+            self._cancel_settle_refresh = None
+
+    @callback
+    def _async_settle_refresh(self, _now: datetime) -> None:
+        self._cancel_settle_refresh = None
+        # async_refresh, not async_request_refresh: the request path has a
+        # 10 s cooldown, which would push this poll to about +10 s.
+        # An entry task, so unloading the entry cancels it mid-flight.
+        self.entry.async_create_background_task(
+            self.hass, self.async_refresh(), "exaviz settle refresh"
+        )
+
+    async def async_port_action(self, port_number: int, action: str) -> None:
+        """Enable, disable or reset one port on a remote board.
+
+        Refuses without a request on a read-only pairing or while another
+        board answers at this address.
+        """
+        if not self.can_control:
+            raise HomeAssistantError(self.read_only_note)
+        if self.serial_mismatch:
+            raise HomeAssistantError("A different board answers at this address")
+        port = next((p for p in self._remote_ports if p["port"] == port_number), None)
+        if port is None:
+            raise HomeAssistantError(f"The board has not reported port {port_number}")
+        try:
+            await self.remote.port_action(port["pse"], port["index"], action)
+        except remote.BadRequest as err:
+            _LOGGER.error("The board rejected %s on port %d; this is a bug", action, port_number)
+            raise HomeAssistantError("The board rejected the request") from err
+        except remote.Forbidden as err:
+            raise HomeAssistantError(
+                "The board did not allow this action (pair again with PoE control)"
+            ) from err
+        except remote.NotFound as err:
+            raise HomeAssistantError(
+                "The board is still starting; try again in a few seconds"
+            ) from err
+        except (remote.AuthFailed, remote.CertificateChanged) as err:
+            # Poll now: the poll's ConfigEntryAuthFailed both starts reauth and
+            # stops the interval, the same path as a 401 on a regular poll.
+            await self.async_refresh()
+            raise HomeAssistantError("Pair Home Assistant with the board again") from err
+        except remote.BoardError as err:
+            raise HomeAssistantError("The board could not change the port") from err
+        except remote.RemoteError as err:
+            raise HomeAssistantError("The board did not answer") from err
+        await self.async_request_refresh()
+        self._async_cancel_settle_refresh()
+        self._cancel_settle_refresh = async_call_later(
+            self.hass, REMOTE_SETTLE_SECONDS, self._async_settle_refresh
+        )
+
+    def _contract_lost(self, message: str) -> None:
+        """Stop polling a board that no longer serves the contract.
+
+        After setup, schedule a reload: its setup raises ConfigEntryError and
+        the entry rests in SETUP_ERROR with the message, with no more polls.
+        """
+        if self.entry.state is ConfigEntryState.LOADED:
+            self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+            raise UpdateFailed(message)
+        raise ConfigEntryError(message)
+
+    async def _async_update_remote(self) -> dict[str, Any]:
+        """One poll: /board, /poe/ports, /switch/ports, /system/health."""
+        try:
+            board = await self.remote.probe()
+            if board.get("serial") != self.entry.data[CONF_SERIAL]:
+                self.serial_mismatch = True
+                raise UpdateFailed("a different board answers at this address")
+            self.serial_mismatch = False
+            poe_body, board_date = await self.remote.get_poe_ports()
+            switch_body = await self.remote.get_switch_ports()
+            health = await self.remote.get_health()
+        except remote.AuthFailed as err:
+            raise ConfigEntryAuthFailed("the board no longer accepts this pairing") from err
+        except remote.CertificateChanged as err:
+            raise ConfigEntryAuthFailed("the board's certificate changed") from err
+        except remote.NoManagement:
+            self._contract_lost(
+                "Exaviz Management is not installed on the board; install it, "
+                "then reload the Exaviz integration"
+            )
+        except (remote.ManagementTooOld, remote.UnsupportedContract):
+            self._contract_lost(
+                "Update Exaviz Management on the board, then reload the Exaviz integration"
+            )
+        except remote.RemoteError as err:
+            raise UpdateFailed(f"Error reading the board: {err}") from err
+
+        try:
+            return self._map_remote(board, poe_body, board_date, switch_body, health)
+        except (AttributeError, KeyError, TypeError, ValueError) as err:
+            raise UpdateFailed("the board sent data this integration cannot read") from err
+
+    def _map_remote(
+        self,
+        board: dict[str, Any],
+        poe_body: Any,
+        board_date: datetime | None,
+        switch_body: Any,
+        health: Any,
+    ) -> dict[str, Any]:
+        """Turn one poll's replies into coordinator data."""
+        _board_type, self.system_info = remote.map_board(board)
+        ports = remote.map_ports(
+            poe_body, switch_body, board_date, self._remote_ports or None
+        )
+        # Startup window: the board has parsed no port yet. Not ready, never
+        # "no PoE detected"; after a good poll the old ports stay (stale) and
+        # the port count keeps its last non-zero value.
+        total = board.get("total_poe_ports") or self.total_poe_ports
+        if not ports or not total:
+            raise UpdateFailed("the board is starting; no PoE ports yet")
+        for port in ports:
+            is_active = (
+                port["status"] == "power on" or port["power_consumption_watts"] > 0
+            )
+            port["connected_device"] = self._build_device_info(
+                port, port["interface"], is_active, "Onboard PoE"
+            )
+        self._remote_ports = ports
+        self.onboard_ports = [p["interface"] for p in ports]
+        self.total_poe_ports = total
+
+        enabled = len([p for p in ports if p["enabled"]])
+        power = sum(p["power_consumption_watts"] for p in ports)
+        return {
+            "board_type": self.board_type.value if self.board_type else "unknown",
+            "total_poe_ports": self.total_poe_ports,
+            "total_enabled_ports": enabled,
+            "total_power_watts": round(power, 2),
+            "board_temperature_celsius": remote.map_health(health),
+            "poe": {
+                "onboard": {
+                    "total_ports": len(ports),
+                    "active_ports": enabled,
+                    "used_power_watts": power,
+                    "total_power_budget": len(ports) * 30.0,
+                    "power_mocked": False,
+                    "ports": ports,
+                }
+            },
+            "hardware": {
+                "hardware_type": self.board_type.value if self.board_type else "unknown",
+                "poe_capable": True,
+                "model": f"Exaviz {self.board_type.value.title()}"
+                if self.board_type
+                else "Unknown",
+                "addon_boards": 0,
+                "onboard_ports": len(ports),
+            },
+            "last_updated": datetime.now().isoformat(),
+        }
 
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and clean up resources."""

@@ -6,9 +6,10 @@
 
 **Monitor and control Power over Ethernet ports on [Exaviz](https://www.exaviz.com) hardware platforms.**
 
-A zero-configuration Home Assistant custom integration for managing PoE ports on
-Exaviz Interceptor and Cruiser carrier boards. Runs directly on the board --
-no external servers required.
+A Home Assistant custom integration for managing PoE ports on Exaviz Interceptor
+and Cruiser carrier boards. Run Home Assistant on the board itself, with no setup
+beyond adding the integration, or on another computer that reaches a Cruiser over
+your network. No cloud or external servers.
 
 <img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/interceptor-poe-dashboard.png" alt="Interceptor PoE Management Dashboard" width="400">
 
@@ -24,7 +25,7 @@ Click any port tile to see detailed information:
 - **Device Discovery** -- Identifies connected devices by IP, MAC, and manufacturer
 - **Zigbee Coordinator Status** -- Cruiser only: shows whether the ESP32-C6 has Zigbee firmware, with a helper message when it does not
 - **Modern Dashboard** -- Lovelace card with dark/light theme support
-- **Multi-language** -- 10 languages included (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH)
+- **Multi-language** -- 10 languages for setup on the board (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH); setup for a board on the network is in English for now
 
 ## Supported Hardware
 
@@ -34,6 +35,9 @@ Click any port tile to see detailed information:
 | **Interceptor** (CM4/CM5) | None | Up to 2 add-on boards (8 ports each) | 16 |
 
 ## Requirements
+
+These are for Home Assistant running on the Exaviz board. For Home Assistant on another
+computer, see [Home Assistant on another computer](#home-assistant-on-another-computer).
 
 - Exaviz Cruiser or Interceptor board with PoE support
 - Debian-based Linux (Bookworm or Trixie) -- e.g., Raspberry Pi OS via Imager
@@ -87,7 +91,8 @@ sudo reboot
 1. Go to **Settings > Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "**Exaviz**"
-4. The integration auto-detects your board and PoE systems -- no configuration needed
+4. Choose **Home Assistant runs on this board**
+5. The integration auto-detects your board and PoE systems -- no configuration needed
 
 ### 3. Add the Dashboard Card
 
@@ -126,12 +131,89 @@ To install the Zigbee firmware, run `sudo exaviz-flash zigbee` once on the board
 the board once and finishes by itself in about five minutes. Setup steps, the antenna you need
 and troubleshooting are on the [Zigbee page](https://exa-pedia.com/docs/cruiser/zigbee/).
 
+## Home Assistant on another computer
+
+If Home Assistant runs somewhere other than the Exaviz board, for example on a mini PC or in a
+container on your server, the integration can reach the board over your network. The computer
+that runs Home Assistant does not need the Exaviz packages.
+
+**What you need**
+
+- An Exaviz Cruiser. Interceptor boards cannot be added over the network yet.
+- Exaviz Management on the board, with Home Assistant pairing (More > Home Assistant in the
+  board's dashboard). If the board's Exaviz Management is too old, the integration tells you to
+  update it.
+- One board per Home Assistant for now.
+
+**Add the board**
+
+1. In Home Assistant, go to Settings > Devices & services > Add integration > Exaviz, and choose
+   **The board is another device on my network**.
+2. Enter the board's IP address. A `.local` name works only where your system resolves it; use
+   the IP address if it does not.
+3. On the board, open More > Home Assistant and click **Add Home Assistant**. Choose
+   **Read + PoE control** if you want to switch ports from Home Assistant, or **Read only** if
+   you only want to watch them. The code is valid for 5 minutes.
+4. Compare the fingerprint Home Assistant shows with the one on the board's pairing screen. Tick
+   the box only if they are the same.
+5. Enter the 8-character code.
+
+**Good to know**
+
+- The integration talks to the board over HTTPS only and checks the board's certificate on every
+  connection, before it sends anything. A board with a certificate from a public certificate
+  authority may renew it with the same key. Any other change makes Home Assistant ask you to pair
+  again, and it shows the new fingerprint first.
+- With **Read only**, the port switches and reset buttons are unavailable.
+- Home Assistant keeps the pairing token in its configuration files and backups as plain text,
+  not encrypted. Anyone who can read your Home Assistant configuration can read it.
+- Removing the integration does not revoke the token. Revoke it on the board in
+  More > Home Assistant.
+- Each new pairing creates a new token, and the board holds at most 20. After pairing again,
+  revoke the old token on the board; Home Assistant shows its id.
+- If the board moves to a new address, use Reconfigure on the Exaviz integration.
+- If the board's serial number changed, delete the integration and add it again. The default
+  entity ids stay the same; renames you made in Home Assistant must be made again.
+- A port whose readings stop updating shows as unavailable. The PoE card currently shows such a
+  port as empty.
+
+Full guide: [Home Assistant on another computer](https://exa-pedia.com/docs/home-assistant/remote-board/).
+
+## Options
+
+Settings > Devices & services > Exaviz > Configure:
+
+- **Update Interval** -- how often the integration reads the ports, 10 to 300 seconds (default 30).
+- **Switch-mode device discovery** -- on a board running Home Assistant itself, in switch/bridge
+  mode, find the device on each PoE port. Leave it off in per-port mode. Not shown for a board on
+  the network.
+
+## Actions
+
+| Action | What it does |
+|--------|--------------|
+| `exaviz.turn_on_port` | Turn PoE power on for a port (`entity_id` of its switch) |
+| `exaviz.turn_off_port` | Turn PoE power off for a port |
+| `exaviz.toggle_port` | Toggle PoE power for a port |
+| `exaviz.control_port` | Same, with `action`: `turn_on`, `turn_off` or `toggle` |
+| `exaviz.reset_port` | Power-cycle a port |
+| `exaviz.refresh_data` | Read the ports now |
+
+The port switches and reset buttons work with Home Assistant's own `switch` and `button` actions too.
+
+## Removing the integration
+
+1. Settings > Devices & services > Exaviz > the three dots > **Delete**.
+2. For a board on the network, revoke its token on the board in More > Home Assistant.
+3. To remove the files too, remove **Exaviz PoE Management** in HACS and restart Home Assistant.
+
 ## Documentation
 
 Full documentation is available at **[exa-pedia.com](https://exa-pedia.com/docs/home-assistant/)**:
 
 - [Installation Guide](https://exa-pedia.com/docs/home-assistant/installation/)
 - [Configuration](https://exa-pedia.com/docs/home-assistant/configuration/)
+- [Home Assistant on another computer](https://exa-pedia.com/docs/home-assistant/remote-board/)
 - [Dashboard Setup](https://exa-pedia.com/docs/home-assistant/dashboard/)
 - [Troubleshooting](https://exa-pedia.com/docs/home-assistant/troubleshooting/)
 - [FAQ](https://exa-pedia.com/docs/home-assistant/faq/)

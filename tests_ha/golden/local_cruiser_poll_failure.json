@@ -1,0 +1,504 @@
+[
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port0_plug",
+    "original_name": "ONBOARD Port 0 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port0_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port0_powered",
+    "original_name": "ONBOARD Port 0 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port0_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port1_plug",
+    "original_name": "ONBOARD Port 1 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port1_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port1_powered",
+    "original_name": "ONBOARD Port 1 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port1_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port2_plug",
+    "original_name": "ONBOARD Port 2 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port2_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port2_powered",
+    "original_name": "ONBOARD Port 2 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port2_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port3_plug",
+    "original_name": "ONBOARD Port 3 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port3_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port3_powered",
+    "original_name": "ONBOARD Port 3 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port3_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port4_plug",
+    "original_name": "ONBOARD Port 4 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port4_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port4_powered",
+    "original_name": "ONBOARD Port 4 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port4_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port5_plug",
+    "original_name": "ONBOARD Port 5 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port5_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port5_powered",
+    "original_name": "ONBOARD Port 5 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port5_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port6_plug",
+    "original_name": "ONBOARD Port 6 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port6_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port6_powered",
+    "original_name": "ONBOARD Port 6 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port6_powered"
+  },
+  {
+    "attributes": {
+      "device_class": "connectivity"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port7_plug",
+    "original_name": "ONBOARD Port 7 Plugged",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port7_plug"
+  },
+  {
+    "attributes": {
+      "device_class": "power"
+    },
+    "available": false,
+    "entity_id": "binary_sensor.onboard_port7_powered",
+    "original_name": "ONBOARD Port 7 Powered",
+    "platform": "binary_sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port7_powered"
+  },
+  {
+    "attributes": {
+      "firmware_variant": "zigbee",
+      "icon": "mdi:zigbee"
+    },
+    "available": true,
+    "entity_id": "binary_sensor.zigbee_coordinator",
+    "original_name": "Zigbee Coordinator",
+    "platform": "binary_sensor",
+    "state": "on",
+    "unique_id": "golden_entry_zigbee_coordinator"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port0_reset",
+    "original_name": "ONBOARD Port 0 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port0_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port1_reset",
+    "original_name": "ONBOARD Port 1 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port1_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port2_reset",
+    "original_name": "ONBOARD Port 2 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port2_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port3_reset",
+    "original_name": "ONBOARD Port 3 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port3_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port4_reset",
+    "original_name": "ONBOARD Port 4 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port4_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port5_reset",
+    "original_name": "ONBOARD Port 5 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port5_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port6_reset",
+    "original_name": "ONBOARD Port 6 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port6_reset"
+  },
+  {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "available": false,
+    "entity_id": "button.onboard_port7_reset",
+    "original_name": "ONBOARD Port 7 Reset",
+    "platform": "button",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port7_reset"
+  },
+  {
+    "attributes": {
+      "addon_boards": 0,
+      "board_type": "cruiser",
+      "esp32_firmware_variant": "zigbee",
+      "icon": "mdi:chip",
+      "kernel_version": "6.12.0-test",
+      "onboard_ports": 8,
+      "total_enabled_ports": 7,
+      "total_poe_ports": 8,
+      "total_power_watts": 4.5,
+      "update_interval": 30.0
+    },
+    "available": true,
+    "entity_id": "sensor.board_status",
+    "original_name": "Board Status",
+    "platform": "sensor",
+    "state": "Error",
+    "unique_id": "golden_entry_board_status"
+  },
+  {
+    "attributes": {
+      "device_class": "temperature",
+      "icon": "mdi:thermometer",
+      "state_class": "measurement",
+      "unit_of_measurement": "\u00b0C"
+    },
+    "available": false,
+    "entity_id": "sensor.board_temperature",
+    "original_name": "Board Temperature",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_board_temperature"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port0_current",
+    "original_name": "ONBOARD Port 0 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port0_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port1_current",
+    "original_name": "ONBOARD Port 1 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port1_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port2_current",
+    "original_name": "ONBOARD Port 2 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port2_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port3_current",
+    "original_name": "ONBOARD Port 3 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port3_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port4_current",
+    "original_name": "ONBOARD Port 4 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port4_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port5_current",
+    "original_name": "ONBOARD Port 5 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port5_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port6_current",
+    "original_name": "ONBOARD Port 6 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port6_current"
+  },
+  {
+    "attributes": {
+      "device_class": "power",
+      "state_class": "measurement",
+      "unit_of_measurement": "W"
+    },
+    "available": false,
+    "entity_id": "sensor.onboard_port7_current",
+    "original_name": "ONBOARD Port 7 Current",
+    "platform": "sensor",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port7_current"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port0",
+    "original_name": "ONBOARD Port 0",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port0"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port1",
+    "original_name": "ONBOARD Port 1",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port1"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port2",
+    "original_name": "ONBOARD Port 2",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port2"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port3",
+    "original_name": "ONBOARD Port 3",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port3"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port4",
+    "original_name": "ONBOARD Port 4",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port4"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port5",
+    "original_name": "ONBOARD Port 5",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port5"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port6",
+    "original_name": "ONBOARD Port 6",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port6"
+  },
+  {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "available": false,
+    "entity_id": "switch.onboard_port7",
+    "original_name": "ONBOARD Port 7",
+    "platform": "switch",
+    "state": "unavailable",
+    "unique_id": "golden_entry_onboard_port7"
+  }
+]

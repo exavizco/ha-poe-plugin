@@ -22,6 +22,28 @@ jobs:
       - name: Run tests
         run: pytest
 
+  pytest-ha:
+    runs-on: ubuntu-latest
+    name: Pytest on Home Assistant ${{ matrix.ha }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The HACS floor in hacs.json, and current Home Assistant.
+          - ha: floor
+            python: '3.13'
+          - ha: current
+            python: '3.14'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the harness
+        run: pip install -r tests_ha/requirements-${{ matrix.ha }}.txt
+      - name: Run tests
+        run: pytest -c tests_ha/pytest.ini --rootdir .
+
   frontend:
     runs-on: ubuntu-latest
     name: Frontend lint and type-check
