@@ -85,7 +85,11 @@
       "serial_mismatch": "A different board answered. If this board's serial changed, delete the integration and add it again.",
       "board_unreachable": "The board did not answer at its saved address. If it moved, use Reconfigure on the Exaviz integration to enter its new address.",
       "reauth_successful": "Home Assistant is paired with the board again.",
-      "reconfigure_successful": "The board's address was updated."
+      "reconfigure_successful": "The board's address was updated.",
+      "reconfigure_local": "This board runs Home Assistant itself, so there is no address to change.",
+      "no_management": "Exaviz Management is not installed on this board.",
+      "management_too_old": "Update Exaviz Management on the board, then try again.",
+      "unsupported_contract": "The board's Exaviz Management is newer than this integration. Update the Exaviz integration."
     }
   },
   "options": {

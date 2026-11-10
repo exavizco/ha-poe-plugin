@@ -302,6 +302,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Move the entry to a new address; re-pair if the certificate changed."""
         entry = self._get_reconfigure_entry()
+        # HA offers Reconfigure on every entry of the domain; a board that runs
+        # Home Assistant itself has no address to change.
+        if entry.data.get(CONF_CONNECTION) != CONNECTION_REMOTE:
+            return self.async_abort(reason="reconfigure_local")
         errors: dict[str, str] = {}
         if user_input is not None:
             error = await self._probe_address(user_input)
@@ -309,9 +313,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if self._board["serial"] != entry.data[CONF_SERIAL]:
                     return self.async_abort(reason="serial_mismatch")
                 if await self._same_certificate(entry.data):
-                    self.hass.config_entries.async_update_entry(
+                    self._update_and_reload(
                         entry,
-                        data={**entry.data, CONF_HOST: self._host, CONF_PORT: self._port},
+                        {**entry.data, CONF_HOST: self._host, CONF_PORT: self._port},
                     )
                     return self.async_abort(reason="reconfigure_successful")
                 return await self.async_step_fingerprint()
@@ -323,6 +327,22 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     # --- Remote helpers -------------------------------------------------
+
+    def _update_and_reload(
+        self, entry: config_entries.ConfigEntry, data: dict[str, Any]
+    ) -> None:
+        """Save new data and reload the entry exactly once.
+
+        A loaded entry is reloaded by its update listener. An entry whose
+        setup failed (revoked token at startup, board moved) has no listener
+        yet, so schedule its reload here.
+        """
+        # Read the state first: the listener's reload can start eagerly inside
+        # async_update_entry.
+        has_listener = entry.state is config_entries.ConfigEntryState.LOADED
+        self.hass.config_entries.async_update_entry(entry, data=data)
+        if not has_listener:
+            self.hass.config_entries.async_schedule_reload(entry.entry_id)
 
     def _existing_entry(self) -> config_entries.ConfigEntry:
         if self.source == config_entries.SOURCE_REAUTH:
@@ -375,10 +395,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return TRUST_PIN
 
     async def _same_certificate(self, data: dict[str, Any]) -> bool:
-        """Pin: same leaf. CA: verifies for this host and carries the same key."""
-        if remote.fingerprint_of(self._der) == data[CONF_FINGERPRINT]:
-            return True
-        if data[CONF_TRUST_MODE] != TRUST_CA or remote.spki_of(self._der) != data[CONF_SPKI]:
+        """Pin: same leaf. CA: same key, and it verifies for this host."""
+        if data[CONF_TRUST_MODE] != TRUST_CA:
+            return remote.fingerprint_of(self._der) == data[CONF_FINGERPRINT]
+        # CA mode checks the host name on every connection, so an unchanged
+        # leaf is not enough when the address changed.
+        if remote.spki_of(self._der) != data[CONF_SPKI]:
             return False
         try:
             return await remote.tls_verifies(self._host, self._port, await self._ca_context())
@@ -410,8 +432,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_FINGERPRINT
             ] != entry.data[CONF_FINGERPRINT]:
                 data.update(trust, **{CONF_HOST: self._host, CONF_PORT: self._port})
-            # The update listener schedules the one reload.
-            self.hass.config_entries.async_update_entry(entry, data=data)
+            self._update_and_reload(entry, data)
             reason = (
                 "reauth_successful"
                 if self.source == config_entries.SOURCE_REAUTH
