@@ -163,9 +163,12 @@ def ca_bundle_path() -> str:
     return certifi.where()
 
 
-def build_ca_context(cafile: str) -> ssl.SSLContext:
-    """Verifying context for CA mode. Blocking: run it in the executor."""
-    return ssl.create_default_context(cafile=cafile)
+def build_ca_context(cafile: str | None = None) -> ssl.SSLContext:
+    """Verifying context for CA mode (HA's bundle by default).
+
+    Blocking (it loads the bundle): run it in the executor.
+    """
+    return ssl.create_default_context(cafile=cafile or ca_bundle_path())
 
 
 def _no_verify_context() -> ssl.SSLContext:

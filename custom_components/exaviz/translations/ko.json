@@ -2,7 +2,7 @@
   "title": "Exaviz PoE 관리",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Exaviz 로컬 보드 PoE 관리",
         "description": "감지됨: {board_type} 보드, {total_ports}개의 PoE 포트 ({addon_boards}개의 애드온 보드, {onboard_ports}개의 온보드 포트). 아래에서 업데이트 간격을 구성하세요.",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "보드 하드웨어를 감지할 수 없습니다. Exaviz Interceptor 또는 Cruiser 보드에서 실행 중인지 확인하세요.",
       "no_poe_detected": "이 보드에서 PoE 시스템이 감지되지 않았습니다. 하드웨어 연결을 확인하세요.",
-      "unknown": "예기치 않은 오류가 발생했습니다. 다시 시도하세요."
+      "unknown": "예기치 않은 오류가 발생했습니다. 다시 시도하세요.",
+      "missing_packages": "필수 Exaviz 패키지(exaviz-dkms, exaviz-netplan)가 호스트 OS에 설치되어 있지 않습니다. 이 통합을 추가하기 전에 Exaviz apt 저장소(apt.exaviz.com)에서 설치하세요."
     },
     "abort": {
       "already_configured": "이 보드는 이미 구성되어 있습니다."

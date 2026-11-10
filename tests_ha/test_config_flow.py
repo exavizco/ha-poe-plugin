@@ -31,13 +31,15 @@ CODE = "ABCD-EFGH"
 
 
 @pytest.fixture(autouse=True)
-def no_entry_setup():
-    """The remote setup branch lands later; flows here only create entries."""
+async def no_entry_setup(hass):
+    """Flows here only create entries; setup is covered by the runtime tests."""
     with (
         patch("custom_components.exaviz.async_setup_entry", return_value=True),
         patch("custom_components.exaviz.async_unload_entry", return_value=True),
     ):
         yield
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            await hass.config_entries.async_unload(entry.entry_id)
 
 
 @pytest.fixture(autouse=True)
@@ -249,7 +251,7 @@ async def test_t23_bare_host_uses_443_and_https_url_accepted(hass, board):
 async def test_t24_cannot_connect(hass, board):
     await board.stop()
     result = await start_remote(hass, board.host, board.port)
-    assert result["errors"] == {"base": "cannot_connect"}
+    assert result["errors"] == {"base": "board_unreachable"}
 
 
 @pytest.mark.parametrize(
@@ -420,8 +422,8 @@ async def test_t27b_reconfigure_new_certificate_repairs(hass, board):
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"confirm": True}
     )
-    assert result["step_id"] == "pair"
-    assert "0000000000000001" in result["description_placeholders"]["old_token_id"]
+    assert result["step_id"] == "repair"
+    assert result["description_placeholders"]["old_token_id"] == "0000000000000001"
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": CODE}
     )
@@ -482,7 +484,7 @@ async def test_reauth_same_certificate_updates_token_only(hass, board):
     entry.add_to_hass(hass)
     before = dict(entry.data)
     result = await _reauth(hass, entry)
-    assert result["step_id"] == "pair"
+    assert result["step_id"] == "repair"
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": CODE}
     )
@@ -533,7 +535,7 @@ async def test_reauth_board_gone_says_cannot_connect(hass, board):
     await board.stop()
     result = await _reauth(hass, entry)
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "cannot_connect"
+    assert result["reason"] == "board_unreachable"
 
 
 # --- T-28: trust mode ----------------------------------------------------------

@@ -2,7 +2,7 @@
   "title": "Exaviz PoE-beheer",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Exaviz Lokale Board PoE-beheer",
         "description": "Gedetecteerd: {board_type} board met {total_ports} PoE-poorten ({addon_boards} add-on boards, {onboard_ports} onboard poorten). Configureer het update-interval hieronder.",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "Kan de boardhardware niet detecteren. Zorg ervoor dat u draait op een Exaviz Interceptor of Cruiser board.",
       "no_poe_detected": "Geen PoE-systemen gedetecteerd op dit board. Controleer de hardwareverbindingen.",
-      "unknown": "Er is een onverwachte fout opgetreden. Probeer het opnieuw."
+      "unknown": "Er is een onverwachte fout opgetreden. Probeer het opnieuw.",
+      "missing_packages": "Vereiste Exaviz-pakketten (exaviz-dkms, exaviz-netplan) zijn niet geïnstalleerd op het host-besturingssysteem. Installeer ze vanuit de Exaviz apt-repository (apt.exaviz.com) voordat u deze integratie toevoegt."
     },
     "abort": {
       "already_configured": "Dit board is al geconfigureerd."

@@ -2,7 +2,7 @@
   "title": "Exaviz PoE 管理",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Exaviz 本地板 PoE 管理",
         "description": "检测到：{board_type} 板，有 {total_ports} 个 PoE 端口（{addon_boards} 个扩展板，{onboard_ports} 个板载端口）。请在下方配置更新间隔。",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "无法检测板卡硬件。请确保您在 Exaviz Interceptor 或 Cruiser 板上运行。",
       "no_poe_detected": "在此板上未检测到 PoE 系统。请检查硬件连接。",
-      "unknown": "发生意外错误。请重试。"
+      "unknown": "发生意外错误。请重试。",
+      "missing_packages": "主机操作系统上未安装所需的 Exaviz 软件包（exaviz-dkms、exaviz-netplan）。添加此集成前，请从 Exaviz apt 软件源 (apt.exaviz.com) 安装它们。"
     },
     "abort": {
       "already_configured": "此板已配置。"

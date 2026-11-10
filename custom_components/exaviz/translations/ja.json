@@ -2,7 +2,7 @@
   "title": "Exaviz PoE管理",
   "config": {
     "step": {
-      "user": {
+      "local": {
         "title": "Exavizローカルボード PoE管理",
         "description": "検出: {board_type}ボード、{total_ports}個のPoEポート（{addon_boards}個のアドオンボード、{onboard_ports}個のオンボードポート）。以下で更新間隔を設定してください。",
         "data": {
@@ -16,7 +16,8 @@
     "error": {
       "cannot_connect": "ボードのハードウェアを検出できません。Exaviz InterceptorまたはCruiserボードで実行していることを確認してください。",
       "no_poe_detected": "このボードでPoEシステムが検出されませんでした。ハードウェア接続を確認してください。",
-      "unknown": "予期しないエラーが発生しました。もう一度お試しください。"
+      "unknown": "予期しないエラーが発生しました。もう一度お試しください。",
+      "missing_packages": "必要な Exaviz パッケージ (exaviz-dkms、exaviz-netplan) がホスト OS にインストールされていません。この統合を追加する前に、Exaviz apt リポジトリ (apt.exaviz.com) からインストールしてください。"
     },
     "abort": {
       "already_configured": "このボードは既に設定されています。"

@@ -3,6 +3,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "Add an Exaviz board",
+        "description": "Where is the board?",
+        "menu_options": {
+          "local": "Home Assistant runs on this board",
+          "remote": "The board is another device on my network"
+        }
+      },
+      "local": {
         "title": "Exaviz Local Board PoE Management",
         "description": "Detected: {board_type} board with {total_ports} PoE ports ({addon_boards} add-on boards, {onboard_ports} onboard ports). Configure update interval below.",
         "data": {
@@ -11,15 +19,73 @@
         "data_description": {
           "update_interval": "How often to scan PoE port status (10-300 seconds)"
         }
+      },
+      "remote": {
+        "title": "Exaviz board on your network",
+        "description": "Enter the board's IP address or host name. The board needs Exaviz Management with Home Assistant pairing. Use the board's IP address if a .local name does not work.",
+        "data": {
+          "host": "Address",
+          "port": "HTTPS port",
+          "update_interval": "Update Interval (seconds)"
+        },
+        "data_description": {
+          "update_interval": "How often to read PoE port status (10-300 seconds)"
+        }
+      },
+      "fingerprint": {
+        "title": "Check the board's certificate",
+        "description": "Start pairing on the board now (More > Home Assistant); the code is valid for 5 minutes.\n\nCompare this fingerprint with the fingerprint on the board's pairing screen:\n\n`{fingerprint}`\n\nTick the box only if they are the same.",
+        "data": {
+          "confirm": "The fingerprints are the same"
+        }
+      },
+      "pair": {
+        "title": "Enter the pairing code",
+        "description": "Enter the 8-character code from the board's pairing screen, like ABCD-EFGH.",
+        "data": {
+          "code": "Pairing code"
+        }
+      },
+      "repair": {
+        "title": "Pair with the board again",
+        "description": "Start pairing on the board now (More > Home Assistant); the code is valid for 5 minutes. Enter the 8-character code, like ABCD-EFGH.\n\nAfter pairing, revoke the old token `{old_token_id}` on the board in More > Home Assistant.",
+        "data": {
+          "code": "Pairing code"
+        }
+      },
+      "reconfigure": {
+        "title": "Change the board's address",
+        "description": "Enter the board's new IP address or host name. If its certificate changed, you will compare the new fingerprint and pair again.",
+        "data": {
+          "host": "Address",
+          "port": "HTTPS port"
+        }
       }
     },
     "error": {
       "cannot_connect": "Unable to detect board hardware. Ensure you are running on an Exaviz Interceptor or Cruiser board.",
       "no_poe_detected": "No PoE systems detected on this board. Check hardware connections.",
-      "unknown": "An unexpected error occurred. Please try again."
+      "unknown": "An unexpected error occurred. Please try again.",
+      "missing_packages": "Required Exaviz packages (exaviz-dkms, exaviz-netplan) are not installed on the host OS. Install them from the Exaviz apt repository (apt.exaviz.com) before adding this integration.",
+      "https_required": "The board must be reached over HTTPS. Enter the address without http://.",
+      "invalid_host": "Enter only an IP address or host name, optionally with https:// and a port.",
+      "board_unreachable": "The board did not answer. Check the address and that the board is on.",
+      "no_management": "Exaviz Management is not installed on this board.",
+      "management_too_old": "Update Exaviz Management on the board, then try again.",
+      "unsupported_contract": "The board's Exaviz Management is newer than this integration. Update the Exaviz integration.",
+      "unsupported_board": "Only Cruiser boards can be added over the network in this version.",
+      "invalid_code": "The code is wrong, expired or cancelled. Start pairing on the board again and enter the new code.",
+      "too_many_attempts": "Too many wrong codes. Wait {retry_after} seconds, start a new pairing on the board, and enter the new code.",
+      "token_limit": "The board already has 20 Home Assistant tokens. Revoke one on the board in More > Home Assistant, then enter the same code again."
     },
     "abort": {
-      "already_configured": "This board is already configured."
+      "already_configured": "This board is already configured.",
+      "single_instance_allowed": "Only one Exaviz board can be added to Home Assistant in this version.",
+      "fingerprint_rejected": "The fingerprints were not the same, so nothing was paired. Check that you entered the right board's address.",
+      "serial_mismatch": "A different board answered. If this board's serial changed, delete the integration and add it again.",
+      "board_unreachable": "The board did not answer at its saved address. If it moved, use Reconfigure on the Exaviz integration to enter its new address.",
+      "reauth_successful": "Home Assistant is paired with the board again.",
+      "reconfigure_successful": "The board's address was updated."
     }
   },
   "options": {

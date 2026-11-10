@@ -1,0 +1,6 @@
+# Real-HA test harness on the HACS floor in hacs.json (HA 2024.12.5, Python 3.13).
+# Run: pytest -c tests_ha/pytest.ini --rootdir .
+pytest-homeassistant-custom-component==0.13.195
+# HA 2024.12 pins aiodns but not pycares; pycares 5 starts a background
+# thread that the harness reports as lingering. 4.5.0 matches that release.
+pycares==4.5.0
