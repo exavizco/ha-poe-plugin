@@ -160,8 +160,9 @@ that runs Home Assistant does not need the Exaviz packages.
 **Good to know**
 
 - The integration talks to the board over HTTPS only and checks the board's certificate on every
-  connection. If the certificate changes, Home Assistant asks you to pair again and shows the new
-  fingerprint first.
+  connection, before it sends anything. A board with a certificate from a public certificate
+  authority may renew it with the same key. Any other change makes Home Assistant ask you to pair
+  again, and it shows the new fingerprint first.
 - With **Read only**, the port switches and reset buttons are unavailable.
 - Home Assistant keeps the pairing token in its configuration files and backups as plain text,
   not encrypted. Anyone who can read your Home Assistant configuration can read it.
