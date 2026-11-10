@@ -3,13 +3,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 0 Plugged",
       "poe_set": "onboard",
       "port_number": 0,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port0_plug",
+    "original_name": "ONBOARD Port 0 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port0_plug"
@@ -18,13 +18,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 0 Powered",
       "poe_set": "onboard",
       "port_number": 0,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port0_powered",
+    "original_name": "ONBOARD Port 0 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port0_powered"
@@ -33,13 +33,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 1 Plugged",
       "poe_set": "onboard",
       "port_number": 1,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port1_plug",
+    "original_name": "ONBOARD Port 1 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port1_plug"
@@ -48,13 +48,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 1 Powered",
       "poe_set": "onboard",
       "port_number": 1,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port1_powered",
+    "original_name": "ONBOARD Port 1 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port1_powered"
@@ -70,7 +70,6 @@
       "device_traffic_detected": false,
       "device_type": "Acme",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 2 Plugged",
       "poe_set": "onboard",
       "port_number": 2,
       "power_class": "Unknown (Onboard PoE)",
@@ -78,6 +77,7 @@
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port2_plug",
+    "original_name": "ONBOARD Port 2 Plugged",
     "platform": "binary_sensor",
     "state": "on",
     "unique_id": "golden_entry_onboard_port2_plug"
@@ -93,7 +93,6 @@
       "device_traffic_detected": false,
       "device_type": "Acme",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 2 Powered",
       "poe_set": "onboard",
       "port_number": 2,
       "power_class": "Unknown (Onboard PoE)",
@@ -101,6 +100,7 @@
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port2_powered",
+    "original_name": "ONBOARD Port 2 Powered",
     "platform": "binary_sensor",
     "state": "on",
     "unique_id": "golden_entry_onboard_port2_powered"
@@ -109,13 +109,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 3 Plugged",
       "poe_set": "onboard",
       "port_number": 3,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port3_plug",
+    "original_name": "ONBOARD Port 3 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port3_plug"
@@ -124,13 +124,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 3 Powered",
       "poe_set": "onboard",
       "port_number": 3,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port3_powered",
+    "original_name": "ONBOARD Port 3 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port3_powered"
@@ -139,13 +139,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 4 Plugged",
       "poe_set": "onboard",
       "port_number": 4,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port4_plug",
+    "original_name": "ONBOARD Port 4 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port4_plug"
@@ -154,13 +154,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 4 Powered",
       "poe_set": "onboard",
       "port_number": 4,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port4_powered",
+    "original_name": "ONBOARD Port 4 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port4_powered"
@@ -169,13 +169,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 5 Plugged",
       "poe_set": "onboard",
       "port_number": 5,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port5_plug",
+    "original_name": "ONBOARD Port 5 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port5_plug"
@@ -184,13 +184,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 5 Powered",
       "poe_set": "onboard",
       "port_number": 5,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port5_powered",
+    "original_name": "ONBOARD Port 5 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port5_powered"
@@ -199,13 +199,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 6 Plugged",
       "poe_set": "onboard",
       "port_number": 6,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port6_plug",
+    "original_name": "ONBOARD Port 6 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port6_plug"
@@ -214,13 +214,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 6 Powered",
       "poe_set": "onboard",
       "port_number": 6,
       "status": "detection"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port6_powered",
+    "original_name": "ONBOARD Port 6 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port6_powered"
@@ -229,13 +229,13 @@
     "attributes": {
       "device_class": "connectivity",
       "enabled": false,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 7 Plugged",
       "poe_set": "onboard",
       "port_number": 7,
       "status": "disabled"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port7_plug",
+    "original_name": "ONBOARD Port 7 Plugged",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port7_plug"
@@ -244,13 +244,13 @@
     "attributes": {
       "device_class": "power",
       "enabled": false,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 7 Powered",
       "poe_set": "onboard",
       "port_number": 7,
       "status": "disabled"
     },
     "available": true,
     "entity_id": "binary_sensor.onboard_port7_powered",
+    "original_name": "ONBOARD Port 7 Powered",
     "platform": "binary_sensor",
     "state": "off",
     "unique_id": "golden_entry_onboard_port7_powered"
@@ -258,11 +258,11 @@
   {
     "attributes": {
       "firmware_variant": "zigbee",
-      "friendly_name": "Exaviz Cruiser Zigbee Coordinator",
       "icon": "mdi:zigbee"
     },
     "available": true,
     "entity_id": "binary_sensor.zigbee_coordinator",
+    "original_name": "Zigbee Coordinator",
     "platform": "binary_sensor",
     "state": "on",
     "unique_id": "golden_entry_zigbee_coordinator"
@@ -270,13 +270,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 0 Reset",
       "poe_set": "onboard",
       "port_number": 0,
       "status": "detection"
     },
     "available": true,
     "entity_id": "button.onboard_port0_reset",
+    "original_name": "ONBOARD Port 0 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port0_reset"
@@ -284,13 +284,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 1 Reset",
       "poe_set": "onboard",
       "port_number": 1,
       "status": "detection"
     },
     "available": true,
     "entity_id": "button.onboard_port1_reset",
+    "original_name": "ONBOARD Port 1 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port1_reset"
@@ -300,13 +300,13 @@
       "device_class": "restart",
       "device_name": "Device on poe2",
       "device_type": "Acme",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 2 Reset",
       "poe_set": "onboard",
       "port_number": 2,
       "status": "active"
     },
     "available": true,
     "entity_id": "button.onboard_port2_reset",
+    "original_name": "ONBOARD Port 2 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port2_reset"
@@ -314,13 +314,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 3 Reset",
       "poe_set": "onboard",
       "port_number": 3,
       "status": "detection"
     },
     "available": true,
     "entity_id": "button.onboard_port3_reset",
+    "original_name": "ONBOARD Port 3 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port3_reset"
@@ -328,13 +328,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 4 Reset",
       "poe_set": "onboard",
       "port_number": 4,
       "status": "detection"
     },
     "available": true,
     "entity_id": "button.onboard_port4_reset",
+    "original_name": "ONBOARD Port 4 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port4_reset"
@@ -342,13 +342,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 5 Reset",
       "poe_set": "onboard",
       "port_number": 5,
       "status": "detection"
     },
     "available": true,
     "entity_id": "button.onboard_port5_reset",
+    "original_name": "ONBOARD Port 5 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port5_reset"
@@ -356,13 +356,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 6 Reset",
       "poe_set": "onboard",
       "port_number": 6,
       "status": "detection"
     },
     "available": true,
     "entity_id": "button.onboard_port6_reset",
+    "original_name": "ONBOARD Port 6 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port6_reset"
@@ -370,13 +370,13 @@
   {
     "attributes": {
       "device_class": "restart",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 7 Reset",
       "poe_set": "onboard",
       "port_number": 7,
       "status": "disabled"
     },
     "available": true,
     "entity_id": "button.onboard_port7_reset",
+    "original_name": "ONBOARD Port 7 Reset",
     "platform": "button",
     "state": "unknown",
     "unique_id": "golden_entry_onboard_port7_reset"
@@ -386,7 +386,6 @@
       "addon_boards": 0,
       "board_type": "cruiser",
       "esp32_firmware_variant": "zigbee",
-      "friendly_name": "Exaviz Cruiser Board Status",
       "icon": "mdi:chip",
       "kernel_version": "6.12.0-test",
       "onboard_ports": 8,
@@ -397,6 +396,7 @@
     },
     "available": true,
     "entity_id": "sensor.board_status",
+    "original_name": "Board Status",
     "platform": "sensor",
     "state": "Operational",
     "unique_id": "golden_entry_board_status"
@@ -404,13 +404,13 @@
   {
     "attributes": {
       "device_class": "temperature",
-      "friendly_name": "Exaviz Cruiser Board Temperature",
       "icon": "mdi:thermometer",
       "state_class": "measurement",
       "unit_of_measurement": "\u00b0C"
     },
     "available": true,
     "entity_id": "sensor.board_temperature",
+    "original_name": "Board Temperature",
     "platform": "sensor",
     "state": "48.5",
     "unique_id": "golden_entry_board_temperature"
@@ -422,7 +422,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 0 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -436,6 +435,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port0_current",
+    "original_name": "ONBOARD Port 0 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port0_current"
@@ -447,7 +447,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 1 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -461,6 +460,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port1_current",
+    "original_name": "ONBOARD Port 1 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port1_current"
@@ -479,7 +479,6 @@
       "device_traffic_detected": false,
       "device_type": "Acme",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 2 Current",
       "poe_class": "3",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -494,6 +493,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port2_current",
+    "original_name": "ONBOARD Port 2 Current",
     "platform": "sensor",
     "state": "4.5",
     "unique_id": "golden_entry_onboard_port2_current"
@@ -505,7 +505,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 3 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -519,6 +518,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port3_current",
+    "original_name": "ONBOARD Port 3 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port3_current"
@@ -530,7 +530,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 4 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -544,6 +543,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port4_current",
+    "original_name": "ONBOARD Port 4 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port4_current"
@@ -555,7 +555,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 5 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -569,6 +568,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port5_current",
+    "original_name": "ONBOARD Port 5 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port5_current"
@@ -580,7 +580,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": true,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 6 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -594,6 +593,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port6_current",
+    "original_name": "ONBOARD Port 6 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port6_current"
@@ -605,7 +605,6 @@
       "current_milliamps": 0,
       "device_class": "power",
       "enabled": false,
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 7 Current",
       "poe_class": "?",
       "poe_set": "onboard",
       "poe_system": "onboard",
@@ -619,6 +618,7 @@
     },
     "available": true,
     "entity_id": "sensor.onboard_port7_current",
+    "original_name": "ONBOARD Port 7 Current",
     "platform": "sensor",
     "state": "0.0",
     "unique_id": "golden_entry_onboard_port7_current"
@@ -628,7 +628,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 0",
       "interface": "poe0",
       "link_state": "down",
       "poe_set": "onboard",
@@ -643,6 +642,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port0",
+    "original_name": "ONBOARD Port 0",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port0"
@@ -652,7 +652,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 1",
       "interface": "poe1",
       "link_state": "down",
       "poe_set": "onboard",
@@ -667,6 +666,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port1",
+    "original_name": "ONBOARD Port 1",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port1"
@@ -682,7 +682,6 @@
       "device_manufacturer": "Acme",
       "device_name": "Device on poe2",
       "device_type": "Acme",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 2",
       "interface": "poe2",
       "link_state": "up",
       "poe_set": "onboard",
@@ -697,6 +696,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port2",
+    "original_name": "ONBOARD Port 2",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port2"
@@ -706,7 +706,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 3",
       "interface": "poe3",
       "link_state": "down",
       "poe_set": "onboard",
@@ -721,6 +720,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port3",
+    "original_name": "ONBOARD Port 3",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port3"
@@ -730,7 +730,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 4",
       "interface": "poe4",
       "link_state": "down",
       "poe_set": "onboard",
@@ -745,6 +744,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port4",
+    "original_name": "ONBOARD Port 4",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port4"
@@ -754,7 +754,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 5",
       "interface": "poe5",
       "link_state": "down",
       "poe_set": "onboard",
@@ -769,6 +768,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port5",
+    "original_name": "ONBOARD Port 5",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port5"
@@ -778,7 +778,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 6",
       "interface": "poe6",
       "link_state": "down",
       "poe_set": "onboard",
@@ -793,6 +792,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port6",
+    "original_name": "ONBOARD Port 6",
     "platform": "switch",
     "state": "on",
     "unique_id": "golden_entry_onboard_port6"
@@ -802,7 +802,6 @@
       "board_type": "cruiser",
       "current_milliamps": 0,
       "device_class": "outlet",
-      "friendly_name": "Exaviz ONBOARD Switch ONBOARD Port 7",
       "interface": "poe7",
       "link_state": "down",
       "poe_set": "onboard",
@@ -817,6 +816,7 @@
     },
     "available": true,
     "entity_id": "switch.onboard_port7",
+    "original_name": "ONBOARD Port 7",
     "platform": "switch",
     "state": "off",
     "unique_id": "golden_entry_onboard_port7"

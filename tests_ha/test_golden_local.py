@@ -17,6 +17,9 @@ from .local_board import patch_local_board
 
 GOLDEN = Path(__file__).parent / "golden"
 VOLATILE = {"plugin_version", "last_updated"}
+# HA composes friendly_name differently across versions (2026.x prepends the
+# device name); original_name is what the plugin itself sets.
+HA_COMPOSED = {"friendly_name"}
 
 
 def snapshot(hass) -> list[dict]:
@@ -29,12 +32,13 @@ def snapshot(hass) -> list[dict]:
         attrs = {
             k: v
             for k, v in (state.attributes if state else {}).items()
-            if k not in VOLATILE
+            if k not in VOLATILE | HA_COMPOSED
         }
         rows.append(
             {
                 "entity_id": entry.entity_id,
                 "unique_id": entry.unique_id,
+                "original_name": entry.original_name,
                 "platform": entry.domain,
                 "state": state.state if state else None,
                 "available": bool(state) and state.state != "unavailable",
