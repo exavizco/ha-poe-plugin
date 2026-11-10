@@ -186,8 +186,9 @@ def test_t19_startup_window_keeps_previous_ports_stale():
 
 def test_unknown_port_name_is_logged_once(caplog):
     body = poe()
-    body["ports"] = [dict(body["ports"][0], name="pse2-0", pse=2, index=0)]
+    # A name no other test uses: each name is warned about once per process.
+    body["ports"] = [dict(body["ports"][0], name="pse7-3", pse=7, index=3)]
     with caplog.at_level("WARNING"):
         map_ports(body, {"ports": []}, DATE, None)
         map_ports(body, {"ports": []}, DATE, None)
-    assert sum("pse2-0" in r.getMessage() for r in caplog.records) == 1
+    assert sum("pse7-3" in r.getMessage() for r in caplog.records) == 1

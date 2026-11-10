@@ -363,7 +363,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         self._cancel_settle_refresh = None
         # async_refresh, not async_request_refresh: the request path has a
         # 10 s cooldown, which would push this poll to about +10 s.
-        self.hass.async_create_task(self.async_refresh())
+        # An entry task, so unloading the entry cancels it mid-flight.
+        self.entry.async_create_background_task(
+            self.hass, self.async_refresh(), "exaviz settle refresh"
+        )
 
     async def async_port_action(self, port_number: int, action: str) -> None:
         """Enable, disable or reset one port on a remote board.
@@ -392,7 +395,9 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 "The board is still starting; try again in a few seconds"
             ) from err
         except (remote.AuthFailed, remote.CertificateChanged) as err:
-            self.entry.async_start_reauth(self.hass)
+            # Poll now: the poll's ConfigEntryAuthFailed both starts reauth and
+            # stops the interval, the same path as a 401 on a regular poll.
+            await self.async_refresh()
             raise HomeAssistantError("Pair Home Assistant with the board again") from err
         except remote.BoardError as err:
             raise HomeAssistantError("The board could not change the port") from err

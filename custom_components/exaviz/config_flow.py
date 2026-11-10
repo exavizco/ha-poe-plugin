@@ -473,7 +473,14 @@ class ExavizOptionsFlow(config_entries.OptionsFlow):
         schema: dict[Any, Any] = {
             vol.Optional(
                 CONF_UPDATE_INTERVAL,
-                default=opts.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+                # Options win over the interval chosen at setup, as in the
+                # coordinator; show the value that is in effect.
+                default=opts.get(
+                    CONF_UPDATE_INTERVAL,
+                    self._config_entry.data.get(
+                        CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                    ),
+                ),
             ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
         }
         # Switch-mode discovery is a local arp-scan; it means nothing remotely.

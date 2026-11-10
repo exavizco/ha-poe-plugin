@@ -36,6 +36,8 @@ PORT_ACTIONS = frozenset({"enable", "disable", "reset"})
 # than the Date of the same response.
 STALE_AFTER_SECONDS = 10
 _PIN_RE = re.compile(r"^[0-9a-f]{64}$")
+# Unknown board port names already warned about, so each is logged once.
+_WARNED_PORT_NAMES: set[str] = set()
 _POE_NAME_RE = re.compile(r"^poe(\d+)$")
 _NEUTRAL_NAME_RE = re.compile(r"^pse(\d+)-(\d+)$")
 # Cruiser wiring: PSE 1 feeds poe0-3, PSE 0 feeds poe4-7.
@@ -369,7 +371,9 @@ def map_ports(
         name = wire.get("name", "")
         number = _port_number(name)
         if number is None:
-            _LOGGER.warning("Skipping board port with unknown name %r", name)
+            if name not in _WARNED_PORT_NAMES:
+                _WARNED_PORT_NAMES.add(name)
+                _LOGGER.warning("Skipping board port with unknown name %r", name)
             continue
         interface = f"poe{number}"
         link = links.get(name) or links.get(interface) or {}

@@ -263,7 +263,9 @@ async def test_t44_control_errors_raise(hass, board, reply, text):
 
 async def test_t44_control_401_starts_reauth(hass, board):
     await setup_remote(hass, board)
+    # A revoked token: every token route answers 401.
     board.reply("POST", "/poe/ports/1/0/disable", case("unauth_401"))
+    board.reply("GET", "/poe/ports", case("unauth_401"))
     with pytest.raises(HomeAssistantError, match="Pair Home Assistant"):
         await call(hass, "switch", "turn_off", "switch.onboard_port0")
     await hass.async_block_till_done()
