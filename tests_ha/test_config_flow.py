@@ -683,3 +683,18 @@ async def test_options_default_is_the_interval_chosen_at_pairing(hass, board):
     result = await hass.config_entries.options.async_init(entry.entry_id)
     (key,) = result["data_schema"].schema
     assert key.default() == 120
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ("fe80::1", ("fe80::1", 443)),
+        ("[fe80::1]", ("fe80::1", 443)),
+        ("https://[2001:db8::1]:8443", ("2001:db8::1", 8443)),
+        ("192.168.1.20", ("192.168.1.20", 443)),
+    ],
+)
+def test_parse_host_accepts_bare_ipv6(typed, expected):
+    from custom_components.exaviz.config_flow import _parse_host
+
+    assert _parse_host(typed, 443) == expected

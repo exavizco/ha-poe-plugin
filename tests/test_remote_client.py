@@ -370,3 +370,23 @@ def test_unknown_port_names_warn_a_bounded_number_of_times(caplog, monkeypatch):
     remote.map_ports(body, {"ports": []}, None, None)
     assert len(remote._WARNED_PORT_NAMES) == remote._MAX_WARNED_PORT_NAMES
     assert caplog.text.count("Skipping board port") == remote._MAX_WARNED_PORT_NAMES
+
+
+@pytest.mark.asyncio
+async def test_deeply_nested_reply_is_a_protocol_error(board, session):
+    deep = b"[" * 100000 + b"]" * 100000
+    board.reply("GET", "/system/health", {"status": 200, "raw": deep})
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256, token=TOKEN).get_health()
+
+
+def test_unparseable_leaf_is_a_key_mismatch():
+    class Transport:
+        def get_extra_info(self, name):
+            return {
+                "ssl_object": type("S", (), {"getpeercert": lambda self, binary_form: b"junk"})(),
+                "peername": ("127.0.0.1", 443),
+            }[name]
+
+    with pytest.raises(aiohttp.ServerFingerprintMismatch):
+        remote._SpkiPin(b"\x00" * 32).check(Transport())

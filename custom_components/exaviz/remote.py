@@ -245,7 +245,10 @@ class _SpkiPin(aiohttp.Fingerprint):
     def check(self, transport: asyncio.Transport) -> None:
         sslobj = transport.get_extra_info("ssl_object")
         der = sslobj.getpeercert(binary_form=True) if sslobj else None
-        got = bytes.fromhex(spki_of(der)) if der else b""
+        try:
+            got = bytes.fromhex(spki_of(der)) if der else b""
+        except ValueError:  # a leaf cryptography cannot parse is a mismatch
+            got = b""
         if got != self.fingerprint:
             host, port, *_ = transport.get_extra_info("peername")
             raise aiohttp.ServerFingerprintMismatch(self.fingerprint, got, host, port)
@@ -318,7 +321,7 @@ class RemoteClient:
                     data = json.loads(raw) if raw.strip() else None
                     date = resp.headers.get("Date")
                     return data, parsedate_to_datetime(date) if date else None
-                except (TypeError, ValueError) as err:
+                except (RecursionError, TypeError, ValueError) as err:
                     raise ProtocolError(f"{method} {path}: unreadable reply") from err
         except (aiohttp.ServerFingerprintMismatch, aiohttp.ClientConnectorCertificateError) as err:
             raise CertificateChanged("the board's certificate changed") from err

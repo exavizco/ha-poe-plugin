@@ -98,7 +98,8 @@ class ExavizPoEBaseEntity(CoordinatorEntity):
             parent = dr.async_get(self.hass).async_get_device_by_identifier(
                 (DOMAIN, self._entry_id), self._entry_id
             )
-            info["via_device_id"] = parent.id
+            if parent is not None:  # the user may have deleted it
+                info["via_device_id"] = parent.id
         else:
             info["via_device"] = (DOMAIN, self._entry_id)
         return info

@@ -559,6 +559,8 @@ def _parse_host(value: str, port: int) -> tuple[str, int]:
             raise _HttpsRequired
         if scheme != "https":
             raise _InvalidHost
+    elif value.count(":") > 1 and not value.startswith("["):
+        value = f"https://[{value}]"  # a bare IPv6 address
     else:
         value = f"https://{value}"
     try:

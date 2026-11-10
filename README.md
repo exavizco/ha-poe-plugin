@@ -6,9 +6,10 @@
 
 **Monitor and control Power over Ethernet ports on [Exaviz](https://www.exaviz.com) hardware platforms.**
 
-A zero-configuration Home Assistant custom integration for managing PoE ports on
-Exaviz Interceptor and Cruiser carrier boards. Runs directly on the board --
-no external servers required.
+A Home Assistant custom integration for managing PoE ports on Exaviz Interceptor
+and Cruiser carrier boards. Run Home Assistant on the board itself, with no setup
+beyond adding the integration, or on another computer that reaches a Cruiser over
+your network. No cloud or external servers.
 
 <img src="https://raw.githubusercontent.com/exavizco/ha-poe-plugin/main/images/interceptor-poe-dashboard.png" alt="Interceptor PoE Management Dashboard" width="400">
 
