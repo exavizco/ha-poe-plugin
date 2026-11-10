@@ -38,6 +38,9 @@ dev = [
     "bandit[toml]>=1.7.5",
     "safety>=2.3.0",
     "voluptuous>=0.13.0",
+    # Remote-host client tests (both ship with Home Assistant at runtime)
+    "aiohttp>=3.11.0",
+    "cryptography>=43.0.0",
 ]
 
 [tool.black]

@@ -1,0 +1,337 @@
+{
+  "_note": "Public test fixture for the Exaviz Management HA contract v1. Holds only the keys this plugin reads. Ports follow the Cruiser mapping: poe0-poe3 are PSE 1 index 0-3, poe4-poe7 are PSE 0 index 0-3.",
+  "cases": {
+    "board": {
+      "status": 200,
+      "body": {
+        "board_type": "cruiser",
+        "serial": "CRU-TEST-0001",
+        "serial_source": "factory",
+        "board_revision": "1.0",
+        "compute_module": "Raspberry Pi CM5",
+        "poe_controller": "test-controller",
+        "firmware_variant": "zigbee",
+        "total_poe_ports": 8,
+        "ha_contract_version": 1,
+        "board_name": "Garage"
+      }
+    },
+    "board_authed": {
+      "status": 200,
+      "body": {
+        "board_type": "cruiser",
+        "serial": "CRU-TEST-0001",
+        "serial_source": "factory",
+        "board_revision": "1.0",
+        "compute_module": "Raspberry Pi CM5",
+        "poe_controller": "test-controller",
+        "firmware_variant": "zigbee",
+        "total_poe_ports": 8,
+        "ha_contract_version": 1,
+        "board_name": "Garage",
+        "firmware_version": "1.0.2+test",
+        "os_version": "Debian GNU/Linux 13 (trixie)",
+        "kernel_version": "6.12.62+test",
+        "dkms_version": "1.1.2+test",
+        "netplan_version": "1.0.0+test",
+        "management_version": "1.0.8+test"
+      }
+    },
+    "poe_ports": {
+      "status": 200,
+      "body": {
+        "ports": [
+          {
+            "pse": 1,
+            "index": 0,
+            "name": "poe0",
+            "state": "delivering",
+            "class": 4,
+            "mode": "at",
+            "power_w": 4.897,
+            "power_alloc_w": 30,
+            "voltage_v": 52.1,
+            "current_ma": 94,
+            "temp_c": 42,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 1,
+            "index": 1,
+            "name": "poe1",
+            "state": "searching",
+            "class": 0,
+            "mode": "at",
+            "power_w": 0,
+            "power_alloc_w": 0,
+            "voltage_v": 0,
+            "current_ma": 0,
+            "temp_c": 0,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 1,
+            "index": 2,
+            "name": "poe2",
+            "state": "disabled",
+            "class": 0,
+            "mode": "at",
+            "power_w": 0,
+            "power_alloc_w": 0,
+            "voltage_v": 0,
+            "current_ma": 0,
+            "temp_c": 0,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 1,
+            "index": 3,
+            "name": "poe3",
+            "state": "searching",
+            "class": 0,
+            "mode": "at",
+            "power_w": 0,
+            "power_alloc_w": 0,
+            "voltage_v": 0,
+            "current_ma": 0,
+            "temp_c": 0,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 0,
+            "index": 0,
+            "name": "poe4",
+            "state": "delivering",
+            "class": 4,
+            "mode": "at",
+            "power_w": 6.5,
+            "power_alloc_w": 30,
+            "voltage_v": 52.1,
+            "current_ma": 125,
+            "temp_c": 42,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 0,
+            "index": 1,
+            "name": "poe5",
+            "state": "disabled",
+            "class": 0,
+            "mode": "at",
+            "power_w": 0,
+            "power_alloc_w": 0,
+            "voltage_v": 0,
+            "current_ma": 0,
+            "temp_c": 0,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 0,
+            "index": 2,
+            "name": "poe6",
+            "state": "fault",
+            "class": 0,
+            "mode": "at",
+            "power_w": 0,
+            "power_alloc_w": 0,
+            "voltage_v": 0,
+            "current_ma": 0,
+            "temp_c": 0,
+            "updated_at": "2026-11-10T19:30:00Z"
+          },
+          {
+            "pse": 0,
+            "index": 3,
+            "name": "poe7",
+            "state": "unknown",
+            "class": 0,
+            "mode": "at",
+            "power_w": 0,
+            "power_alloc_w": 0,
+            "voltage_v": 0,
+            "current_ma": 0,
+            "temp_c": 0,
+            "updated_at": "2026-11-10T19:30:00Z"
+          }
+        ],
+        "labels": {
+          "1-0": "Camera 1"
+        },
+        "connected_devices": {
+          "poe0": {
+            "ip": "192.0.2.10",
+            "mac": "AA:BB:CC:DD:EE:01",
+            "manufacturer": "Axis",
+            "hostname": "camera-1"
+          }
+        },
+        "count": 8
+      },
+      "headers": {
+        "Date": "Tue, 10 Nov 2026 19:30:01 GMT"
+      }
+    },
+    "poe_ports_empty": {
+      "status": 200,
+      "body": {
+        "ports": [],
+        "labels": {},
+        "connected_devices": {},
+        "count": 0
+      },
+      "headers": {
+        "Date": "Tue, 10 Nov 2026 19:30:01 GMT"
+      }
+    },
+    "switch_ports": {
+      "status": 200,
+      "body": {
+        "ports": [
+          {
+            "name": "poe0",
+            "oper_state": "up",
+            "carrier": true,
+            "speed_mbps": 100,
+            "stats": {
+              "rx_bytes": 123456,
+              "tx_bytes": 654321
+            }
+          },
+          {
+            "name": "poe4",
+            "oper_state": "up",
+            "carrier": true,
+            "speed_mbps": 1000,
+            "stats": {
+              "rx_bytes": 2000,
+              "tx_bytes": 3000
+            }
+          },
+          {
+            "name": "eth0",
+            "oper_state": "up",
+            "carrier": true,
+            "speed_mbps": 1000,
+            "stats": {
+              "rx_bytes": 1,
+              "tx_bytes": 1
+            }
+          }
+        ]
+      }
+    },
+    "health": {
+      "status": 200,
+      "body": {
+        "cpu_temp_c": 52.3
+      }
+    },
+    "pair_201": {
+      "status": 201,
+      "body": {
+        "token": "exha_4c74bb9a093ab30e_e3db727fb11f0e674c25346a81272c48e77bf0f910e43506e210282106c354f3",
+        "token_id": "4c74bb9a093ab30e",
+        "scope": "poe_control",
+        "serial": "CRU-TEST-0001"
+      }
+    },
+    "pair_400": {
+      "status": 400,
+      "body": {
+        "error": "invalid input",
+        "code": "INVALID_INPUT"
+      }
+    },
+    "pair_401": {
+      "status": 401,
+      "body": {
+        "error": "unauthorized",
+        "code": "UNAUTHORIZED"
+      }
+    },
+    "pair_403": {
+      "status": 403,
+      "body": {
+        "error": "forbidden",
+        "code": "FORBIDDEN"
+      }
+    },
+    "pair_409": {
+      "status": 409,
+      "body": {
+        "error": "token limit reached",
+        "code": "CONFLICT"
+      }
+    },
+    "pair_429": {
+      "status": 429,
+      "body": {
+        "error": "too many requests, try again later",
+        "code": "TOO_MANY_REQUESTS"
+      },
+      "headers": {
+        "Retry-After": "60"
+      }
+    },
+    "pair_500": {
+      "status": 500,
+      "body": {
+        "error": "could not save the token",
+        "code": "INTERNAL_ERROR"
+      }
+    },
+    "control_enable_200": {
+      "status": 200,
+      "body": {
+        "status": "enabled"
+      }
+    },
+    "control_disable_200": {
+      "status": 200,
+      "body": {
+        "status": "disabled"
+      }
+    },
+    "control_reset_200": {
+      "status": 200,
+      "body": {
+        "status": "reset"
+      }
+    },
+    "control_400": {
+      "status": 400,
+      "body": {
+        "error": "invalid input",
+        "code": "INVALID_INPUT"
+      }
+    },
+    "control_403": {
+      "status": 403,
+      "body": {
+        "error": "forbidden",
+        "code": "FORBIDDEN"
+      }
+    },
+    "control_404": {
+      "status": 404,
+      "body": {
+        "error": "port not found",
+        "code": "NOT_FOUND"
+      }
+    },
+    "control_500": {
+      "status": 500,
+      "body": {
+        "error": "controller error",
+        "code": "INTERNAL_ERROR"
+      }
+    },
+    "unauth_401": {
+      "status": 401,
+      "body": {
+        "error": "unauthorized",
+        "code": "UNAUTHORIZED"
+      }
+    }
+  }
+}

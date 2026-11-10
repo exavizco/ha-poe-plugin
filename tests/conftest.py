@@ -95,6 +95,18 @@ sys.modules["homeassistant.exceptions"].HomeAssistantError = Exception
 sys.modules["homeassistant.exceptions"].ConfigEntryNotReady = Exception
 sys.modules["homeassistant.exceptions"].ServiceValidationError = Exception
 
+
+class _StubConfigEntryAuthFailed(Exception):
+    """Distinct class so `except (ConfigEntryAuthFailed, ...)` works."""
+
+
+class _StubConfigEntryError(Exception):
+    """Distinct class so `except (ConfigEntryError, ...)` works."""
+
+
+sys.modules["homeassistant.exceptions"].ConfigEntryAuthFailed = _StubConfigEntryAuthFailed
+sys.modules["homeassistant.exceptions"].ConfigEntryError = _StubConfigEntryError
+
 # Constants — Platform values must be real strings so `'sensor' in PLATFORMS` works
 class _Platform:
     SENSOR = "sensor"
