@@ -323,3 +323,13 @@ async def test_settle_poll_started_just_before_unload_sends_nothing(hass, board,
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert polls(board) == count
+
+
+@pytest.mark.parametrize("scope", ["", "admin", "Read"])
+async def test_only_poe_control_scope_controls(hass, board, scope):
+    """An unexpected stored scope is read-only, never control."""
+    entry = await setup_remote(hass, board, scope=scope)
+    assert hass.states.get("switch.onboard_port0").state == "unavailable"
+    with pytest.raises(HomeAssistantError):
+        await hass.data[DOMAIN][entry.entry_id].async_port_action(0, "disable")
+    assert posts(board) == []

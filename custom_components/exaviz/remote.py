@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
 import logging
 import os
 import re
@@ -35,8 +36,14 @@ PORT_ACTIONS = frozenset({"enable", "disable", "reset"})
 # than the Date of the same response.
 STALE_AFTER_SECONDS = 10
 _PIN_RE = re.compile(r"^[0-9a-f]{64}$")
-# Unknown board port names already warned about, so each is logged once.
+# Largest reply body read; the contract's biggest reply is a few KiB.
+MAX_BODY_BYTES = 1024 * 1024
+# A Cruiser has 8 onboard ports; higher numbers are not this board's.
+MAX_REMOTE_PORTS = 8
+# Unknown board port names already warned about, so each is logged once,
+# capped so a board sending new names cannot grow it without bound.
 _WARNED_PORT_NAMES: set[str] = set()
+_MAX_WARNED_PORT_NAMES = 32
 _POE_NAME_RE = re.compile(r"^poe(\d+)$")
 _NEUTRAL_NAME_RE = re.compile(r"^pse(\d+)-(\d+)$")
 # Cruiser wiring: PSE 1 feeds poe0-3, PSE 0 feeds poe4-7.
@@ -152,6 +159,11 @@ def spki_of(der: bytes) -> str:
         )
     )
     return hashlib.sha256(spki).hexdigest()
+
+
+def board_url(host: str, port: int) -> str:
+    """https URL for host and port; an IPv6 literal goes in brackets."""
+    return f"https://[{host}]:{port}" if ":" in host else f"https://{host}:{port}"
 
 
 def ca_bundle_path() -> str:
@@ -297,19 +309,27 @@ class RemoteClient:
                     raise BoardError(f"{method} {path}: {status}")
                 if not 200 <= status < 300:
                     raise ProtocolError(f"{method} {path}: status {status}")
+                raw = bytearray()
+                async for chunk in resp.content.iter_chunked(65536):
+                    raw += chunk
+                    if len(raw) > MAX_BODY_BYTES:
+                        raise ProtocolError(f"{method} {path}: body too large")
                 try:
-                    data = await resp.json(content_type=None)
-                except ValueError as err:
-                    raise ProtocolError(f"{method} {path}: body is not JSON") from err
-                date = resp.headers.get("Date")
-                return data, parsedate_to_datetime(date) if date else None
+                    data = json.loads(raw) if raw.strip() else None
+                    date = resp.headers.get("Date")
+                    return data, parsedate_to_datetime(date) if date else None
+                except (TypeError, ValueError) as err:
+                    raise ProtocolError(f"{method} {path}: unreadable reply") from err
         except (aiohttp.ServerFingerprintMismatch, aiohttp.ClientConnectorCertificateError) as err:
             raise CertificateChanged("the board's certificate changed") from err
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as err:
             raise CannotConnect(f"{method} {path}: {type(err).__name__}") from err
 
     async def get_board(self) -> dict[str, Any]:
-        return (await self._request("GET", "/board"))[0]
+        board = (await self._request("GET", "/board"))[0]
+        if not isinstance(board, dict) or not isinstance(board.get("serial"), str):
+            raise ProtocolError("GET /board: no serial")
+        return board
 
     async def probe(self) -> dict[str, Any]:
         """GET /board and check the contract version."""
@@ -331,9 +351,15 @@ class RemoteClient:
         return (await self._request("GET", "/system/health"))[0]
 
     async def pair(self, code: str, name: str = "Home Assistant") -> dict[str, Any]:
-        return (
+        reply = (
             await self._request("POST", "/ha/pair", {"code": code, "name": name})
         )[0]
+        if not isinstance(reply, dict) or not all(
+            isinstance(reply.get(key), str)
+            for key in ("token", "token_id", "scope", "serial")
+        ):
+            raise ProtocolError("POST /ha/pair: incomplete reply")
+        return reply
 
     async def port_action(self, pse: int, index: int, action: str) -> None:
         if action not in PORT_ACTIONS:
@@ -391,10 +417,17 @@ def map_ports(
     for wire in poe_body.get("ports", []):
         name = wire.get("name", "")
         number = _port_number(name)
-        if number is None:
-            if name not in _WARNED_PORT_NAMES:
+        pse, index = wire.get("pse"), wire.get("index")
+        # pse and index go into the control URL, so they must be plain ints.
+        if (
+            number is None
+            or number >= MAX_REMOTE_PORTS
+            or type(pse) is not int
+            or type(index) is not int
+        ):
+            if name not in _WARNED_PORT_NAMES and len(_WARNED_PORT_NAMES) < _MAX_WARNED_PORT_NAMES:
                 _WARNED_PORT_NAMES.add(name)
-                _LOGGER.warning("Skipping board port with unknown name %r", name)
+                _LOGGER.warning("Skipping board port %r: unknown name or address", name)
             continue
         interface = f"poe{number}"
         link = links.get(name) or links.get(interface) or {}
@@ -404,8 +437,8 @@ def map_ports(
         port: dict[str, Any] = {
             "port": number,
             "interface": interface,
-            "pse": wire["pse"],
-            "index": wire["index"],
+            "pse": pse,
+            "index": index,
             "enabled": state != "disabled",
             "status": "power on" if state == "delivering" else state,
             "power_consumption_watts": wire.get("power_w", 0.0),

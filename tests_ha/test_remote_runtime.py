@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import subprocess
 from datetime import timedelta
 from pathlib import Path
@@ -438,3 +439,20 @@ async def test_advance_helper_runs_interval_polls(hass, board, freezer):
     for _ in range(3):
         await advance(hass, freezer, 31)
     assert len(board.seen("GET", "/poe/ports")) == count + 3
+
+
+async def test_unreadable_port_data_marks_the_poll_failed(hass, board, caplog):
+    """A malformed reply is a failed poll, not a traceback every interval."""
+    entry = await setup_remote(hass, board)
+    reply = case("poe_ports")
+    reply["body"]["ports"][0]["power_w"] = "lots"
+    board.reply("GET", "/poe/ports", reply)
+    await poll(hass, entry)
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    assert not coordinator.last_update_success
+    assert hass.states.get("switch.onboard_port0").state == "unavailable"
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert [r.getMessage() for r in errors] == [
+        "Error fetching exaviz data: the board sent data this integration cannot read"
+    ]
+    assert not any(r.exc_info for r in errors)

@@ -35,7 +35,7 @@ CONF_TRUST_MODE: Final = "trust_mode"
 CONF_SERIAL: Final = "serial"
 CONF_BOARD_TYPE: Final = "board_type"
 DEFAULT_HTTPS_PORT: Final = 443
-SCOPE_READ: Final = "read"
+SCOPE_CONTROL: Final = "poe_control"
 TRUST_PIN: Final = "pin"
 TRUST_CA: Final = "ca"
 

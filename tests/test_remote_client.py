@@ -285,3 +285,88 @@ async def test_spki_pin_accepts_same_key_and_sends_nothing_to_another(board, ses
     with pytest.raises(CertificateChanged):
         await c.get_board()
     assert board.requests == []
+
+
+# --- Release review findings (1.4.0) ---------------------------------------------
+
+
+def test_board_url_brackets_ipv6():
+    assert remote.board_url("fe80::1", 443) == "https://[fe80::1]:443"
+    assert remote.board_url("192.168.1.20", 8443) == "https://192.168.1.20:8443"
+    assert remote.board_url("board.local", 443) == "https://board.local:443"
+
+
+@pytest.mark.asyncio
+async def test_ipv6_literal_reaches_the_board(session):
+    try:
+        fake = await FakeBoard(host="::1").start()
+    except OSError:
+        pytest.skip("no IPv6 loopback")
+    try:
+        c = RemoteClient(
+            session, remote.board_url("::1", fake.port), pin=fake.cert.sha256
+        )
+        assert (await c.get_board())["serial"] == "CRU-TEST-0001"
+    finally:
+        await fake.stop()
+
+
+@pytest.mark.asyncio
+async def test_bad_date_header_is_a_protocol_error(board, session):
+    reply = case("health")
+    reply["headers"] = {"Date": "not a date"}
+    board.reply("GET", "/system/health", reply)
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256, token=TOKEN).get_health()
+
+
+@pytest.mark.asyncio
+async def test_oversized_body_is_a_protocol_error(board, session):
+    board.reply(
+        "GET", "/system/health", {"status": 200, "body": {"pad": "x" * (1024 * 1024)}}
+    )
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256, token=TOKEN).get_health()
+
+
+@pytest.mark.asyncio
+async def test_board_without_serial_is_a_protocol_error(board, session):
+    body = case("board")["body"]
+    del body["serial"]
+    board.reply("GET", "/board", {"status": 200, "body": body})
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256).get_board()
+
+
+@pytest.mark.asyncio
+async def test_incomplete_pair_reply_is_a_protocol_error(board, session):
+    reply = case("pair_201")
+    del reply["body"]["token"]
+    board.reply("POST", "/ha/pair", reply)
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+
+
+def _wire(name, pse, index):
+    return {"name": name, "pse": pse, "index": index, "state": "disabled"}
+
+
+def test_ports_with_odd_addresses_or_numbers_are_skipped():
+    body = {
+        "ports": [
+            _wire("poe0", 1, 0),
+            _wire("poe1", "1/../../ha/pair", 1),
+            _wire("poe2", 1, True),
+            _wire("poe9", 0, 5),
+        ]
+    }
+    ports = remote.map_ports(body, {"ports": []}, None, None)
+    assert [p["port"] for p in ports] == [0]
+
+
+def test_unknown_port_names_warn_a_bounded_number_of_times(caplog, monkeypatch):
+    monkeypatch.setattr(remote, "_WARNED_PORT_NAMES", set())
+    body = {"ports": [_wire(f"eth{n}", 0, 0) for n in range(100)]}
+    remote.map_ports(body, {"ports": []}, None, None)
+    assert len(remote._WARNED_PORT_NAMES) == remote._MAX_WARNED_PORT_NAMES
+    assert caplog.text.count("Skipping board port") == remote._MAX_WARNED_PORT_NAMES

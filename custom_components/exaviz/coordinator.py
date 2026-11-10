@@ -40,7 +40,7 @@ from .const import (
     DOMAIN,
     MIN_TRAFFIC_BYTES,
     PLUGIN_VERSION,
-    SCOPE_READ,
+    SCOPE_CONTROL,
     TRUST_CA,
 )
 
@@ -329,7 +329,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.remote = remote.RemoteClient(
             async_get_clientsession(self.hass),
-            f"https://{data[CONF_HOST]}:{data[CONF_PORT]}",
+            remote.board_url(data[CONF_HOST], data[CONF_PORT]),
             token=data[CONF_TOKEN],
             **trust,
         )
@@ -339,7 +339,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
     @property
     def can_control(self) -> bool:
         """False for a remote pairing with read scope."""
-        return self.remote is None or self.entry.data.get(CONF_SCOPE) != SCOPE_READ
+        return self.remote is None or self.entry.data.get(CONF_SCOPE) == SCOPE_CONTROL
 
     @property
     def read_only_note(self) -> str:
@@ -446,6 +446,20 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         except remote.RemoteError as err:
             raise UpdateFailed(f"Error reading the board: {err}") from err
 
+        try:
+            return self._map_remote(board, poe_body, board_date, switch_body, health)
+        except (AttributeError, KeyError, TypeError, ValueError) as err:
+            raise UpdateFailed("the board sent data this integration cannot read") from err
+
+    def _map_remote(
+        self,
+        board: dict[str, Any],
+        poe_body: Any,
+        board_date: datetime | None,
+        switch_body: Any,
+        health: Any,
+    ) -> dict[str, Any]:
+        """Turn one poll's replies into coordinator data."""
         _board_type, self.system_info = remote.map_board(board)
         ports = remote.map_ports(
             poe_body, switch_body, board_date, self._remote_ports or None

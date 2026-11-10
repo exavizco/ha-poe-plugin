@@ -247,7 +247,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             client = remote.RemoteClient(
                 async_get_clientsession(self.hass),
-                _url(self._host, self._port),
+                remote.board_url(self._host, self._port),
                 pin=remote.fingerprint_of(self._der),
             )
             try:
@@ -382,7 +382,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._der = await remote.fetch_leaf_certificate(self._host, self._port)
             self._board = await remote.RemoteClient(
                 async_get_clientsession(self.hass),
-                _url(self._host, self._port),
+                remote.board_url(self._host, self._port),
                 pin=remote.fingerprint_of(self._der),
             ).probe()
         except remote.NoManagement:
@@ -577,8 +577,6 @@ def _parse_host(value: str, port: int) -> tuple[str, int]:
     return parts.hostname, url_port or port
 
 
-def _url(host: str, port: int) -> str:
-    return f"https://{host}:{port}"
 
 
 def _grouped(fingerprint: str) -> str:

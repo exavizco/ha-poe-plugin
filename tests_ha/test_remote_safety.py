@@ -13,7 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.exaviz.const import DOMAIN
 from tests.fake_board import case
 
-from .remote_helpers import remote_entry, start_remote
+from .remote_helpers import start_remote
 
 COMPONENT = Path(__file__).parents[1] / "custom_components" / "exaviz"
 CODE = "QWER-TYUP"

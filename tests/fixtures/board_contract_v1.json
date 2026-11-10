@@ -229,7 +229,7 @@
     "pair_201": {
       "status": 201,
       "body": {
-        "token": "exha_4c74bb9a093ab30e_e3db727fb11f0e674c25346a81272c48e77bf0f910e43506e210282106c354f3",
+        "token": "exha_4c74bb9a093ab30e_0000000000000000000000000000000000000000000000000000000000000001",
         "token_id": "4c74bb9a093ab30e",
         "scope": "poe_control",
         "serial": "CRU-TEST-0001"
