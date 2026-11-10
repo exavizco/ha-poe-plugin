@@ -76,7 +76,7 @@ async def test_t03_pin_mismatch_sends_nothing(board, session):
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "kwargs",
-    [{}, {"pin": "abc"}, {"pin": "Z" * 64}, {"pin": "a" * 64, "ssl_context": object()}],
+    [{}, {"pin": "abc"}, {"pin": "Z" * 64}, {"pin": "a" * 64, "spki_pin": "a" * 64}],
 )
 async def test_t04_bad_trust_policy_raises_before_socket(board, session, kwargs):
     with pytest.raises(ValueError):
@@ -253,20 +253,35 @@ async def test_pair_body(board, session):
 
 
 @pytest.mark.asyncio
-async def test_ca_mode_verifies_against_the_bundle(session, tmp_path):
+async def test_ca_verified_leaf_returns_the_leaf_only_when_it_verifies(tmp_path):
     ca = make_cert(("Test CA",), is_ca=True)
     fake = await FakeBoard(cert=make_cert(("127.0.0.1",), issuer=ca)).start()
     try:
         bundle = tmp_path / "ca.pem"
         bundle.write_bytes(ca.pem)
         ctx = remote.build_ca_context(str(bundle))
-        c = RemoteClient(session, fake.url, ssl_context=ctx)
-        assert (await c.get_board())["serial"] == "CRU-TEST-0001"
         assert await remote.ca_verified_leaf("127.0.0.1", fake.port, ctx) == fake.cert.der
-
         await fake.restart(make_cert(("127.0.0.1",)))
-        with pytest.raises(CertificateChanged):
-            await RemoteClient(session, fake.url, ssl_context=ctx).get_board()
         assert await remote.ca_verified_leaf("127.0.0.1", fake.port, ctx) is None
     finally:
         await fake.stop()
+
+
+@pytest.mark.asyncio
+async def test_spki_pin_accepts_same_key_and_sends_nothing_to_another(board, session):
+    """CA mode: a renewed leaf with the confirmed key works; any other key
+    gets no HTTP byte, so no token."""
+    first = board.cert
+    c = RemoteClient(session, board.url, spki_pin=first.spki_sha256, token=TOKEN)
+    assert (await c.get_board())["serial"] == "CRU-TEST-0001"
+
+    await board.restart(make_cert(key=first.key))
+    c = RemoteClient(session, board.url, spki_pin=first.spki_sha256, token=TOKEN)
+    assert (await c.get_board())["serial"] == "CRU-TEST-0001"
+
+    await board.restart(make_cert())
+    board.requests.clear()
+    c = RemoteClient(session, board.url, spki_pin=first.spki_sha256, token=TOKEN)
+    with pytest.raises(CertificateChanged):
+        await c.get_board()
+    assert board.requests == []

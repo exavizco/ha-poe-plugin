@@ -1,8 +1,7 @@
 """HTTPS client for an Exaviz board running Exaviz Management (HA contract v1).
 
 Used when Home Assistant runs on a different host than the board. No Home
-Assistant imports: the caller passes in the aiohttp session (HA's shared one)
-and, in CA mode, an SSLContext built off the event loop.
+Assistant imports: the caller passes in the aiohttp session (HA's shared one).
 
 Copyright (c) 2026 Axzez LLC.
 Licensed under the MIT License. See LICENSE for details.
@@ -223,6 +222,23 @@ async def ca_verified_leaf(
         raise CannotConnect(f"cannot reach {host}:{port}") from err
 
 
+class _SpkiPin(aiohttp.Fingerprint):
+    """Pin the leaf's public key, not the whole certificate (CA mode).
+
+    aiohttp calls check() right after the handshake, before any HTTP byte,
+    the same place it checks a certificate fingerprint. A renewed leaf with
+    the same key passes; any other key closes the connection.
+    """
+
+    def check(self, transport: asyncio.Transport) -> None:
+        sslobj = transport.get_extra_info("ssl_object")
+        der = sslobj.getpeercert(binary_form=True) if sslobj else None
+        got = bytes.fromhex(spki_of(der)) if der else b""
+        if got != self.fingerprint:
+            host, port, *_ = transport.get_extra_info("peername")
+            raise aiohttp.ServerFingerprintMismatch(self.fingerprint, got, host, port)
+
+
 class RemoteClient:
     """Contract v1 client. Every request goes through `_request`."""
 
@@ -232,22 +248,24 @@ class RemoteClient:
         base_url: str,
         *,
         pin: str | None = None,
-        ssl_context: ssl.SSLContext | None = None,
+        spki_pin: str | None = None,
         token: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         if not base_url.startswith("https://"):
             raise ValueError("the board URL must use https")
-        if (pin is None) == (ssl_context is None):
-            raise ValueError("give exactly one of pin or ssl_context")
-        if pin is not None and not _PIN_RE.match(pin):
+        if (pin is None) == (spki_pin is None):
+            raise ValueError("give exactly one of pin or spki_pin")
+        if not _PIN_RE.match(pin or spki_pin or ""):
             raise ValueError("pin must be 64 lower-case hex characters")
         self._session = session
         self._base = base_url.rstrip("/") + "/api/v1"
         # Built once: a new object per request is a new pool key and a new
         # TCP connection every time.
-        self._ssl: aiohttp.Fingerprint | ssl.SSLContext = (
-            aiohttp.Fingerprint(bytes.fromhex(pin)) if pin else ssl_context
+        self._ssl: aiohttp.Fingerprint = (
+            aiohttp.Fingerprint(bytes.fromhex(pin))
+            if pin
+            else _SpkiPin(bytes.fromhex(spki_pin or ""))
         )
         self._token = token
         self._timeout = aiohttp.ClientTimeout(total=timeout)

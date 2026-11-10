@@ -358,6 +358,29 @@ def _count_lifecycle():
     return counts, patch.multiple(integration, async_setup_entry=setup, async_unload_entry=unload)
 
 
+async def test_ca_mode_sends_the_token_only_to_the_confirmed_key(hass, board):
+    """CA mode accepts a renewed certificate with the same key. A CA-valid
+    certificate with another key gets no bearer and starts reauth."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    first = make_cert(("127.0.0.1",), issuer=ca)
+    await board.restart(first)
+    entry = await setup_remote(
+        hass, board, trust_mode="ca", fingerprint=first.sha256, spki=first.spki_sha256
+    )
+    assert entry.state is ConfigEntryState.LOADED
+
+    await board.restart(make_cert(("127.0.0.1",), issuer=ca, key=first.key))
+    await poll(hass, entry)
+    assert hass.data[DOMAIN][entry.entry_id].last_update_success
+    assert reauth_flows(hass) == []
+
+    await board.restart(make_cert(("127.0.0.1",), issuer=ca))
+    board.requests.clear()
+    await poll(hass, entry)
+    assert board.requests == []
+    assert len(reauth_flows(hass)) == 1
+
+
 async def test_t30b_remote_reauth_success_reloads_once(hass, board, caplog):
     entry = await setup_remote(hass, board)
     counts, patcher = _count_lifecycle()

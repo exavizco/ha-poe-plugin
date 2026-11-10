@@ -28,6 +28,7 @@ from .const import (
     CONF_PORT,
     CONF_SCOPE,
     CONF_SERIAL,
+    CONF_SPKI,
     CONF_SWITCH_MODE_DISCOVERY,
     CONF_TOKEN,
     CONF_TOKEN_ID,
@@ -319,15 +320,13 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_setup_remote(self) -> None:
         """Build the HTTPS client. No request is made until the first poll."""
         data = self.entry.data
-        if data[CONF_TRUST_MODE] == TRUST_CA:
-            # Loading the CA bundle blocks, so build the context off the loop.
-            trust: dict[str, Any] = {
-                "ssl_context": await self.hass.async_add_executor_job(
-                    remote.build_ca_context
-                )
-            }
-        else:
-            trust = {"pin": data[CONF_FINGERPRINT]}
+        # CA mode pins the confirmed key, so a renewed certificate with the
+        # same key keeps working; pin mode pins the confirmed certificate.
+        trust = (
+            {"spki_pin": data[CONF_SPKI]}
+            if data[CONF_TRUST_MODE] == TRUST_CA
+            else {"pin": data[CONF_FINGERPRINT]}
+        )
         self.remote = remote.RemoteClient(
             async_get_clientsession(self.hass),
             f"https://{data[CONF_HOST]}:{data[CONF_PORT]}",
