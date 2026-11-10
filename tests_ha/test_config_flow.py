@@ -472,11 +472,29 @@ async def test_t27b_reconfigure_serial_mismatch_keeps_entry(hass, board, where):
 
 
 async def _reauth(hass, entry) -> dict:
-    return await hass.config_entries.flow.async_init(
+    """Start reauth and submit its confirm form."""
+    result = await hass.config_entries.flow.async_init(
         DOMAIN,
         context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
         data=dict(entry.data),
     )
+    assert result["step_id"] == "reauth_confirm"
+    return await hass.config_entries.flow.async_configure(result["flow_id"], {})
+
+
+async def test_reauth_asks_before_contacting_the_board(hass, board):
+    """A reauth that probed and aborted in its first step would never be shown."""
+    entry = remote_entry(board)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=dict(entry.data),
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    assert result["description_placeholders"]["host"] == entry.data["host"]
+    assert board.connections == 0
 
 
 async def test_reauth_same_certificate_updates_token_only(hass, board):
@@ -529,13 +547,17 @@ async def test_t22a_reauth_serial_mismatch_keeps_entry(hass, board):
     assert entry.data == before
 
 
-async def test_reauth_board_gone_says_cannot_connect(hass, board):
+async def test_reauth_board_gone_says_cannot_connect_and_can_retry(hass, board):
     entry = remote_entry(board)
     entry.add_to_hass(hass)
     await board.stop()
     result = await _reauth(hass, entry)
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "board_unreachable"
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+    assert result["errors"] == {"base": "board_unreachable"}
+    await board.start()
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["step_id"] == "repair"
 
 
 # --- T-28: trust mode ----------------------------------------------------------

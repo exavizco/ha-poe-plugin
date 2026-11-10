@@ -46,6 +46,7 @@ async def _walk_everything(hass, board) -> None:
         if f["context"]["source"] == config_entries.SOURCE_REAUTH
     ]
     board.reply("GET", "/poe/ports", case("poe_ports"))
+    await hass.config_entries.flow.async_configure(flow["flow_id"], {})
     result = await hass.config_entries.flow.async_configure(
         flow["flow_id"], {"code": CODE}
     )

@@ -53,6 +53,10 @@
           "code": "Pairing code"
         }
       },
+      "reauth_confirm": {
+        "title": "Pair with the board again",
+        "description": "Home Assistant can no longer read the board at {host}: its token was revoked or its certificate changed. Check that the board is on, then select Submit to pair again."
+      },
       "reconfigure": {
         "title": "Change the board's address",
         "description": "Enter the board's new IP address or host name. If its certificate changed, you will compare the new fingerprint and pair again.",

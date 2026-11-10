@@ -271,7 +271,7 @@ async def test_t36_certificate_change_reauth_never_sends_bearer(hass, board):
     await poll(hass, entry)
     (flow,) = reauth_flows(hass)
 
-    result = await hass.config_entries.flow.async_configure(flow["flow_id"])
+    result = await hass.config_entries.flow.async_configure(flow["flow_id"], {})
     assert result["step_id"] == "fingerprint"
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"confirm": True}
@@ -367,6 +367,7 @@ async def test_t30b_remote_reauth_success_reloads_once(hass, board, caplog):
             context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
             data=dict(entry.data),
         )
+        await hass.config_entries.flow.async_configure(result["flow_id"], {})
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"code": "ABCD-EFGH"}
         )
@@ -396,6 +397,7 @@ async def test_reauth_after_startup_auth_failure_loads_the_entry(hass, board):
     assert entry.state is ConfigEntryState.SETUP_ERROR
     (flow,) = reauth_flows(hass)
     board.reply("GET", "/poe/ports", case("poe_ports"))
+    await hass.config_entries.flow.async_configure(flow["flow_id"], {})
     result = await hass.config_entries.flow.async_configure(
         flow["flow_id"], {"code": "ABCD-EFGH"}
     )

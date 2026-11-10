@@ -284,18 +284,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
         """The board answered 401 or presented a new certificate."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask first, then probe: a flow that aborts here is never shown."""
         entry = self._get_reauth_entry()
-        error = await self._probe_address(
-            {CONF_HOST: entry.data[CONF_HOST], CONF_PORT: entry.data[CONF_PORT]}
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            error = await self._probe_address(
+                {CONF_HOST: entry.data[CONF_HOST], CONF_PORT: entry.data[CONF_PORT]}
+            )
+            if error is None:
+                if self._board["serial"] != entry.data[CONF_SERIAL]:
+                    return self.async_abort(reason="serial_mismatch")
+                if await self._same_certificate(entry.data):
+                    self._trust_mode = entry.data[CONF_TRUST_MODE]
+                    return await self.async_step_pair()
+                return await self.async_step_fingerprint()
+            errors["base"] = error
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({}),
+            errors=errors,
+            description_placeholders={"host": entry.data[CONF_HOST]},
         )
-        if error is not None:
-            return self.async_abort(reason=error)
-        if self._board["serial"] != entry.data[CONF_SERIAL]:
-            return self.async_abort(reason="serial_mismatch")
-        if await self._same_certificate(entry.data):
-            self._trust_mode = entry.data[CONF_TRUST_MODE]
-            return await self.async_step_pair()
-        return await self.async_step_fingerprint()
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
