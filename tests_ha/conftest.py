@@ -23,3 +23,13 @@ def no_frontend_registration(request):
         return
     with patch("custom_components.exaviz._register_frontend"):
         yield
+
+
+@pytest.fixture
+async def board(socket_enabled):
+    """A fake board on 127.0.0.1 over TLS, stopped after the test."""
+    from tests.fake_board import FakeBoard
+
+    fake = await FakeBoard().start()
+    yield fake
+    await fake.stop()
