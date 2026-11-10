@@ -157,12 +157,12 @@ async def test_t07_refused_and_timeout(board, session):
     with pytest.raises(CannotConnect):
         await c.get_board()
 
-    await board.start()
-
     async def hang(request):
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
+    # The route binds the handler at start, so patch before starting.
     with patch.object(board, "_handle", hang):
+        await board.start()
         with pytest.raises(CannotConnect):
             await client(session, board, timeout=0.2).get_board()
 

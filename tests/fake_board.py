@@ -87,7 +87,26 @@ def make_cert(
         .not_valid_before(now - dt.timedelta(days=1))
         .not_valid_after(now + dt.timedelta(days=30))
         .add_extension(x509.BasicConstraints(ca=is_ca, path_length=None), critical=True)
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(
+                (issuer.key if issuer else key).public_key()
+            ),
+            critical=False,
+        )
     )
+    if is_ca:
+        builder = builder.add_extension(
+            x509.KeyUsage(
+                digital_signature=True, content_commitment=False,
+                key_encipherment=False, data_encipherment=False,
+                key_agreement=False, key_cert_sign=True, crl_sign=True,
+                encipher_only=False, decipher_only=False,
+            ),
+            critical=True,
+        )
     if not is_ca:
         builder = builder.add_extension(x509.SubjectAlternativeName(sans), critical=False)
     cert = builder.sign(issuer.key if issuer else key, hashes.SHA256())
@@ -211,8 +230,11 @@ class FakeBoard:
     async def stop(self) -> None:
         if self._server:
             self._server.close()
-            await self._server.wait_closed()
-            self._server = None
+        # Runner first: it closes keep-alive connections that wait_closed()
+        # would otherwise wait out.
         if self._runner:
             await self._runner.cleanup()
             self._runner = None
+        if self._server:
+            await self._server.wait_closed()
+            self._server = None
