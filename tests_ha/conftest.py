@@ -13,6 +13,14 @@ import pytest
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--update-card-fixture",
+        action="store_true",
+        help="Rewrite the card's read-scope states fixture (T-43) instead of comparing.",
+    )
+
+
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Let HA load custom_components/exaviz."""
