@@ -373,9 +373,14 @@ def test_unknown_port_names_warn_a_bounded_number_of_times(caplog, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_deeply_nested_reply_is_a_protocol_error(board, session):
-    deep = b"[" * 100000 + b"]" * 100000
-    board.reply("GET", "/system/health", {"status": 200, "raw": deep})
+async def test_too_deeply_nested_reply_is_a_protocol_error(board, session, monkeypatch):
+    """Where the parser hits the recursion limit (how deep depends on the
+    Python build), the reply is a protocol error, not an unknown error."""
+
+    def too_deep(raw):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(remote.json, "loads", too_deep)
     with pytest.raises(ProtocolError):
         await client(session, board, pin=board.cert.sha256, token=TOKEN).get_health()
 

@@ -199,8 +199,6 @@ class FakeBoard:
                 {"error": "not found", "code": "NOT_FOUND"}, status=404
             )
         headers = dict(reply.get("headers", {}))
-        if "raw" in reply:
-            return web.Response(body=reply["raw"], status=reply["status"], headers=headers)
         if "body" not in reply:
             return web.Response(status=reply["status"], headers=headers)
         return web.json_response(reply["body"], status=reply["status"], headers=headers)
