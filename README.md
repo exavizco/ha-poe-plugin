@@ -35,6 +35,9 @@ Click any port tile to see detailed information:
 
 ## Requirements
 
+These are for Home Assistant running on the Exaviz board. For Home Assistant on another
+computer, see [Home Assistant on another computer](#home-assistant-on-another-computer).
+
 - Exaviz Cruiser or Interceptor board with PoE support
 - Debian-based Linux (Bookworm or Trixie) -- e.g., Raspberry Pi OS via Imager
 - **[exaviz-dkms](https://exa-pedia.com/docs/software/apt-repository/)** package installed (kernel modules, device tree overlays)
@@ -87,7 +90,8 @@ sudo reboot
 1. Go to **Settings > Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "**Exaviz**"
-4. The integration auto-detects your board and PoE systems -- no configuration needed
+4. Choose **Home Assistant runs on this board**
+5. The integration auto-detects your board and PoE systems -- no configuration needed
 
 ### 3. Add the Dashboard Card
 
@@ -126,12 +130,60 @@ To install the Zigbee firmware, run `sudo exaviz-flash zigbee` once on the board
 the board once and finishes by itself in about five minutes. Setup steps, the antenna you need
 and troubleshooting are on the [Zigbee page](https://exa-pedia.com/docs/cruiser/zigbee/).
 
+## Home Assistant on another computer
+
+If Home Assistant runs somewhere other than the Exaviz board, for example on a mini PC or in a
+container on your server, the integration can reach the board over your network. The computer
+that runs Home Assistant does not need the Exaviz packages.
+
+**What you need**
+
+- An Exaviz Cruiser. Interceptor boards cannot be added over the network yet.
+- Exaviz Management on the board, with Home Assistant pairing (More > Home Assistant in the
+  board's dashboard). If the board's Exaviz Management is too old, the integration tells you to
+  update it.
+- One board per Home Assistant for now.
+
+**Add the board**
+
+1. In Home Assistant, go to Settings > Devices & services > Add integration > Exaviz, and choose
+   **The board is another device on my network**.
+2. Enter the board's IP address. A `.local` name works only where your system resolves it; use
+   the IP address if it does not.
+3. On the board, open More > Home Assistant and click **Add Home Assistant**. Choose
+   **Read + PoE control** if you want to switch ports from Home Assistant, or **Read only** if
+   you only want to watch them. The code is valid for 5 minutes.
+4. Compare the fingerprint Home Assistant shows with the one on the board's pairing screen. Tick
+   the box only if they are the same.
+5. Enter the 8-character code.
+
+**Good to know**
+
+- The integration talks to the board over HTTPS only and checks the board's certificate on every
+  connection. If the certificate changes, Home Assistant asks you to pair again and shows the new
+  fingerprint first.
+- With **Read only**, the port switches and reset buttons are unavailable.
+- Home Assistant keeps the pairing token in its configuration files and backups as plain text,
+  not encrypted. Anyone who can read your Home Assistant configuration can read it.
+- Removing the integration does not revoke the token. Revoke it on the board in
+  More > Home Assistant.
+- Each new pairing creates a new token, and the board holds at most 20. After pairing again,
+  revoke the old token on the board; Home Assistant shows its id.
+- If the board moves to a new address, use Reconfigure on the Exaviz integration.
+- If the board's serial number changed, delete the integration and add it again. The default
+  entity ids stay the same; renames you made in Home Assistant must be made again.
+- A port whose readings stop updating shows as unavailable. The PoE card currently shows such a
+  port as empty.
+
+Full guide: [Home Assistant on another computer](https://exa-pedia.com/docs/home-assistant/remote-board/).
+
 ## Documentation
 
 Full documentation is available at **[exa-pedia.com](https://exa-pedia.com/docs/home-assistant/)**:
 
 - [Installation Guide](https://exa-pedia.com/docs/home-assistant/installation/)
 - [Configuration](https://exa-pedia.com/docs/home-assistant/configuration/)
+- [Home Assistant on another computer](https://exa-pedia.com/docs/home-assistant/remote-board/)
 - [Dashboard Setup](https://exa-pedia.com/docs/home-assistant/dashboard/)
 - [Troubleshooting](https://exa-pedia.com/docs/home-assistant/troubleshooting/)
 - [FAQ](https://exa-pedia.com/docs/home-assistant/faq/)
