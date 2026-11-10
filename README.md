@@ -24,7 +24,7 @@ Click any port tile to see detailed information:
 - **Device Discovery** -- Identifies connected devices by IP, MAC, and manufacturer
 - **Zigbee Coordinator Status** -- Cruiser only: shows whether the ESP32-C6 has Zigbee firmware, with a helper message when it does not
 - **Modern Dashboard** -- Lovelace card with dark/light theme support
-- **Multi-language** -- 10 languages included (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH)
+- **Multi-language** -- 10 languages for setup on the board (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH); setup for a board on the network is in English for now
 
 ## Supported Hardware
 
@@ -176,6 +176,34 @@ that runs Home Assistant does not need the Exaviz packages.
   port as empty.
 
 Full guide: [Home Assistant on another computer](https://exa-pedia.com/docs/home-assistant/remote-board/).
+
+## Options
+
+Settings > Devices & services > Exaviz > Configure:
+
+- **Update Interval** -- how often the integration reads the ports, 10 to 300 seconds (default 30).
+- **Switch-mode device discovery** -- on a board running Home Assistant itself, in switch/bridge
+  mode, find the device on each PoE port. Leave it off in per-port mode. Not shown for a board on
+  the network.
+
+## Actions
+
+| Action | What it does |
+|--------|--------------|
+| `exaviz.turn_on_port` | Turn PoE power on for a port (`entity_id` of its switch) |
+| `exaviz.turn_off_port` | Turn PoE power off for a port |
+| `exaviz.toggle_port` | Toggle PoE power for a port |
+| `exaviz.control_port` | Same, with `action`: `turn_on`, `turn_off` or `toggle` |
+| `exaviz.reset_port` | Power-cycle a port |
+| `exaviz.refresh_data` | Read the ports now |
+
+The port switches and reset buttons work with Home Assistant's own `switch` and `button` actions too.
+
+## Removing the integration
+
+1. Settings > Devices & services > Exaviz > the three dots > **Delete**.
+2. For a board on the network, revoke its token on the board in More > Home Assistant.
+3. To remove the files too, remove **Exaviz PoE Management** in HACS and restart Home Assistant.
 
 ## Documentation
 
