@@ -3,4 +3,4 @@
 pytest-homeassistant-custom-component==0.13.195
 # HA 2024.12 pins aiodns but not pycares; pycares 5 starts a background
 # thread that the harness reports as lingering. 4.5.0 matches that release.
-pycares==4.5.0
+pycares==4.9.0
