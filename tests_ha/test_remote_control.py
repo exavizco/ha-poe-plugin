@@ -50,7 +50,8 @@ async def setup_remote(hass, board, **overrides):
 async def advance(hass, freezer, seconds):
     freezer.tick(timedelta(seconds=seconds))
     async_fire_time_changed(hass, dt_util.utcnow())
-    await hass.async_block_till_done()
+    # Interval polls run as background tasks; wait for them too.
+    await hass.async_block_till_done(wait_background_tasks=True)
 
 
 async def call(hass, domain, service, entity_id):
@@ -293,3 +294,30 @@ async def test_t45_services_reach_remote(hass, board, no_subprocess):
         "/api/v1/poe/ports/1/0/disable",
         "/api/v1/poe/ports/1/1/reset",
     ]
+
+
+# --- Cross-vendor review findings -------------------------------------------------
+
+
+async def test_control_401_stops_polling(hass, board, freezer):
+    await setup_remote(hass, board)
+    board.reply("POST", "/poe/ports/1/0/disable", case("unauth_401"))
+    board.reply("GET", "/poe/ports", case("unauth_401"))
+    with pytest.raises(HomeAssistantError):
+        await call(hass, "switch", "turn_off", "switch.onboard_port0")
+    await hass.async_block_till_done()
+    count = len(board.requests)
+    await advance(hass, freezer, 300)
+    assert len(board.requests) == count
+    assert len(reauth_flows(hass)) == 1
+
+
+async def test_settle_poll_started_just_before_unload_sends_nothing(hass, board, freezer):
+    entry = await setup_remote(hass, board)
+    await call(hass, "switch", "turn_off", "switch.onboard_port0")
+    count = polls(board)
+    freezer.tick(timedelta(seconds=3))
+    async_fire_time_changed(hass, dt_util.utcnow())  # the settle poll starts
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert polls(board) == count

@@ -45,7 +45,8 @@ async def poll(hass, entry):
 async def advance(hass, freezer, seconds):
     freezer.tick(timedelta(seconds=seconds))
     async_fire_time_changed(hass, dt_util.utcnow())
-    await hass.async_block_till_done()
+    # Interval polls run as background tasks; wait for them too.
+    await hass.async_block_till_done(wait_background_tasks=True)
 
 
 def state(hass, entity_id):
@@ -402,3 +403,13 @@ async def test_reauth_after_startup_auth_failure_loads_the_entry(hass, board):
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
     assert entry.data["token"] == TOKEN
+
+
+async def test_advance_helper_runs_interval_polls(hass, board, freezer):
+    """Positive control: the "no more polls" checks above only mean
+    something if advancing time does run the interval poll."""
+    await setup_remote(hass, board)
+    count = len(board.seen("GET", "/poe/ports"))
+    for _ in range(3):
+        await advance(hass, freezer, 31)
+    assert len(board.seen("GET", "/poe/ports")) == count + 3

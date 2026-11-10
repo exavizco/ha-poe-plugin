@@ -182,3 +182,12 @@ def test_t19_startup_window_keeps_previous_ports_stale():
     assert sorted(partial) == list(range(8))
     assert partial[3]["stale"] is True
     assert partial[2]["stale"] is False
+
+
+def test_unknown_port_name_is_logged_once(caplog):
+    body = poe()
+    body["ports"] = [dict(body["ports"][0], name="pse2-0", pse=2, index=0)]
+    with caplog.at_level("WARNING"):
+        map_ports(body, {"ports": []}, DATE, None)
+        map_ports(body, {"ports": []}, DATE, None)
+    assert sum("pse2-0" in r.getMessage() for r in caplog.records) == 1

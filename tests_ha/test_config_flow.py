@@ -637,3 +637,11 @@ async def test_ca_mode_same_leaf_on_a_host_it_does_not_cover_repairs(
     result = await _reconfigure(hass, entry, board)
     assert result["step_id"] == "fingerprint"
     assert entry.data == before
+
+
+async def test_options_default_is_the_interval_chosen_at_pairing(hass, board):
+    entry = remote_entry(board, update_interval=120)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    (key,) = result["data_schema"].schema
+    assert key.default() == 120
