@@ -8,9 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryError,
+    HomeAssistantError,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import remote
@@ -21,9 +26,11 @@ from .const import (
     CONF_FINGERPRINT,
     CONF_HOST,
     CONF_PORT,
+    CONF_SCOPE,
     CONF_SERIAL,
     CONF_SWITCH_MODE_DISCOVERY,
     CONF_TOKEN,
+    CONF_TOKEN_ID,
     CONF_TRUST_MODE,
     CONF_UPDATE_INTERVAL,
     CONNECTION_REMOTE,
@@ -32,8 +39,13 @@ from .const import (
     DOMAIN,
     MIN_TRAFFIC_BYTES,
     PLUGIN_VERSION,
+    SCOPE_READ,
     TRUST_CA,
 )
+
+# A 200 on a port action means the command reached the controller, not that
+# power changed; enable takes a few seconds, so poll again after this delay.
+REMOTE_SETTLE_SECONDS = 3
 from .poe_readers import read_all_addon_ports, read_all_onboard_ports
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,6 +84,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         self.remote: remote.RemoteClient | None = None
         self.serial_mismatch = False
         self._remote_ports: list[dict[str, Any]] = []
+        self._cancel_settle_refresh: CALLBACK_TYPE | None = None
 
         # Options (set post-setup) win over the value captured at config time.
         interval = entry.options.get(
@@ -322,6 +335,74 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             **trust,
         )
         self.board_type = BoardType(data[CONF_BOARD_TYPE])
+        self.entry.async_on_unload(self._async_cancel_settle_refresh)
+
+    @property
+    def can_control(self) -> bool:
+        """False for a remote pairing with read scope."""
+        return self.remote is None or self.entry.data.get(CONF_SCOPE) != SCOPE_READ
+
+    @property
+    def read_only_note(self) -> str:
+        """How to get PoE control: the only working upgrade path."""
+        return (
+            "This pairing is read-only. To switch ports, revoke token "
+            f"`{self.entry.data.get(CONF_TOKEN_ID)}` on the board in More > Home "
+            "Assistant, start a new pairing there with PoE control, and enter the "
+            "code when Home Assistant asks."
+        )
+
+    @callback
+    def _async_cancel_settle_refresh(self) -> None:
+        if self._cancel_settle_refresh:
+            self._cancel_settle_refresh()
+            self._cancel_settle_refresh = None
+
+    @callback
+    def _async_settle_refresh(self, _now: datetime) -> None:
+        self._cancel_settle_refresh = None
+        # async_refresh, not async_request_refresh: the request path has a
+        # 10 s cooldown, which would push this poll to about +10 s.
+        self.hass.async_create_task(self.async_refresh())
+
+    async def async_port_action(self, port_number: int, action: str) -> None:
+        """Enable, disable or reset one port on a remote board.
+
+        Refuses without a request on a read-only pairing or while another
+        board answers at this address.
+        """
+        if not self.can_control:
+            raise HomeAssistantError(self.read_only_note)
+        if self.serial_mismatch:
+            raise HomeAssistantError("A different board answers at this address")
+        port = next((p for p in self._remote_ports if p["port"] == port_number), None)
+        if port is None:
+            raise HomeAssistantError(f"The board has not reported port {port_number}")
+        try:
+            await self.remote.port_action(port["pse"], port["index"], action)
+        except remote.BadRequest as err:
+            _LOGGER.error("The board rejected %s on port %d; this is a bug", action, port_number)
+            raise HomeAssistantError("The board rejected the request") from err
+        except remote.Forbidden as err:
+            raise HomeAssistantError(
+                "The board did not allow this action (pair again with PoE control)"
+            ) from err
+        except remote.NotFound as err:
+            raise HomeAssistantError(
+                "The board is still starting; try again in a few seconds"
+            ) from err
+        except (remote.AuthFailed, remote.CertificateChanged) as err:
+            self.entry.async_start_reauth(self.hass)
+            raise HomeAssistantError("Pair Home Assistant with the board again") from err
+        except remote.BoardError as err:
+            raise HomeAssistantError("The board could not change the port") from err
+        except remote.RemoteError as err:
+            raise HomeAssistantError("The board did not answer") from err
+        await self.async_request_refresh()
+        self._async_cancel_settle_refresh()
+        self._cancel_settle_refresh = async_call_later(
+            self.hass, REMOTE_SETTLE_SECONDS, self._async_settle_refresh
+        )
 
     def _contract_lost(self, message: str) -> None:
         """Stop polling a board that no longer serves the contract.

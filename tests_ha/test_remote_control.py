@@ -194,8 +194,12 @@ def _normalised_states(hass) -> dict:
         if entity.platform != DOMAIN:
             continue
         current = hass.states.get(entity.entity_id)
+        # plugin_version moves with releases; friendly_name is composed by HA
+        # and differs between HA versions (the card does not read it).
         attributes = {
-            k: v for k, v in current.attributes.items() if k != "plugin_version"
+            k: v
+            for k, v in current.attributes.items()
+            if k not in ("plugin_version", "friendly_name")
         }
         view[entity.entity_id] = {
             "state": current.state,
@@ -261,6 +265,7 @@ async def test_t44_control_401_starts_reauth(hass, board):
     board.reply("POST", "/poe/ports/1/0/disable", case("unauth_401"))
     with pytest.raises(HomeAssistantError, match="Pair Home Assistant"):
         await call(hass, "switch", "turn_off", "switch.onboard_port0")
+    await hass.async_block_till_done()
     assert len(reauth_flows(hass)) == 1
 
 

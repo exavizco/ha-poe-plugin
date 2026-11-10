@@ -1,0 +1,492 @@
+{
+  "binary_sensor.onboard_port0_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "device_hostname": "camera-1",
+      "device_ip": "192.0.2.10",
+      "device_mac": "AA:BB:CC:DD:EE:01",
+      "device_manufacturer": "Axis",
+      "device_name": "Device on poe0",
+      "device_traffic_detected": false,
+      "device_type": "Axis",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 0,
+      "power_class": "Unknown (Onboard PoE)",
+      "status": "power on"
+    },
+    "state": "on"
+  },
+  "binary_sensor.onboard_port0_powered": {
+    "attributes": {
+      "device_class": "power",
+      "device_hostname": "camera-1",
+      "device_ip": "192.0.2.10",
+      "device_mac": "AA:BB:CC:DD:EE:01",
+      "device_manufacturer": "Axis",
+      "device_name": "Device on poe0",
+      "device_traffic_detected": false,
+      "device_type": "Axis",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 0,
+      "power_class": "Unknown (Onboard PoE)",
+      "status": "power on"
+    },
+    "state": "on"
+  },
+  "binary_sensor.onboard_port1_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 1,
+      "status": "searching"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port1_powered": {
+    "attributes": {
+      "device_class": "power",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 1,
+      "status": "searching"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port2_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "enabled": false,
+      "poe_set": "onboard",
+      "port_number": 2,
+      "status": "disabled"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port2_powered": {
+    "attributes": {
+      "device_class": "power",
+      "enabled": false,
+      "poe_set": "onboard",
+      "port_number": 2,
+      "status": "disabled"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port3_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 3,
+      "status": "searching"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port3_powered": {
+    "attributes": {
+      "device_class": "power",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 3,
+      "status": "searching"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port4_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "device_hostname": null,
+      "device_ip": null,
+      "device_mac": null,
+      "device_manufacturer": "Unknown",
+      "device_name": "Device on poe4",
+      "device_traffic_detected": true,
+      "device_type": "Undiscovered Device (Traffic Seen, No ARP Entry)",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 4,
+      "power_class": "Unknown (Onboard PoE)",
+      "status": "power on"
+    },
+    "state": "on"
+  },
+  "binary_sensor.onboard_port4_powered": {
+    "attributes": {
+      "device_class": "power",
+      "device_hostname": null,
+      "device_ip": null,
+      "device_mac": null,
+      "device_manufacturer": "Unknown",
+      "device_name": "Device on poe4",
+      "device_traffic_detected": true,
+      "device_type": "Undiscovered Device (Traffic Seen, No ARP Entry)",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 4,
+      "power_class": "Unknown (Onboard PoE)",
+      "status": "power on"
+    },
+    "state": "on"
+  },
+  "binary_sensor.onboard_port5_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "enabled": false,
+      "poe_set": "onboard",
+      "port_number": 5,
+      "status": "disabled"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port5_powered": {
+    "attributes": {
+      "device_class": "power",
+      "enabled": false,
+      "poe_set": "onboard",
+      "port_number": 5,
+      "status": "disabled"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port6_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 6,
+      "status": "fault"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port6_powered": {
+    "attributes": {
+      "device_class": "power",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 6,
+      "status": "fault"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port7_plug": {
+    "attributes": {
+      "device_class": "connectivity",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 7,
+      "status": "unknown"
+    },
+    "state": "off"
+  },
+  "binary_sensor.onboard_port7_powered": {
+    "attributes": {
+      "device_class": "power",
+      "enabled": true,
+      "poe_set": "onboard",
+      "port_number": 7,
+      "status": "unknown"
+    },
+    "state": "off"
+  },
+  "binary_sensor.zigbee_coordinator": {
+    "attributes": {
+      "firmware_variant": "zigbee",
+      "icon": "mdi:zigbee"
+    },
+    "state": "on"
+  },
+  "button.onboard_port0_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port1_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port2_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port3_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port4_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port5_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port6_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "button.onboard_port7_reset": {
+    "attributes": {
+      "device_class": "restart"
+    },
+    "state": "unavailable"
+  },
+  "sensor.board_status": {
+    "attributes": {
+      "addon_boards": 0,
+      "board_hw_version": "1.0",
+      "board_serial": "CRU-TEST-0001",
+      "board_type": "cruiser",
+      "compute_module": "Raspberry Pi CM5",
+      "control_note": "This pairing is read-only. To switch ports, revoke token `0000000000000001` on the board in More > Home Assistant, start a new pairing there with PoE control, and enter the code when Home Assistant asks.",
+      "dkms_driver_version": "1.1.2+test",
+      "esp32_firmware_variant": "zigbee",
+      "esp32_firmware_version": "1.0.2+test",
+      "icon": "mdi:chip",
+      "kernel_version": "6.12.62+test",
+      "management_version": "1.0.8+test",
+      "netplan_version": "1.0.0+test",
+      "onboard_ports": 8,
+      "os_version": "Debian GNU/Linux 13 (trixie)",
+      "pairing_scope": "read",
+      "poe_controller": "test-controller",
+      "total_enabled_ports": 6,
+      "total_poe_ports": 8,
+      "total_power_watts": 11.4,
+      "update_interval": 30.0
+    },
+    "state": "Operational"
+  },
+  "sensor.board_temperature": {
+    "attributes": {
+      "device_class": "temperature",
+      "icon": "mdi:thermometer",
+      "state_class": "measurement",
+      "unit_of_measurement": "\u00b0C"
+    },
+    "state": "52.3"
+  },
+  "sensor.onboard_port0_current": {
+    "attributes": {
+      "allocated_power_watts": 30.0,
+      "board_type": "cruiser",
+      "current_milliamps": 94,
+      "device_class": "power",
+      "device_hostname": "camera-1",
+      "device_ip": "192.0.2.10",
+      "device_mac": "AA:BB:CC:DD:EE:01",
+      "device_manufacturer": "Axis",
+      "device_name": "Device on poe0",
+      "device_traffic_detected": false,
+      "device_type": "Axis",
+      "enabled": true,
+      "poe_class": "4",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 0,
+      "power_class": "Unknown (Onboard PoE)",
+      "state_class": "measurement",
+      "status": "power on",
+      "unit_of_measurement": "W",
+      "voltage_volts": 52.1
+    },
+    "state": "4.897"
+  },
+  "sensor.onboard_port1_current": {
+    "attributes": {
+      "allocated_power_watts": 15.4,
+      "board_type": "cruiser",
+      "current_milliamps": 0,
+      "device_class": "power",
+      "enabled": true,
+      "poe_class": "0",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 1,
+      "state_class": "measurement",
+      "status": "searching",
+      "unit_of_measurement": "W",
+      "voltage_volts": 0
+    },
+    "state": "0"
+  },
+  "sensor.onboard_port2_current": {
+    "attributes": {
+      "allocated_power_watts": 15.4,
+      "board_type": "cruiser",
+      "current_milliamps": 0,
+      "device_class": "power",
+      "enabled": false,
+      "poe_class": "0",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 2,
+      "state_class": "measurement",
+      "status": "disabled",
+      "unit_of_measurement": "W",
+      "voltage_volts": 0
+    },
+    "state": "0"
+  },
+  "sensor.onboard_port3_current": {
+    "attributes": {
+      "allocated_power_watts": 15.4,
+      "board_type": "cruiser",
+      "current_milliamps": 0,
+      "device_class": "power",
+      "enabled": true,
+      "poe_class": "0",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 3,
+      "state_class": "measurement",
+      "status": "searching",
+      "unit_of_measurement": "W",
+      "voltage_volts": 0
+    },
+    "state": "0"
+  },
+  "sensor.onboard_port4_current": {
+    "attributes": {
+      "allocated_power_watts": 30.0,
+      "board_type": "cruiser",
+      "current_milliamps": 125,
+      "device_class": "power",
+      "device_hostname": null,
+      "device_ip": null,
+      "device_mac": null,
+      "device_manufacturer": "Unknown",
+      "device_name": "Device on poe4",
+      "device_traffic_detected": true,
+      "device_type": "Undiscovered Device (Traffic Seen, No ARP Entry)",
+      "enabled": true,
+      "poe_class": "4",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 4,
+      "power_class": "Unknown (Onboard PoE)",
+      "state_class": "measurement",
+      "status": "power on",
+      "unit_of_measurement": "W",
+      "voltage_volts": 52.1
+    },
+    "state": "6.5"
+  },
+  "sensor.onboard_port5_current": {
+    "attributes": {
+      "allocated_power_watts": 15.4,
+      "board_type": "cruiser",
+      "current_milliamps": 0,
+      "device_class": "power",
+      "enabled": false,
+      "poe_class": "0",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 5,
+      "state_class": "measurement",
+      "status": "disabled",
+      "unit_of_measurement": "W",
+      "voltage_volts": 0
+    },
+    "state": "0"
+  },
+  "sensor.onboard_port6_current": {
+    "attributes": {
+      "allocated_power_watts": 15.4,
+      "board_type": "cruiser",
+      "current_milliamps": 0,
+      "device_class": "power",
+      "enabled": true,
+      "poe_class": "0",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 6,
+      "state_class": "measurement",
+      "status": "fault",
+      "unit_of_measurement": "W",
+      "voltage_volts": 0
+    },
+    "state": "0"
+  },
+  "sensor.onboard_port7_current": {
+    "attributes": {
+      "allocated_power_watts": 15.4,
+      "board_type": "cruiser",
+      "current_milliamps": 0,
+      "device_class": "power",
+      "enabled": true,
+      "poe_class": "0",
+      "poe_set": "onboard",
+      "poe_system": "onboard",
+      "port_number": 7,
+      "state_class": "measurement",
+      "status": "unknown",
+      "unit_of_measurement": "W",
+      "voltage_volts": 0
+    },
+    "state": "0"
+  },
+  "switch.onboard_port0": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port1": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port2": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port3": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port4": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port5": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port6": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  },
+  "switch.onboard_port7": {
+    "attributes": {
+      "device_class": "outlet"
+    },
+    "state": "unavailable"
+  }
+}

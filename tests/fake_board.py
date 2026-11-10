@@ -147,9 +147,12 @@ class FakeBoard:
     _runner: web.AppRunner | None = None
 
     def __post_init__(self) -> None:
+        # Like the real board: GET /board with a credential adds the version
+        # fields. A test that overrides the route gets exactly its reply.
+        self._public_board = case("board")
         self.replies.update(
             {
-                ("GET", "/api/v1/board"): case("board"),
+                ("GET", "/api/v1/board"): self._public_board,
                 ("GET", "/api/v1/poe/ports"): case("poe_ports"),
                 ("GET", "/api/v1/switch/ports"): case("switch_ports"),
                 ("GET", "/api/v1/system/health"): case("health"),
@@ -189,6 +192,8 @@ class FakeBoard:
             )
         )
         reply = self.replies.get((request.method, request.path))
+        if reply is self._public_board and "Authorization" in request.headers:
+            reply = case("board_authed")
         if reply is None:
             return web.json_response(
                 {"error": "not found", "code": "NOT_FOUND"}, status=404

@@ -104,7 +104,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         Add-on board switches are disabled until kernel driver supports
         /proc/pse write interface.
         """
-        if self._is_addon_board:
+        if self._is_addon_board or not self.coordinator.can_control:
             return False
         return super().available
 
@@ -317,6 +317,9 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the PoE port."""
+        if self.coordinator.remote is not None:
+            await self.coordinator.async_port_action(self._port_number, "enable")
+            return
         try:
             if self._is_onboard_poe_system():
                 await self._control_onboard_port("enable")
@@ -331,6 +334,9 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the PoE port."""
+        if self.coordinator.remote is not None:
+            await self.coordinator.async_port_action(self._port_number, "disable")
+            return
         try:
             if self._is_onboard_poe_system():
                 await self._control_onboard_port("disable")

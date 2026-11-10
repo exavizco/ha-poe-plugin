@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .base_entity import ExavizPoEBaseEntity, async_setup_port_entities
-from .const import DOMAIN
+from .const import CONF_SCOPE, DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -183,10 +183,17 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
             "board_serial",
             "board_identifier",
             "poe_driver_version",
+            "management_version",
             "plugin_version",
         ):
             if key in board_info:
                 attrs[key] = board_info[key]
+
+        # A remote pairing's scope; read scope carries the way to get control.
+        if self.coordinator.remote is not None:
+            attrs["pairing_scope"] = self.coordinator.entry.data.get(CONF_SCOPE)
+            if not self.coordinator.can_control:
+                attrs["control_note"] = self.coordinator.read_only_note
 
         # Live PoE stats (updated each poll cycle)
         if self.coordinator.data:

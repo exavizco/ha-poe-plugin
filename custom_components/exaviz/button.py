@@ -58,6 +58,11 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         )
 
     @property
+    def available(self) -> bool:
+        """Unavailable on a read-only remote pairing."""
+        return self.coordinator.can_control and super().available
+
+    @property
     def device_class(self) -> ButtonDeviceClass:
         """Return the device class."""
         return ButtonDeviceClass.RESTART
@@ -92,6 +97,10 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             "Resetting (power cycling) PoE port %s:%d",
             self._poe_set, self._port_number,
         )
+        if self.coordinator.remote is not None:
+            # The board runs the whole power cycle itself.
+            await self.coordinator.async_port_action(self._port_number, "reset")
+            return
         try:
             port_data = self._get_port_data()
             is_onboard = (
