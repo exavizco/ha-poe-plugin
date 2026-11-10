@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .base_entity import ExavizPoEBaseEntity
+from .base_entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 from .utils import sudo_argv
@@ -46,25 +46,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up PoE switch entities from a config entry."""
     coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-    
-    entities = []
-    if coordinator.data and "poe" in coordinator.data:
-        poe_data = coordinator.data["poe"]
-        
-        for poe_set_name, poe_set_data in poe_data.items():
-            if isinstance(poe_set_data, dict) and "ports" in poe_set_data:
-                for port in poe_set_data["ports"]:
-                    port_num = port.get("port", 0)
-                    entities.append(
-                        ExavizPoEPortSwitch(
-                            coordinator,
-                            poe_set_name,
-                            port_num,
-                            config_entry.entry_id
-                        )
-                    )
-    
-    async_add_entities(entities)
+    async_setup_port_entities(
+        coordinator,
+        config_entry,
+        async_add_entities,
+        lambda poe_set, port: [
+            ExavizPoEPortSwitch(coordinator, poe_set, port, config_entry.entry_id)
+        ],
+    )
 
 
 class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
@@ -117,7 +106,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         """
         if self._is_addon_board:
             return False
-        return self.coordinator.last_update_success and self.coordinator.data is not None
+        return super().available
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

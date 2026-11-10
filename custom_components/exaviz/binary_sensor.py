@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .base_entity import ExavizPoEBaseEntity
+from .base_entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .board_detector import BoardType
 from .const import (
     DOMAIN,
@@ -34,28 +34,18 @@ async def async_setup_entry(
 ) -> None:
     """Set up PoE binary sensor entities from a config entry."""
     coordinator: ExavizDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-    
+    entry_id = config_entry.entry_id
+    async_setup_port_entities(
+        coordinator,
+        config_entry,
+        async_add_entities,
+        lambda poe_set, port: [
+            ExavizPoEPortPoweredSensor(coordinator, poe_set, port, entry_id),
+            ExavizPoEPortPluggedSensor(coordinator, poe_set, port, entry_id),
+        ],
+    )
+
     entities: list[BinarySensorEntity] = []
-    if coordinator.data and "poe" in coordinator.data:
-        poe_data = coordinator.data["poe"]
-        
-        for poe_set_name, poe_set_data in poe_data.items():
-            if isinstance(poe_set_data, dict) and "ports" in poe_set_data:
-                for port in poe_set_data["ports"]:
-                    port_num = port.get("port", 0)
-                    entities.append(
-                        ExavizPoEPortPoweredSensor(
-                            coordinator, poe_set_name, port_num,
-                            config_entry.entry_id,
-                        )
-                    )
-                    entities.append(
-                        ExavizPoEPortPluggedSensor(
-                            coordinator, poe_set_name, port_num,
-                            config_entry.entry_id,
-                        )
-                    )
-    
     # Zigbee coordinator lives on the Cruiser's ESP32-C6
     if coordinator.board_type == BoardType.CRUISER:
         entities.append(ExavizZigbeeCoordinatorSensor(coordinator, config_entry.entry_id))
@@ -100,11 +90,6 @@ class ExavizPoEPortPoweredSensor(ExavizPoEBaseEntity, BinarySensorEntity):
         power = port_data.get("power_consumption_watts", 0)
         return power > POWER_ON_THRESHOLD_WATTS
 
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return self.coordinator.last_update_success and self.coordinator.data is not None
-
 
 class ExavizPoEPortPluggedSensor(ExavizPoEBaseEntity, BinarySensorEntity):
     """Binary sensor for PoE port plugged status."""
@@ -143,11 +128,6 @@ class ExavizPoEPortPluggedSensor(ExavizPoEBaseEntity, BinarySensorEntity):
         connected_device = port_data.get("connected_device")
         current = port_data.get("current_milliamps", 0)
         return bool(connected_device) or current > PLUGGED_THRESHOLD_MILLIAMPS
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return self.coordinator.last_update_success and self.coordinator.data is not None
 
 
 class ExavizZigbeeCoordinatorSensor(CoordinatorEntity, BinarySensorEntity):

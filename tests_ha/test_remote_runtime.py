@@ -239,6 +239,7 @@ async def test_t35_401_on_poll_starts_reauth_and_stops_polling(hass, board, free
 
 @pytest.mark.parametrize("problem", ["401", "certificate", "contract"])
 async def test_t35a_startup_errors_are_not_retried(hass, board, freezer, problem):
+    paired = board.cert.sha256
     if problem == "401":
         # A revoked token: /board stays public, the token routes answer 401.
         board.reply("GET", "/poe/ports", case("unauth_401"))
@@ -248,7 +249,7 @@ async def test_t35a_startup_errors_are_not_retried(hass, board, freezer, problem
         old = case("board")
         del old["body"]["ha_contract_version"]
         board.reply("GET", "/board", old)
-    entry = await setup_remote(hass, board)
+    entry = await setup_remote(hass, board, fingerprint=paired)
     assert entry.state is ConfigEntryState.SETUP_ERROR
     if problem == "contract":
         assert "Update Exaviz Management" in entry.reason
@@ -265,6 +266,7 @@ async def test_t36_certificate_change_reauth_never_sends_bearer(hass, board):
     old_token = entry.data["token"]
     new = make_cert()
     await board.restart(new)
+    board.requests.clear()  # from here on the board holds the new certificate
     await poll(hass, entry)
     (flow,) = reauth_flows(hass)
 

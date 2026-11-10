@@ -2,14 +2,51 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import callback
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def async_setup_port_entities(
+    coordinator: ExavizDataUpdateCoordinator,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+    build: Callable[[str, int], list[Entity]],
+) -> None:
+    """Add `build(poe_set, port)` entities for every port in the data.
+
+    A remote board can report ports after setup (one controller parsed before
+    the other), so remote entries also add entities for ports seen later,
+    with the same ids the first refresh would have given them.
+    """
+    known: set[tuple[str, int]] = set()
+
+    @callback
+    def add_new_ports() -> None:
+        entities: list[Entity] = []
+        for poe_set_name, poe_set_data in (coordinator.data or {}).get("poe", {}).items():
+            if isinstance(poe_set_data, dict) and "ports" in poe_set_data:
+                for port in poe_set_data["ports"]:
+                    key = (poe_set_name, port.get("port", 0))
+                    if key not in known:
+                        known.add(key)
+                        entities.extend(build(*key))
+        if entities:
+            async_add_entities(entities)
+
+    add_new_ports()
+    if coordinator.remote is not None:
+        config_entry.async_on_unload(coordinator.async_add_listener(add_new_ports))
 
 
 class ExavizPoEBaseEntity(CoordinatorEntity):
@@ -51,8 +88,12 @@ class ExavizPoEBaseEntity(CoordinatorEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available."""
-        return self.coordinator.last_update_success and self.coordinator.data is not None
+        """Return if entity is available (a remote port can be stale)."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data is not None
+            and not self._get_port_attribute("stale", False)
+        )
 
     def _get_port_data(self) -> dict[str, Any] | None:
         """Get port data from coordinator."""

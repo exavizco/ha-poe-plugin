@@ -10,11 +10,15 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryError,
+    ConfigEntryNotReady,
+)
 from homeassistant.helpers import device_registry as dr
 
 from .board_detector import check_prerequisites
-from .const import DOMAIN
+from .const import CONF_CONNECTION, CONNECTION_REMOTE, DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 from .services import async_setup_services, async_unload_services
 
@@ -136,18 +140,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Exaviz PoE Management from a config entry."""
     _LOGGER.debug("Setting up Exaviz PoE integration for entry: %s", entry.entry_id)
 
+    is_remote = entry.data.get(CONF_CONNECTION) == CONNECTION_REMOTE
+    where = "the board" if is_remote else "local board"
+
     # Check that required Exaviz host packages are installed.
     # Inside Docker, dpkg-query sees the container's packages (not the
     # host's), so a failure here is only a warning — board detection
-    # itself is the real gate.
-    prereqs = await check_prerequisites()
-    if not prereqs["all_ok"]:
-        _LOGGER.warning(
-            "Exaviz prerequisites not met — missing: %s. "
-            "The integration requires exaviz-dkms and exaviz-netplan "
-            "on the host OS.  See https://exa-pedia.com/docs/software/apt-repository/",
-            ", ".join(prereqs["missing"]),
-        )
+    # itself is the real gate. A remote board's packages are not ours.
+    if not is_remote:
+        prereqs = await check_prerequisites()
+        if not prereqs["all_ok"]:
+            _LOGGER.warning(
+                "Exaviz prerequisites not met - missing: %s. "
+                "The integration requires exaviz-dkms and exaviz-netplan "
+                "on the host OS.  See https://exa-pedia.com/docs/software/apt-repository/",
+                ", ".join(prereqs["missing"]),
+            )
 
     coordinator = ExavizDataUpdateCoordinator(hass, entry)
 
@@ -157,8 +165,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await coordinator.async_config_entry_first_refresh()
+    except (ConfigEntryAuthFailed, ConfigEntryError):
+        # Revoked token, changed certificate or missing contract: HA starts
+        # reauth or shows the message; retrying setup would not help.
+        raise
     except Exception as ex:
-        _LOGGER.error("Unable to read PoE data from local board: %s", ex)
+        _LOGGER.error("Unable to read PoE data from %s: %s", where, ex)
         raise ConfigEntryNotReady from ex
 
     hass.data.setdefault(DOMAIN, {})
