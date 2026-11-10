@@ -117,6 +117,11 @@ ABORTS = (
     "board_unreachable",
     "reauth_successful",
     "reconfigure_successful",
+    "reconfigure_local",
+    # Reauth probes the stored address and can end on these.
+    "no_management",
+    "management_too_old",
+    "unsupported_contract",
 )
 
 

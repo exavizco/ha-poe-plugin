@@ -386,3 +386,19 @@ async def test_t30b_remote_options_change_with_401_goes_to_reauth(hass, board):
     await hass.async_block_till_done()
     assert entry.state is not ConfigEntryState.LOADED
     assert len(reauth_flows(hass)) == 1
+
+
+async def test_reauth_after_startup_auth_failure_loads_the_entry(hass, board):
+    """Review finding: no update listener exists yet when setup failed."""
+    board.reply("GET", "/poe/ports", case("unauth_401"))
+    entry = await setup_remote(hass, board)
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    (flow,) = reauth_flows(hass)
+    board.reply("GET", "/poe/ports", case("poe_ports"))
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"], {"code": "ABCD-EFGH"}
+    )
+    assert result["reason"] == "reauth_successful"
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.data["token"] == TOKEN

@@ -600,3 +600,40 @@ async def test_t29_local_options_unchanged(hass):
         "update_interval",
         "switch_mode_discovery",
     ]
+
+
+# --- Review findings (independent review of the #199 diff) ----------------------
+
+
+async def test_local_entry_reconfigure_aborts_before_any_input(hass, board):
+    entry = MockConfigEntry(domain=DOMAIN, data={}, unique_id="exaviz_cruiser")
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_local"
+    assert entry.data == {}
+    assert board.connections == 0
+
+
+async def test_ca_mode_same_leaf_on_a_host_it_does_not_cover_repairs(
+    hass, board, monkeypatch, tmp_path
+):
+    """Same fingerprint, but the CA certificate does not name the new host."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(bundle))
+    leaf = make_cert(("board.example",), issuer=ca)
+    await board.restart(leaf)
+    entry = remote_entry(
+        board, host="board.example", fingerprint=leaf.sha256, spki=leaf.spki_sha256,
+        trust_mode="ca",
+    )
+    entry.add_to_hass(hass)
+    before = dict(entry.data)
+    result = await _reconfigure(hass, entry, board)
+    assert result["step_id"] == "fingerprint"
+    assert entry.data == before
