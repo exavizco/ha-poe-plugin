@@ -19,6 +19,9 @@ from .utils import sudo_argv
 
 _LOGGER = logging.getLogger(__name__)
 
+# One port action at a time, so two cannot race on the board.
+PARALLEL_UPDATES = 1
+
 # ---------------------------------------------------------------------------
 # ESP32 serial command interface (/dev/pse)
 #

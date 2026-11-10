@@ -4,6 +4,7 @@ Home Assistant is not installed in the test venv, so we mock its modules
 at the sys.modules level before any custom_components imports occur.
 """
 import sys
+from typing import TypedDict
 from unittest.mock import MagicMock, AsyncMock
 
 import pytest
@@ -78,6 +79,13 @@ class _StubDataUpdateCoordinator:
     async def _async_update_data(self):
         raise NotImplementedError
 
+class _StubDeviceInfo(TypedDict, total=False):
+    """DeviceInfo as on the HA 2024.12 floor: children link with via_device."""
+    via_device: tuple[str, str]
+
+sys.modules["homeassistant.helpers.device_registry"].DeviceInfo = _StubDeviceInfo
+# `from homeassistant.helpers import device_registry` reads the package attribute.
+sys.modules["homeassistant.helpers"].device_registry = sys.modules["homeassistant.helpers.device_registry"]
 sys.modules["homeassistant.helpers.update_coordinator"].CoordinatorEntity = _StubCoordinatorEntity
 sys.modules["homeassistant.helpers.update_coordinator"].DataUpdateCoordinator = _StubDataUpdateCoordinator
 sys.modules["homeassistant.helpers.update_coordinator"].UpdateFailed = Exception

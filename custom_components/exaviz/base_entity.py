@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -15,6 +16,13 @@ from .const import DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Newer HA links a child device by the parent's registry id, looked up per
+# config entry, and deprecates via_device (it stops working in 2027.8). The
+# 2024.12 floor has neither, only via_device.
+_VIA_DEVICE_ID = "via_device_id" in dr.DeviceInfo.__annotations__ and hasattr(
+    dr.DeviceRegistry, "async_get_device_by_identifier"
+)
 
 
 def async_setup_port_entities(
@@ -79,12 +87,21 @@ class ExavizPoEBaseEntity(CoordinatorEntity):
     @property
     def device_info(self) -> dict[str, Any]:
         """Return device information about this PoE switch."""
-        return {
+        info: dict[str, Any] = {
             "identifiers": {(DOMAIN, f"{self._entry_id}_{self._poe_set}")},
             "name": f"Exaviz {self._poe_set.upper()} Switch",
             "model": "PoE Switch",
-            "via_device": (DOMAIN, self._entry_id),
         }
+        if _VIA_DEVICE_ID:
+            # The board device is registered in async_setup_entry before
+            # any platform loads.
+            parent = dr.async_get(self.hass).async_get_device_by_identifier(
+                (DOMAIN, self._entry_id), self._entry_id
+            )
+            info["via_device_id"] = parent.id
+        else:
+            info["via_device"] = (DOMAIN, self._entry_id)
+        return info
 
     @property
     def available(self) -> bool:

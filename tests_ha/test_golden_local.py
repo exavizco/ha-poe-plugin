@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -110,3 +111,17 @@ async def test_local_cruiser_poll_failure_golden(hass, freezer):
     assert len(rows) > 8 * 4
     assert any(not r["available"] for r in rows)
     check_golden("local_cruiser_poll_failure", rows)
+
+
+async def test_port_device_links_to_the_board_device(hass, freezer, caplog):
+    """No deprecated via_device report, on the floor or on current HA."""
+    entry, _rows = await setup_local(hass)
+    devices = {
+        identifier: device
+        for device in dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+        for identifier in device.identifiers
+    }
+    board = devices[(DOMAIN, entry.entry_id)]
+    port = devices[(DOMAIN, f"{entry.entry_id}_onboard")]
+    assert port.via_device_id == board.id
+    assert "via_device" not in caplog.text

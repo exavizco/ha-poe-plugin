@@ -206,6 +206,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 error = "unsupported_board"
             if error is None:
                 await self.async_set_unique_id(self._board["serial"])
+                self._abort_if_unique_id_configured()
                 return await self.async_step_fingerprint()
             errors["base"] = error
         return self.async_show_form(

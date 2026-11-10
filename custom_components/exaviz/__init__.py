@@ -183,7 +183,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _register_frontend(hass)
 
     # Register the parent board device BEFORE forwarding platforms.
-    # Child entities reference this device via via_device=(DOMAIN, entry.entry_id).
+    # Each PoE switch device links to this device as its parent.
     # Creating it here avoids a race condition where child platforms load before
     # the sensor platform creates the ExavizServerStatusSensor device.
     board_type = coordinator.board_type

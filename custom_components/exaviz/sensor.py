@@ -16,10 +16,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .base_entity import ExavizPoEBaseEntity, async_setup_port_entities
-from .const import CONF_SCOPE, DOMAIN
+from .const import CONF_SCOPE, DOMAIN, PLUGIN_VERSION
 from .coordinator import ExavizDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# Coordinator-driven: no per-entity polling.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
@@ -140,7 +143,7 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
             "name": f"Exaviz {board_name}",
             "manufacturer": "Exaviz (by Axzez LLC)",
             "model": f"{board_name} Carrier Board",
-            "sw_version": "1.0.0",
+            "sw_version": PLUGIN_VERSION,
         }
 
     @property
@@ -259,7 +262,7 @@ class ExavizBoardTemperatureSensor(CoordinatorEntity, SensorEntity):
             "name": f"Exaviz {board_name}",
             "manufacturer": "Exaviz (by Axzez LLC)",
             "model": f"{board_name} Carrier Board",
-            "sw_version": "1.0.0",
+            "sw_version": PLUGIN_VERSION,
         }
 
     @property
