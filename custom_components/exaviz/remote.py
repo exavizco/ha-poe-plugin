@@ -24,12 +24,37 @@ import aiohttp
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
+from .const import PLUGIN_VERSION
+from .poe_readers import get_allocated_power_watts
+
 _LOGGER = logging.getLogger(__name__)
 
 CONTRACT_VERSION = 1
 DEFAULT_TIMEOUT = 10
 PORT_ACTIONS = frozenset({"enable", "disable", "reset"})
+# Contract rule: a port is unavailable when updated_at is more than 10 s older
+# than the Date of the same response.
+STALE_AFTER_SECONDS = 10
 _PIN_RE = re.compile(r"^[0-9a-f]{64}$")
+_POE_NAME_RE = re.compile(r"^poe(\d+)$")
+_NEUTRAL_NAME_RE = re.compile(r"^pse(\d+)-(\d+)$")
+# Cruiser wiring: PSE 1 feeds poe0-3, PSE 0 feeds poe4-7.
+_CRUISER_PSE_OFFSET = {1: 0, 0: 4}
+
+# /board key -> system_info key (the names the local path and Board Status use).
+_BOARD_INFO_KEYS = {
+    "compute_module": "compute_module",
+    "os_version": "os_version",
+    "kernel_version": "kernel_version",
+    "dkms_version": "dkms_driver_version",
+    "netplan_version": "netplan_version",
+    "poe_controller": "poe_controller",
+    "firmware_version": "esp32_firmware_version",
+    "firmware_variant": "esp32_firmware_variant",
+    "board_revision": "board_hw_version",
+    "serial": "board_serial",
+    "management_version": "management_version",
+}
 
 
 class RemoteError(Exception):
@@ -288,3 +313,95 @@ class RemoteClient:
         if action not in PORT_ACTIONS:
             raise ValueError(f"unknown port action {action!r}")
         await self._request("POST", f"/poe/ports/{pse}/{index}/{action}")
+
+
+def map_board(board: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """GET /board -> (board_type, system_info). Empty values are left out."""
+    info: dict[str, Any] = {
+        ours: board[theirs]
+        for theirs, ours in _BOARD_INFO_KEYS.items()
+        if board.get(theirs) not in (None, "")
+    }
+    info["plugin_version"] = PLUGIN_VERSION
+    return board.get("board_type", "unknown"), info
+
+
+def map_health(health: dict[str, Any]) -> float | None:
+    """GET /system/health -> board temperature in degrees C."""
+    return health.get("cpu_temp_c")
+
+
+def _port_number(name: str) -> int | None:
+    if match := _POE_NAME_RE.match(name):
+        return int(match.group(1))
+    if match := _NEUTRAL_NAME_RE.match(name):
+        pse, index = int(match.group(1)), int(match.group(2))
+        if pse in _CRUISER_PSE_OFFSET:
+            return _CRUISER_PSE_OFFSET[pse] + index
+    return None
+
+
+def _is_stale(updated_at: str | None, server_date: datetime | None) -> bool:
+    if server_date is None or not updated_at:
+        return False
+    updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    return (server_date - updated).total_seconds() > STALE_AFTER_SECONDS
+
+
+def map_ports(
+    poe_body: dict[str, Any],
+    switch_body: dict[str, Any],
+    server_date: datetime | None,
+    previous: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """GET /poe/ports + GET /switch/ports -> onboard port dicts, by port number.
+
+    A port seen before but missing now (startup window, or one controller not
+    parsed yet) keeps its last values and is marked stale.
+    """
+    links = {p.get("name"): p for p in switch_body.get("ports", [])}
+    devices = poe_body.get("connected_devices", {})
+    ports: dict[int, dict[str, Any]] = {}
+    for wire in poe_body.get("ports", []):
+        name = wire.get("name", "")
+        number = _port_number(name)
+        if number is None:
+            _LOGGER.warning("Skipping board port with unknown name %r", name)
+            continue
+        interface = f"poe{number}"
+        link = links.get(name) or links.get(interface) or {}
+        stats = link.get("stats", {})
+        poe_class = str(wire.get("class", "?"))
+        state = wire.get("state", "unknown")
+        port: dict[str, Any] = {
+            "port": number,
+            "interface": interface,
+            "pse": wire["pse"],
+            "index": wire["index"],
+            "enabled": state != "disabled",
+            "status": "power on" if state == "delivering" else state,
+            "power_consumption_watts": wire.get("power_w", 0.0),
+            "allocated_power_watts": get_allocated_power_watts(poe_class),
+            "power_mocked": False,
+            "poe_class": poe_class,
+            "voltage_volts": wire.get("voltage_v", 0.0),
+            "current_milliamps": wire.get("current_ma", 0),
+            "link_state": link.get("oper_state", "unknown"),
+            "speed_mbps": link.get("speed_mbps", 0),
+            "rx_bytes": stats.get("rx_bytes", 0),
+            "tx_bytes": stats.get("tx_bytes", 0),
+            "poe_system": "onboard",
+            "stale": _is_stale(wire.get("updated_at"), server_date),
+        }
+        if device := devices.get(interface):
+            port["connected_device"] = {
+                "ip_address": device.get("ip"),
+                "mac_address": device.get("mac"),
+                "manufacturer": device.get("manufacturer", "Unknown"),
+                "hostname": device.get("hostname"),
+            }
+        ports[number] = port
+    for old in previous or []:
+        if old["port"] not in ports:
+            ports[old["port"]] = {**old, "stale": True}
+    return [ports[n] for n in sorted(ports)]
