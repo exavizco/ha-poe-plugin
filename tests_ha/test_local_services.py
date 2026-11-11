@@ -109,14 +109,10 @@ async def test_port_action_accepts_the_current_sensor_entity(hass, local):
     assert hw.calls == ["disable-port 1 3", "poe3 down"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="bug: services._control_poe_port replaces 'sensor.' before "
-    "'binary_sensor.', so binary_sensor.X becomes binary_switch.X",
-)
-async def test_port_action_accepts_the_powered_binary_sensor(hass, local):
+@pytest.mark.parametrize("sensor", ["onboard_port3_powered", "onboard_port3_plug"])
+async def test_port_action_accepts_a_port_binary_sensor(hass, local, sensor):
     _entry, _reader, hw = local
-    await action(hass, "turn_off_port", entity_id="binary_sensor.onboard_port3_powered")
+    await action(hass, "turn_off_port", entity_id=f"binary_sensor.{sensor}")
     assert hw.calls == ["disable-port 1 3", "poe3 down"]
 
 

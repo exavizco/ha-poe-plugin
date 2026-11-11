@@ -113,9 +113,10 @@ async def _control_poe_port(
 
     # Ensure the entity_id is a switch
     if not entity_id.startswith("switch."):
-        entity_id = entity_id.replace("sensor.", "switch.").split("_current")[0]
+        # binary_sensor. first: "sensor." is a substring of it.
         entity_id = entity_id.replace("binary_sensor.", "switch.").split("_powered")[0]
-        entity_id = entity_id.replace("binary_sensor.", "switch.").split("_plug")[0]
+        entity_id = entity_id.split("_plug")[0]
+        entity_id = entity_id.replace("sensor.", "switch.").split("_current")[0]
 
     service = action  # turn_on, turn_off, toggle are HA switch services
     await hass.services.async_call(
