@@ -14,7 +14,7 @@
         "title": "Gestión PoE de Placa Local Exaviz",
         "description": "Detectado: Placa {board_type} con {total_ports} puertos PoE ({addon_boards} placas adicionales, {onboard_ports} puertos integrados). Configure el intervalo de actualización a continuación.",
         "data": {
-          "update_interval": "Intervalo de Actualización (segundos)"
+          "update_interval": "Intervalo de actualización (segundos)"
         },
         "data_description": {
           "update_interval": "Con qué frecuencia escanear el estado de los puertos PoE (10-300 segundos)"
@@ -26,7 +26,7 @@
         "data": {
           "host": "Dirección",
           "port": "Puerto HTTPS",
-          "update_interval": "Intervalo de Actualización (segundos)"
+          "update_interval": "Intervalo de actualización (segundos)"
         },
         "data_description": {
           "update_interval": "Con qué frecuencia leer el estado de los puertos PoE (10-300 segundos)",
@@ -35,7 +35,7 @@
         }
       },
       "fingerprint": {
-        "title": "Compruebe el certificado de la placa",
+        "title": "Comprobar el certificado de la placa",
         "description": "Inicie ahora el emparejamiento en la placa (More > Home Assistant); el código es válido durante 5 minutos.\n\nCompare esta huella digital con la huella digital de la pantalla de emparejamiento de la placa:\n\n`{fingerprint}`\n\nMarque la casilla solo si son iguales.",
         "data": {
           "confirm": "Las huellas digitales son iguales"
@@ -45,7 +45,7 @@
         }
       },
       "pair": {
-        "title": "Introduzca el código de emparejamiento",
+        "title": "Introducir el código de emparejamiento",
         "description": "Introduzca el código de 8 caracteres de la pantalla de emparejamiento de la placa, por ejemplo ABCD-EFGH.",
         "data": {
           "code": "Código de emparejamiento"
@@ -82,7 +82,7 @@
       }
     },
     "error": {
-      "cannot_connect": "No se puede detectar el hardware de la placa. Asegúrese de estar ejecutando en una placa Exaviz Interceptor o Cruiser con exaviz-dkms instalado.",
+      "cannot_connect": "No se puede detectar el hardware de la placa. Asegúrese de que Home Assistant se ejecuta en una placa Exaviz Interceptor o Cruiser con exaviz-dkms instalado.",
       "missing_packages": "Los paquetes de Exaviz necesarios (exaviz-dkms, exaviz-netplan) no están instalados en el sistema operativo del host. Instálelos desde el repositorio apt de Exaviz (apt.exaviz.com) antes de añadir esta integración.",
       "no_poe_detected": "No se detectaron sistemas PoE en esta placa. Verifique las conexiones de hardware y que exaviz-dkms esté instalado.",
       "unknown": "Ocurrió un error inesperado. Por favor, inténtelo de nuevo.",
@@ -117,12 +117,12 @@
         "title": "Opciones de Exaviz",
         "description": "Actualizar opciones de configuración para la integración de placa Exaviz.",
         "data": {
-          "update_interval": "Intervalo de Actualización (segundos)",
+          "update_interval": "Intervalo de actualización (segundos)",
           "switch_mode_discovery": "Detección de dispositivos en modo switch"
         },
         "data_description": {
           "update_interval": "Con qué frecuencia escanear el estado de los puertos PoE",
-          "switch_mode_discovery": "En modo switch/puente, identifica el dispositivo de cada puerto PoE mediante la FDB del puente y un arp-scan de la subred del puente. Déjelo desactivado para el modo por puerto."
+          "switch_mode_discovery": "En modo switch/puente, se identifica el dispositivo de cada puerto PoE mediante la FDB del puente y un arp-scan de la subred del puente. Déjelo desactivado para el modo por puerto."
         }
       }
     },
@@ -132,45 +132,45 @@
   },
   "services": {
     "refresh_data": {
-      "name": "Actualizar Datos PoE",
+      "name": "Actualizar datos PoE",
       "description": "Actualizar datos de puertos PoE desde la placa local."
     },
     "turn_on_port": {
-      "name": "Encender Puerto PoE",
+      "name": "Encender puerto PoE",
       "description": "Activar la alimentación de un puerto PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID de Entidad",
+          "name": "ID de entidad",
           "description": "ID de entidad del interruptor del puerto PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Apagar Puerto PoE",
+      "name": "Apagar puerto PoE",
       "description": "Desactivar la alimentación de un puerto PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID de Entidad",
+          "name": "ID de entidad",
           "description": "ID de entidad del interruptor del puerto PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Alternar Puerto PoE",
+      "name": "Alternar puerto PoE",
       "description": "Alternar la alimentación de un puerto PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID de Entidad",
+          "name": "ID de entidad",
           "description": "ID de entidad del interruptor del puerto PoE."
         }
       }
     },
     "control_port": {
-      "name": "Controlar Puerto PoE",
+      "name": "Controlar puerto PoE",
       "description": "Controlar un puerto PoE con una acción especificada.",
       "fields": {
         "entity_id": {
-          "name": "ID de Entidad",
+          "name": "ID de entidad",
           "description": "ID de entidad del interruptor del puerto PoE."
         },
         "action": {
@@ -180,11 +180,11 @@
       }
     },
     "reset_port": {
-      "name": "Restablecer Puerto PoE",
+      "name": "Restablecer puerto PoE",
       "description": "Restablecer (apagar y volver a encender) un puerto PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID de Entidad",
+          "name": "ID de entidad",
           "description": "ID de entidad del interruptor del puerto PoE."
         }
       }

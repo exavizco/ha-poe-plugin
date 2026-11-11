@@ -46,7 +46,7 @@
       },
       "pair": {
         "title": "Kopplungscode eingeben",
-        "description": "Geben Sie den 8-stelligen Code vom Kopplungsbildschirm des Boards ein, z. B. ABCD-EFGH.",
+        "description": "Geben Sie den Code aus 8 Zeichen vom Kopplungsbildschirm des Boards ein, z. B. ABCD-EFGH.",
         "data": {
           "code": "Kopplungscode"
         },
@@ -56,7 +56,7 @@
       },
       "repair": {
         "title": "Erneut mit dem Board koppeln",
-        "description": "Starten Sie jetzt die Kopplung auf dem Board (More > Home Assistant); der Code ist 5 Minuten lang gültig. Geben Sie den 8-stelligen Code ein, z. B. ABCD-EFGH.\n\nWiderrufen Sie nach der Kopplung das alte Token `{old_token_id}` auf dem Board unter More > Home Assistant.",
+        "description": "Starten Sie jetzt die Kopplung auf dem Board (More > Home Assistant); der Code ist 5 Minuten lang gültig. Geben Sie den Code aus 8 Zeichen ein, z. B. ABCD-EFGH.\n\nWiderrufen Sie nach der Kopplung das alte Token `{old_token_id}` auf dem Board unter More > Home Assistant.",
         "data": {
           "code": "Kopplungscode"
         },
@@ -122,7 +122,7 @@
         },
         "data_description": {
           "update_interval": "Wie oft der PoE-Port-Status gescannt werden soll",
-          "switch_mode_discovery": "Im Switch-/Bridge-Modus wird das Gerät an jedem PoE-Port über die Bridge-FDB und einen arp-scan des Bridge-Subnetzes ermittelt. Für den Pro-Port-Modus deaktiviert lassen."
+          "switch_mode_discovery": "Im Switch-/Bridge-Modus wird das Gerät an jedem PoE-Port über die Bridge-FDB und einen arp-scan des Bridge-Subnetzes ermittelt. Für den Modus pro Port deaktiviert lassen."
         }
       }
     },
@@ -132,11 +132,11 @@
   },
   "services": {
     "refresh_data": {
-      "name": "PoE-Daten Aktualisieren",
+      "name": "PoE-Daten aktualisieren",
       "description": "PoE-Port-Daten vom lokalen Board aktualisieren."
     },
     "turn_on_port": {
-      "name": "PoE-Port Einschalten",
+      "name": "PoE-Port einschalten",
       "description": "Stromversorgung an einem PoE-Port einschalten.",
       "fields": {
         "entity_id": {
@@ -146,7 +146,7 @@
       }
     },
     "turn_off_port": {
-      "name": "PoE-Port Ausschalten",
+      "name": "PoE-Port ausschalten",
       "description": "Stromversorgung an einem PoE-Port ausschalten.",
       "fields": {
         "entity_id": {
@@ -156,7 +156,7 @@
       }
     },
     "toggle_port": {
-      "name": "PoE-Port Umschalten",
+      "name": "PoE-Port umschalten",
       "description": "Stromversorgung an einem PoE-Port umschalten.",
       "fields": {
         "entity_id": {
@@ -166,7 +166,7 @@
       }
     },
     "control_port": {
-      "name": "PoE-Port Steuern",
+      "name": "PoE-Port steuern",
       "description": "Einen PoE-Port mit einer angegebenen Aktion steuern.",
       "fields": {
         "entity_id": {
@@ -180,7 +180,7 @@
       }
     },
     "reset_port": {
-      "name": "PoE-Port Zurücksetzen",
+      "name": "PoE-Port zurücksetzen",
       "description": "Einen PoE-Port zurücksetzen (aus- und wieder einschalten).",
       "fields": {
         "entity_id": {

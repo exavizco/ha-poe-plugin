@@ -14,7 +14,7 @@
         "title": "Gestion PoE Carte Locale Exaviz",
         "description": "Détecté : Carte {board_type} avec {total_ports} ports PoE ({addon_boards} cartes supplémentaires, {onboard_ports} ports intégrés). Configurez l'intervalle de mise à jour ci-dessous.",
         "data": {
-          "update_interval": "Intervalle de Mise à Jour (secondes)"
+          "update_interval": "Intervalle de mise à jour (secondes)"
         },
         "data_description": {
           "update_interval": "Fréquence d'analyse de l'état des ports PoE (10-300 secondes)"
@@ -26,7 +26,7 @@
         "data": {
           "host": "Adresse",
           "port": "Port HTTPS",
-          "update_interval": "Intervalle de Mise à Jour (secondes)"
+          "update_interval": "Intervalle de mise à jour (secondes)"
         },
         "data_description": {
           "update_interval": "Fréquence de lecture de l'état des ports PoE (10-300 secondes)",
@@ -86,7 +86,7 @@
       "missing_packages": "Les paquets Exaviz requis (exaviz-dkms, exaviz-netplan) ne sont pas installés sur le système d'exploitation hôte. Installez-les depuis le dépôt apt d'Exaviz (apt.exaviz.com) avant d'ajouter cette intégration.",
       "no_poe_detected": "Aucun système PoE détecté sur cette carte. Vérifiez les connexions matérielles et qu'exaviz-dkms est installé.",
       "unknown": "Une erreur inattendue s'est produite. Veuillez réessayer.",
-      "https_required": "La carte doit être jointe en HTTPS. Saisissez l'adresse sans http://.",
+      "https_required": "La carte doit être accessible en HTTPS. Saisissez l'adresse sans http://.",
       "invalid_host": "Saisissez uniquement une adresse IP ou un nom d'hôte, éventuellement avec https:// et un port.",
       "board_unreachable": "La carte n'a pas répondu. Vérifiez l'adresse et que la carte est allumée.",
       "no_management": "Exaviz Management n'est pas installé sur cette carte.",
@@ -102,7 +102,7 @@
       "single_instance_allowed": "Dans cette version, une seule carte Exaviz peut être ajoutée à Home Assistant.",
       "fingerprint_rejected": "Les empreintes n'étaient pas identiques, rien n'a donc été appairé. Vérifiez que vous avez saisi l'adresse de la bonne carte.",
       "serial_mismatch": "Une autre carte a répondu. Si le numéro de série de cette carte a changé, supprimez l'intégration et ajoutez-la à nouveau.",
-      "board_unreachable": "La carte n'a pas répondu à son adresse enregistrée. Si elle a été déplacée, utilisez Reconfigurer sur l'intégration Exaviz pour saisir sa nouvelle adresse.",
+      "board_unreachable": "La carte n'a pas répondu à son adresse enregistrée. Si elle a été déplacée, utilisez Reconfigurer dans l'intégration Exaviz pour saisir sa nouvelle adresse.",
       "reauth_successful": "Home Assistant est de nouveau appairé avec la carte.",
       "reconfigure_successful": "L'adresse de la carte a été mise à jour.",
       "reconfigure_local": "Cette carte exécute elle-même Home Assistant, il n'y a donc aucune adresse à modifier.",
@@ -117,7 +117,7 @@
         "title": "Options Exaviz",
         "description": "Mettre à jour les options de configuration pour l'intégration de carte Exaviz.",
         "data": {
-          "update_interval": "Intervalle de Mise à Jour (secondes)",
+          "update_interval": "Intervalle de mise à jour (secondes)",
           "switch_mode_discovery": "Détection des appareils en mode commutateur"
         },
         "data_description": {
@@ -132,45 +132,45 @@
   },
   "services": {
     "refresh_data": {
-      "name": "Actualiser les Données PoE",
+      "name": "Actualiser les données PoE",
       "description": "Actualiser les données des ports PoE depuis la carte locale."
     },
     "turn_on_port": {
-      "name": "Activer le Port PoE",
+      "name": "Activer le port PoE",
       "description": "Activer l'alimentation d'un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID d'Entité",
+          "name": "ID d'entité",
           "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Désactiver le Port PoE",
+      "name": "Désactiver le port PoE",
       "description": "Désactiver l'alimentation d'un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID d'Entité",
+          "name": "ID d'entité",
           "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Basculer le Port PoE",
+      "name": "Basculer le port PoE",
       "description": "Basculer l'alimentation d'un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID d'Entité",
+          "name": "ID d'entité",
           "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     },
     "control_port": {
-      "name": "Contrôler le Port PoE",
+      "name": "Contrôler le port PoE",
       "description": "Contrôler un port PoE avec une action spécifiée.",
       "fields": {
         "entity_id": {
-          "name": "ID d'Entité",
+          "name": "ID d'entité",
           "description": "ID d'entité de l'interrupteur du port PoE."
         },
         "action": {
@@ -180,11 +180,11 @@
       }
     },
     "reset_port": {
-      "name": "Réinitialiser le Port PoE",
+      "name": "Réinitialiser le port PoE",
       "description": "Réinitialiser (couper puis rétablir l'alimentation) un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID d'Entité",
+          "name": "ID d'entité",
           "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }

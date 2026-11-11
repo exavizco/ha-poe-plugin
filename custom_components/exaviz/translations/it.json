@@ -14,7 +14,7 @@
         "title": "Gestione PoE Scheda Locale Exaviz",
         "description": "Rilevato: Scheda {board_type} con {total_ports} porte PoE ({addon_boards} schede aggiuntive, {onboard_ports} porte integrate). Configura l'intervallo di aggiornamento di seguito.",
         "data": {
-          "update_interval": "Intervallo di Aggiornamento (secondi)"
+          "update_interval": "Intervallo di aggiornamento (secondi)"
         },
         "data_description": {
           "update_interval": "Frequenza di scansione dello stato delle porte PoE (10-300 secondi)"
@@ -26,7 +26,7 @@
         "data": {
           "host": "Indirizzo",
           "port": "Porta HTTPS",
-          "update_interval": "Intervallo di Aggiornamento (secondi)"
+          "update_interval": "Intervallo di aggiornamento (secondi)"
         },
         "data_description": {
           "update_interval": "Frequenza di lettura dello stato delle porte PoE (10-300 secondi)",
@@ -102,7 +102,7 @@
       "single_instance_allowed": "In questa versione è possibile aggiungere a Home Assistant una sola scheda Exaviz.",
       "fingerprint_rejected": "Le impronte digitali non erano uguali, quindi non è stato abbinato nulla. Verifica di aver inserito l'indirizzo della scheda giusta.",
       "serial_mismatch": "Ha risposto una scheda diversa. Se il numero di serie di questa scheda è cambiato, elimina l'integrazione e aggiungila di nuovo.",
-      "board_unreachable": "La scheda non ha risposto al suo indirizzo salvato. Se è stata spostata, usa Riconfigura sull'integrazione Exaviz per inserire il suo nuovo indirizzo.",
+      "board_unreachable": "La scheda non ha risposto al suo indirizzo salvato. Se è stata spostata, usa Riconfigura nell'integrazione Exaviz per inserire il suo nuovo indirizzo.",
       "reauth_successful": "Home Assistant è di nuovo abbinato alla scheda.",
       "reconfigure_successful": "L'indirizzo della scheda è stato aggiornato.",
       "reconfigure_local": "Questa scheda esegue direttamente Home Assistant, quindi non c'è alcun indirizzo da cambiare.",
@@ -117,7 +117,7 @@
         "title": "Opzioni Exaviz",
         "description": "Aggiorna le opzioni di configurazione per l'integrazione della scheda Exaviz.",
         "data": {
-          "update_interval": "Intervallo di Aggiornamento (secondi)",
+          "update_interval": "Intervallo di aggiornamento (secondi)",
           "switch_mode_discovery": "Rilevamento dispositivi in modalità switch"
         },
         "data_description": {
@@ -132,45 +132,45 @@
   },
   "services": {
     "refresh_data": {
-      "name": "Aggiorna Dati PoE",
+      "name": "Aggiorna dati PoE",
       "description": "Aggiorna i dati delle porte PoE dalla scheda locale."
     },
     "turn_on_port": {
-      "name": "Accendi Porta PoE",
+      "name": "Accendi porta PoE",
       "description": "Abilita l'alimentazione su una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID Entità",
+          "name": "ID entità",
           "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Spegni Porta PoE",
+      "name": "Spegni porta PoE",
       "description": "Disabilita l'alimentazione su una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID Entità",
+          "name": "ID entità",
           "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Commuta Porta PoE",
+      "name": "Commuta porta PoE",
       "description": "Commuta l'alimentazione su una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID Entità",
+          "name": "ID entità",
           "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     },
     "control_port": {
-      "name": "Controlla Porta PoE",
+      "name": "Controlla porta PoE",
       "description": "Controlla una porta PoE con un'azione specificata.",
       "fields": {
         "entity_id": {
-          "name": "ID Entità",
+          "name": "ID entità",
           "description": "ID entità dell'interruttore della porta PoE."
         },
         "action": {
@@ -180,11 +180,11 @@
       }
     },
     "reset_port": {
-      "name": "Ripristina Porta PoE",
+      "name": "Ripristina porta PoE",
       "description": "Ripristina (spegni e riaccendi) una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID Entità",
+          "name": "ID entità",
           "description": "ID entità dell'interruttore della porta PoE."
         }
       }

@@ -14,7 +14,7 @@
         "title": "Gerenciamento PoE Placa Local Exaviz",
         "description": "Detectado: Placa {board_type} com {total_ports} portas PoE ({addon_boards} placas adicionais, {onboard_ports} portas integradas). Configure o intervalo de atualização abaixo.",
         "data": {
-          "update_interval": "Intervalo de Atualização (segundos)"
+          "update_interval": "Intervalo de atualização (segundos)"
         },
         "data_description": {
           "update_interval": "Com que frequência verificar o status das portas PoE (10-300 segundos)"
@@ -22,11 +22,11 @@
       },
       "remote": {
         "title": "Placa Exaviz na sua rede",
-        "description": "Digite o endereço IP ou o nome do host da placa. A placa precisa do Exaviz Management com pareamento do Home Assistant. Use o endereço IP da placa se um nome .local não funcionar.",
+        "description": "Digite o endereço IP ou o nome de host da placa. A placa precisa do Exaviz Management com pareamento do Home Assistant. Use o endereço IP da placa se um nome .local não funcionar.",
         "data": {
           "host": "Endereço",
           "port": "Porta HTTPS",
-          "update_interval": "Intervalo de Atualização (segundos)"
+          "update_interval": "Intervalo de atualização (segundos)"
         },
         "data_description": {
           "update_interval": "Com que frequência ler o status das portas PoE (10-300 segundos)",
@@ -41,7 +41,7 @@
           "confirm": "As impressões digitais são iguais"
         },
         "data_description": {
-          "confirm": "Desmarque e envie se forem diferentes: nada é pareado."
+          "confirm": "Desmarque e envie se forem diferentes: nada será pareado."
         }
       },
       "pair": {
@@ -70,7 +70,7 @@
       },
       "reconfigure": {
         "title": "Alterar o endereço da placa",
-        "description": "Digite o novo endereço IP ou nome do host da placa. Se o certificado dela mudou, você vai comparar a nova impressão digital e parear novamente.",
+        "description": "Digite o novo endereço IP ou nome de host da placa. Se o certificado dela mudou, você vai comparar a nova impressão digital e parear novamente.",
         "data": {
           "host": "Endereço",
           "port": "Porta HTTPS"
@@ -82,7 +82,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Não é possível detectar o hardware da placa. Certifique-se de estar executando em uma placa Exaviz Interceptor ou Cruiser com exaviz-dkms instalado.",
+      "cannot_connect": "Não é possível detectar o hardware da placa. Certifique-se de que o Home Assistant está sendo executado em uma placa Exaviz Interceptor ou Cruiser com exaviz-dkms instalado.",
       "missing_packages": "Os pacotes Exaviz necessários (exaviz-dkms, exaviz-netplan) não estão instalados no sistema operacional do host. Instale-os a partir do repositório apt da Exaviz (apt.exaviz.com) antes de adicionar esta integração.",
       "no_poe_detected": "Nenhum sistema PoE detectado nesta placa. Verifique as conexões de hardware e se o exaviz-dkms está instalado.",
       "unknown": "Ocorreu um erro inesperado. Por favor, tente novamente.",
@@ -117,12 +117,12 @@
         "title": "Opções Exaviz",
         "description": "Atualizar opções de configuração para a integração da placa Exaviz.",
         "data": {
-          "update_interval": "Intervalo de Atualização (segundos)",
+          "update_interval": "Intervalo de atualização (segundos)",
           "switch_mode_discovery": "Descoberta de dispositivos no modo switch"
         },
         "data_description": {
           "update_interval": "Com que frequência verificar o status das portas PoE",
-          "switch_mode_discovery": "No modo switch/bridge, identifica o dispositivo em cada porta PoE pela FDB da bridge e por um arp-scan da sub-rede da bridge. Deixe desativado para o modo por porta."
+          "switch_mode_discovery": "No modo switch/bridge, o dispositivo em cada porta PoE é identificado pela FDB da bridge e por um arp-scan da sub-rede da bridge. Deixe desativado para o modo por porta."
         }
       }
     },
@@ -132,45 +132,45 @@
   },
   "services": {
     "refresh_data": {
-      "name": "Atualizar Dados PoE",
+      "name": "Atualizar dados PoE",
       "description": "Atualizar dados de portas PoE da placa local."
     },
     "turn_on_port": {
-      "name": "Ligar Porta PoE",
+      "name": "Ligar porta PoE",
       "description": "Ativar a energia em uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID da Entidade",
+          "name": "ID da entidade",
           "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Desligar Porta PoE",
+      "name": "Desligar porta PoE",
       "description": "Desativar a energia em uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID da Entidade",
+          "name": "ID da entidade",
           "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Alternar Porta PoE",
+      "name": "Alternar porta PoE",
       "description": "Alternar a energia em uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID da Entidade",
+          "name": "ID da entidade",
           "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     },
     "control_port": {
-      "name": "Controlar Porta PoE",
+      "name": "Controlar porta PoE",
       "description": "Controlar uma porta PoE com uma ação especificada.",
       "fields": {
         "entity_id": {
-          "name": "ID da Entidade",
+          "name": "ID da entidade",
           "description": "ID da entidade do interruptor da porta PoE."
         },
         "action": {
@@ -180,11 +180,11 @@
       }
     },
     "reset_port": {
-      "name": "Redefinir Porta PoE",
+      "name": "Redefinir porta PoE",
       "description": "Redefinir (desligar e religar) uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "ID da Entidade",
+          "name": "ID da entidade",
           "description": "ID da entidade do interruptor da porta PoE."
         }
       }

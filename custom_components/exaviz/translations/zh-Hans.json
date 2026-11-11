@@ -3,11 +3,11 @@
   "config": {
     "step": {
       "user": {
-        "title": "添加 Exaviz 板",
-        "description": "板在哪里？",
+        "title": "添加 Exaviz 板卡",
+        "description": "板卡在哪里？",
         "menu_options": {
-          "local": "Home Assistant 在此板上运行",
-          "remote": "板是我网络中的另一台设备"
+          "local": "Home Assistant 在此板卡上运行",
+          "remote": "板卡是我网络中的另一台设备"
         }
       },
       "local": {
@@ -21,8 +21,8 @@
         }
       },
       "remote": {
-        "title": "您网络中的 Exaviz 板",
-        "description": "请输入板的 IP 地址或主机名。板需要安装支持 Home Assistant 配对的 Exaviz Management。如果 .local 名称无效，请使用板的 IP 地址。",
+        "title": "您网络中的 Exaviz 板卡",
+        "description": "请输入板卡的 IP 地址或主机名。板卡需要安装支持 Home Assistant 配对的 Exaviz Management。如果 .local 名称无效，请使用板卡的 IP 地址。",
         "data": {
           "host": "地址",
           "port": "HTTPS 端口",
@@ -30,13 +30,13 @@
         },
         "data_description": {
           "update_interval": "读取 PoE 端口状态的频率（10-300 秒）",
-          "host": "板的 IP 地址，或您的网络可以解析的主机名。",
-          "port": "除非板的 HTTPS 端口已更改，否则请保留 443。"
+          "host": "板卡的 IP 地址，或您的网络可以解析的主机名。",
+          "port": "除非板卡的 HTTPS 端口已更改，否则请保留 443。"
         }
       },
       "fingerprint": {
-        "title": "检查板的证书",
-        "description": "请立即在板上开始配对（More > Home Assistant）；代码有效期为 5 分钟。\n\n请将此指纹与板配对界面上的指纹进行比较：\n\n`{fingerprint}`\n\n仅当两者相同时才勾选此框。",
+        "title": "检查板卡的证书",
+        "description": "请立即在板卡上开始配对（More > Home Assistant）；代码有效期为 5 分钟。\n\n请将此指纹与板卡配对界面上的指纹进行比较：\n\n`{fingerprint}`\n\n仅当两者相同时才勾选此框。",
         "data": {
           "confirm": "指纹相同"
         },
@@ -46,69 +46,69 @@
       },
       "pair": {
         "title": "输入配对码",
-        "description": "请输入板配对界面上显示的 8 个字符的代码，例如 ABCD-EFGH。",
+        "description": "请输入板卡配对界面上显示的 8 个字符的代码，例如 ABCD-EFGH。",
         "data": {
           "code": "配对码"
         },
         "data_description": {
-          "code": "开始配对后，显示在板的 More > Home Assistant 中。"
+          "code": "开始配对后，显示在板卡的 More > Home Assistant 中。"
         }
       },
       "repair": {
-        "title": "重新与板配对",
-        "description": "请立即在板上开始配对（More > Home Assistant）；代码有效期为 5 分钟。请输入 8 个字符的代码，例如 ABCD-EFGH。\n\n配对后，请在板的 More > Home Assistant 中撤销旧令牌 `{old_token_id}`。",
+        "title": "重新与板卡配对",
+        "description": "请立即在板卡上开始配对（More > Home Assistant）；代码有效期为 5 分钟。请输入 8 个字符的代码，例如 ABCD-EFGH。\n\n配对后，请在板卡的 More > Home Assistant 中撤销旧令牌 `{old_token_id}`。",
         "data": {
           "code": "配对码"
         },
         "data_description": {
-          "code": "开始配对后，显示在板的 More > Home Assistant 中。"
+          "code": "开始配对后，显示在板卡的 More > Home Assistant 中。"
         }
       },
       "reauth_confirm": {
-        "title": "重新与板配对",
-        "description": "Home Assistant 无法再读取位于 {host} 的板：其令牌已被撤销或其证书已更改。请确认板已开机，然后提交以重新配对。"
+        "title": "重新与板卡配对",
+        "description": "Home Assistant 无法再读取位于 {host} 的板卡：其令牌已被撤销或其证书已更改。请确认板卡已开机，然后提交以重新配对。"
       },
       "reconfigure": {
-        "title": "更改板的地址",
-        "description": "请输入板的新 IP 地址或主机名。如果其证书已更改，您需要比较新的指纹并重新配对。",
+        "title": "更改板卡的地址",
+        "description": "请输入板卡的新 IP 地址或主机名。如果其证书已更改，您需要比较新的指纹并重新配对。",
         "data": {
           "host": "地址",
           "port": "HTTPS 端口"
         },
         "data_description": {
-          "host": "板的 IP 地址，或您的网络可以解析的主机名。",
-          "port": "除非板的 HTTPS 端口已更改，否则请保留 443。"
+          "host": "板卡的 IP 地址，或您的网络可以解析的主机名。",
+          "port": "除非板卡的 HTTPS 端口已更改，否则请保留 443。"
         }
       }
     },
     "error": {
-      "cannot_connect": "无法检测板卡硬件。请确保您在已安装 exaviz-dkms 的 Exaviz Interceptor 或 Cruiser 板上运行。",
+      "cannot_connect": "无法检测板卡硬件。请确保您在已安装 exaviz-dkms 的 Exaviz Interceptor 或 Cruiser 板卡上运行。",
       "missing_packages": "主机操作系统上未安装所需的 Exaviz 软件包（exaviz-dkms、exaviz-netplan）。添加此集成前，请从 Exaviz apt 软件源 (apt.exaviz.com) 安装它们。",
-      "no_poe_detected": "在此板上未检测到 PoE 系统。请检查硬件连接，并确认已安装 exaviz-dkms。",
+      "no_poe_detected": "在此板卡上未检测到 PoE 系统。请检查硬件连接，并确认已安装 exaviz-dkms。",
       "unknown": "发生意外错误。请重试。",
-      "https_required": "必须通过 HTTPS 访问板。请输入不带 http:// 的地址。",
+      "https_required": "必须通过 HTTPS 访问板卡。请输入不带 http:// 的地址。",
       "invalid_host": "请仅输入 IP 地址或主机名，可选择附带 https:// 和端口。",
-      "board_unreachable": "板没有响应。请检查地址，并确认板已开机。",
-      "no_management": "此板上未安装 Exaviz Management。",
-      "management_too_old": "请更新板上的 Exaviz Management，然后重试。",
-      "unsupported_contract": "板上的 Exaviz Management 比此集成更新。请更新 Exaviz 集成。",
-      "unsupported_board": "此版本仅支持通过网络添加 Cruiser 板。",
-      "invalid_code": "代码错误、已过期或已取消。请在板上重新开始配对，并输入新代码。",
-      "too_many_attempts": "错误代码过多。请等待 {retry_after} 秒，在板上开始新的配对，然后输入新代码。",
-      "token_limit": "板上已有 20 个 Home Assistant 令牌。请在板的 More > Home Assistant 中撤销一个，然后再次输入相同的代码。"
+      "board_unreachable": "板卡没有响应。请检查地址，并确认板卡已开机。",
+      "no_management": "此板卡上未安装 Exaviz Management。",
+      "management_too_old": "请更新板卡上的 Exaviz Management，然后重试。",
+      "unsupported_contract": "板卡上的 Exaviz Management 比此集成更新。请更新 Exaviz 集成。",
+      "unsupported_board": "此版本仅支持通过网络添加 Cruiser 板卡。",
+      "invalid_code": "代码错误、已过期或已取消。请在板卡上重新开始配对，并输入新代码。",
+      "too_many_attempts": "错误代码过多。请等待 {retry_after} 秒，在板卡上开始新的配对，然后输入新代码。",
+      "token_limit": "板卡上已有 20 个 Home Assistant 令牌。请在板卡的 More > Home Assistant 中撤销一个，然后再次输入相同的代码。"
     },
     "abort": {
-      "already_configured": "此板已配置。",
-      "single_instance_allowed": "此版本只能向 Home Assistant 添加一块 Exaviz 板。",
-      "fingerprint_rejected": "指纹不相同，因此未进行任何配对。请检查您输入的是否为正确板的地址。",
-      "serial_mismatch": "响应的是另一块板。如果此板的序列号已更改，请删除该集成并重新添加。",
-      "board_unreachable": "板在其保存的地址上没有响应。如果板已移动，请在 Exaviz 集成中使用“重新配置”输入其新地址。",
-      "reauth_successful": "Home Assistant 已重新与板配对。",
-      "reconfigure_successful": "板的地址已更新。",
-      "reconfigure_local": "此板本身运行 Home Assistant，因此没有可更改的地址。",
-      "no_management": "此板上未安装 Exaviz Management。",
-      "management_too_old": "请更新板上的 Exaviz Management，然后重试。",
-      "unsupported_contract": "板上的 Exaviz Management 比此集成更新。请更新 Exaviz 集成。"
+      "already_configured": "此板卡已配置。",
+      "single_instance_allowed": "此版本只能向 Home Assistant 添加一块 Exaviz 板卡。",
+      "fingerprint_rejected": "指纹不相同，因此未进行任何配对。请检查您输入的是否是正确板卡的地址。",
+      "serial_mismatch": "响应的是另一块板卡。如果此板卡的序列号已更改，请删除该集成并重新添加。",
+      "board_unreachable": "板卡在其保存的地址上没有响应。如果板卡已移动，请在 Exaviz 集成中使用“重新配置”输入其新地址。",
+      "reauth_successful": "Home Assistant 已重新与板卡配对。",
+      "reconfigure_successful": "板卡的地址已更新。",
+      "reconfigure_local": "此板卡本身运行 Home Assistant，因此没有可更改的地址。",
+      "no_management": "此板卡上未安装 Exaviz Management。",
+      "management_too_old": "请更新板卡上的 Exaviz Management，然后重试。",
+      "unsupported_contract": "板卡上的 Exaviz Management 比此集成更新。请更新 Exaviz 集成。"
     }
   },
   "options": {

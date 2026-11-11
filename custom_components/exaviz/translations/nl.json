@@ -66,7 +66,7 @@
       },
       "reauth_confirm": {
         "title": "Opnieuw koppelen met het board",
-        "description": "Home Assistant kan het board op {host} niet meer lezen: het token is ingetrokken of het certificaat is gewijzigd. Controleer of het board aan staat en verstuur dan om opnieuw te koppelen."
+        "description": "Home Assistant kan het board op {host} niet meer lezen: het token is ingetrokken of het certificaat is gewijzigd. Controleer of het board aan staat en verstuur het formulier om opnieuw te koppelen."
       },
       "reconfigure": {
         "title": "Het adres van het board wijzigen",
@@ -95,7 +95,7 @@
       "unsupported_board": "In deze versie kunnen alleen Cruiser boards via het netwerk worden toegevoegd.",
       "invalid_code": "De code is onjuist, verlopen of geannuleerd. Start het koppelen op het board opnieuw en voer de nieuwe code in.",
       "too_many_attempts": "Te veel onjuiste codes. Wacht {retry_after} seconden, start een nieuwe koppeling op het board en voer de nieuwe code in.",
-      "token_limit": "Het board heeft al 20 Home Assistant-tokens. Trek er een in op het board onder More > Home Assistant en voer daarna dezelfde code opnieuw in."
+      "token_limit": "Het board heeft al 20 Home Assistant-tokens. Trek er één in op het board onder More > Home Assistant en voer daarna dezelfde code opnieuw in."
     },
     "abort": {
       "already_configured": "Dit board is al geconfigureerd.",
@@ -132,46 +132,46 @@
   },
   "services": {
     "refresh_data": {
-      "name": "PoE-gegevens Vernieuwen",
+      "name": "PoE-gegevens vernieuwen",
       "description": "PoE-poortgegevens van het lokale board vernieuwen."
     },
     "turn_on_port": {
-      "name": "PoE-poort Inschakelen",
+      "name": "PoE-poort inschakelen",
       "description": "Stroom op een PoE-poort inschakelen.",
       "fields": {
         "entity_id": {
-          "name": "Entiteit-ID",
-          "description": "Entiteit-ID van de PoE-poortschakelaar."
+          "name": "Entiteits-ID",
+          "description": "Entiteits-ID van de PoE-poortschakelaar."
         }
       }
     },
     "turn_off_port": {
-      "name": "PoE-poort Uitschakelen",
+      "name": "PoE-poort uitschakelen",
       "description": "Stroom op een PoE-poort uitschakelen.",
       "fields": {
         "entity_id": {
-          "name": "Entiteit-ID",
-          "description": "Entiteit-ID van de PoE-poortschakelaar."
+          "name": "Entiteits-ID",
+          "description": "Entiteits-ID van de PoE-poortschakelaar."
         }
       }
     },
     "toggle_port": {
-      "name": "PoE-poort Omschakelen",
+      "name": "PoE-poort omschakelen",
       "description": "Stroom op een PoE-poort omschakelen.",
       "fields": {
         "entity_id": {
-          "name": "Entiteit-ID",
-          "description": "Entiteit-ID van de PoE-poortschakelaar."
+          "name": "Entiteits-ID",
+          "description": "Entiteits-ID van de PoE-poortschakelaar."
         }
       }
     },
     "control_port": {
-      "name": "PoE-poort Bedienen",
+      "name": "PoE-poort bedienen",
       "description": "Een PoE-poort bedienen met een opgegeven actie.",
       "fields": {
         "entity_id": {
-          "name": "Entiteit-ID",
-          "description": "Entiteit-ID van de PoE-poortschakelaar."
+          "name": "Entiteits-ID",
+          "description": "Entiteits-ID van de PoE-poortschakelaar."
         },
         "action": {
           "name": "Actie",
@@ -180,12 +180,12 @@
       }
     },
     "reset_port": {
-      "name": "PoE-poort Resetten",
+      "name": "PoE-poort resetten",
       "description": "Een PoE-poort resetten (stroom uit en weer aan).",
       "fields": {
         "entity_id": {
-          "name": "Entiteit-ID",
-          "description": "Entiteit-ID van de PoE-poortschakelaar."
+          "name": "Entiteits-ID",
+          "description": "Entiteits-ID van de PoE-poortschakelaar."
         }
       }
     }
