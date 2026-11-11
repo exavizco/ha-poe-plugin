@@ -166,12 +166,16 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     @staticmethod
     async def _run_ip_link(interface: str, action: str) -> bool:
         """Run 'ip link set' asynchronously. Returns True on success."""
-        proc = await asyncio.create_subprocess_exec(
-            *sudo_argv("ip", "link", "set", interface, action),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *sudo_argv("ip", "link", "set", interface, action),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+        except OSError as exc:
+            _LOGGER.error("Could not run ip link to %s port %s: %s", action, interface, exc)
+            return False
         if proc.returncode != 0:
             _LOGGER.error(
                 "Failed to %s port %s: %s", action, interface,
@@ -244,7 +248,8 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
         Uses both ESP32 commands (for actual PoE power control via TPS23861)
         and ip link (for network interface admin state). Raises
-        HomeAssistantError if a step fails; the state is refreshed either way.
+        HomeAssistantError if the PoE power command fails; a failed link step
+        is logged by _run_ip_link. The state is refreshed either way.
         """
         interface = f"poe{self._port_number}"
 
@@ -256,22 +261,15 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     raise HomeAssistantError(
                         f"The PoE controller did not disable port {interface}"
                     )
-                if not await self._run_ip_link(interface, "down"):
-                    raise HomeAssistantError(
-                        f"Port {interface} power is off but its link did not go down"
-                    )
+                await self._run_ip_link(interface, "down")
                 _LOGGER.info("Disabled onboard PoE port %s (power cut + link down)", interface)
             else:
                 # Bring up network interface, then restore PoE power (even if
                 # the link step failed, power is what the user asked for)
-                link_ok = await self._run_ip_link(interface, "up")
+                await self._run_ip_link(interface, "up")
                 if not await self._esp32_enable_port():
                     raise HomeAssistantError(
                         f"The PoE controller did not enable port {interface}"
-                    )
-                if not link_ok:
-                    raise HomeAssistantError(
-                        f"Port {interface} power is on but its link did not come up"
                     )
                 _LOGGER.info("Enabled onboard PoE port %s (link up + power restored)", interface)
         finally:

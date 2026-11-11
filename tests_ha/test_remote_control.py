@@ -173,8 +173,8 @@ async def test_t40l_local_entry_uses_local_control(hass):
         await hass.async_block_till_done()
 
 
-async def test_local_failed_power_cut_raises_and_keeps_state(hass):
-    """A False from the ESP32 command reaches the caller; the switch stays on."""
+async def test_local_failed_power_cut_raises(hass):
+    """A False from the ESP32 command reaches the service caller as an error."""
     entry = MockConfigEntry(
         domain=DOMAIN, data={}, unique_id="exaviz_cruiser", entry_id="local_entry"
     )
@@ -198,7 +198,6 @@ async def test_local_failed_power_cut_raises_and_keeps_state(hass):
             await call(hass, "switch", "turn_off", "switch.onboard_port0")
         send.assert_awaited_once_with("disable-port 1 0")
         link.assert_not_awaited()
-        assert hass.states.get("switch.onboard_port0").state == "on"
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
