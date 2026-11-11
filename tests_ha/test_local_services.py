@@ -11,8 +11,20 @@ from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.components.button import ButtonEntity
+from homeassistant.components.switch import SwitchEntity
+from homeassistant.core import Context
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceValidationError,
+    Unauthorized,
+)
+from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    setup_test_component_platform,
+)
 
 from custom_components.exaviz.const import DOMAIN
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
@@ -195,3 +207,98 @@ async def test_port_action_on_an_unavailable_entity_is_an_error(hass, local, ser
     with pytest.raises(HomeAssistantError, match="is unavailable"):
         await action(hass, service, entity_id="switch.onboard_port3")
     assert hw.calls == []
+
+
+# --- Only Exaviz entities, with the caller's permissions --------------------
+
+
+class KitchenSwitch(SwitchEntity):
+    """A switch from another integration."""
+
+    _attr_unique_id = "kitchen"
+    _attr_name = "Kitchen"
+    _attr_is_on = True
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def async_turn_on(self, **kwargs) -> None:
+        self.calls.append("on")
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self.calls.append("off")
+
+
+class KitchenResetButton(ButtonEntity):
+    """A button from another integration named like a port's reset button."""
+
+    _attr_unique_id = "kitchen_reset"
+    _attr_name = "Kitchen reset"
+
+    def __init__(self, calls: list[str]) -> None:
+        self.calls = calls
+
+    async def async_press(self) -> None:
+        self.calls.append("press")
+
+
+@pytest.fixture
+async def kitchen(hass) -> KitchenSwitch:
+    """switch.kitchen and button.kitchen_reset from the test platform.
+
+    Set up before the Exaviz entry, which then joins the loaded components.
+    """
+    switch = KitchenSwitch()
+    setup_test_component_platform(hass, "switch", [switch])
+    setup_test_component_platform(hass, "button", [KitchenResetButton(switch.calls)])
+    assert await async_setup_component(hass, "switch", {"switch": {"platform": "test"}})
+    assert await async_setup_component(hass, "button", {"button": {"platform": "test"}})
+    await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    assert registry.async_get("switch.kitchen").platform == "test"
+    assert registry.async_get("button.kitchen_reset").platform == "test"
+    return switch
+
+
+@pytest.mark.parametrize(
+    ("service", "entity_id"),
+    [
+        ("turn_off_port", "switch.kitchen"),
+        ("toggle_port", "switch.kitchen"),
+        ("control_port", "switch.kitchen"),
+        # A sensor id maps to the switch of the same name.
+        ("turn_off_port", "sensor.kitchen_current"),
+        ("reset_port", "switch.kitchen"),
+    ],
+)
+async def test_port_action_refuses_a_switch_of_another_integration(
+    hass, kitchen, local, service, entity_id
+):
+    _entry, _reader, hw = local
+    with pytest.raises(ServiceValidationError, match="is not an Exaviz"):
+        await action(hass, service, entity_id=entity_id)
+    assert kitchen.calls == []
+    assert hw.calls == []
+
+
+async def test_port_action_runs_with_the_callers_permissions(
+    hass, local, hass_admin_user, hass_read_only_user
+):
+    _entry, _reader, hw = local
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN, "turn_off_port", {"entity_id": "switch.onboard_port1"},
+            blocking=True, context=Context(user_id=hass_read_only_user.id),
+        )
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN, "reset_port", {"entity_id": "switch.onboard_port1"},
+            blocking=True, context=Context(user_id=hass_read_only_user.id),
+        )
+    assert hw.calls == []
+    # Positive control: an admin may.
+    await hass.services.async_call(
+        DOMAIN, "turn_off_port", {"entity_id": "switch.onboard_port1"},
+        blocking=True, context=Context(user_id=hass_admin_user.id),
+    )
+    assert hw.calls == ["disable-port 1 1", "poe1 down"]
