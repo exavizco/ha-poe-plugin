@@ -134,7 +134,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         """Power-cycle an onboard PoE port without rebooting the ESP32.
 
         Shielded, so a cancelled press (a restarted script, shutdown) still
-        finishes the cycle and never leaves the port without power. Nobody
+        finishes the cycle, including the step that turns power back on. Nobody
         awaits a cancelled press, so the cycle then logs its own failure and
         refreshes the state once it is done.
         """
@@ -158,8 +158,10 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         """disable-port → link down → settle → link up → enable-port.
 
         Bare chip 'reset' is forbidden (mass re-power of siblings). Once
-        power is cut, enable-port is always sent. Raises HomeAssistantError
-        when the port does not end up powered with its link up.
+        disable-port has returned, enable-port is always sent. A disable-port
+        write that cannot be stopped raises at once and nothing follows it,
+        since it may still land. Raises HomeAssistantError when the port does
+        not end up powered with its link up.
         """
         interface = f"poe{self._port_number}"
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
