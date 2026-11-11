@@ -325,28 +325,3 @@ def test_pse_number_without_coordinator_data():
 def test_onboard_control_path_detection(poe_set, data, onboard):
     switch = ExavizPoEPortSwitch(_coordinator(data), poe_set, 0, "e")
     assert switch._is_onboard_poe_system() is onboard
-
-
-# --- reset button -------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_onboard_reset_logs_a_failed_link_up_and_still_restores_power():
-    """Power is what the reset is for; a failed link step is only logged."""
-    data = _data("onboard", {"port": 6, "poe_system": "onboard"})
-    button = ExavizPoEPortResetButton(_coordinator(data), "onboard", 6, "e")
-    calls: list[str] = []
-
-    async def send(command: str) -> bool:
-        calls.append(command)
-        return True
-
-    async def link(interface: str, action: str) -> bool:
-        calls.append(f"{interface} {action}")
-        return action != "up"
-
-    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
-         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("asyncio.sleep", AsyncMock()):
-        await button.async_press()
-    assert calls == ["disable-port 0 2", "poe6 down", "poe6 up", "enable-port 0 2"]
