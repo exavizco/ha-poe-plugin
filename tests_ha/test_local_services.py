@@ -174,3 +174,24 @@ async def test_reset_port_action_power_cycles_through_the_button(hass, local, en
     _entry, _reader, hw = local
     await action(hass, "reset_port", entity_id=entity_id)
     assert hw.calls == ["disable-port 0 1", "poe5 down", "poe5 up", "enable-port 0 1"]
+
+
+@pytest.mark.parametrize("service", ["turn_off_port", "reset_port"])
+async def test_port_action_on_a_missing_entity_is_an_error(hass, local, service):
+    _entry, _reader, hw = local
+    with pytest.raises(HomeAssistantError, match="does not exist"):
+        await action(hass, service, entity_id="switch.onboard_port99")
+    assert hw.calls == []
+
+
+@pytest.mark.parametrize(
+    ("service", "target"),
+    [("turn_off_port", "switch.onboard_port3"), ("reset_port", "button.onboard_port3_reset")],
+)
+async def test_port_action_on_an_unavailable_entity_is_an_error(hass, local, service, target):
+    """HA would skip it quietly; the action says why nothing happened."""
+    _entry, _reader, hw = local
+    hass.states.async_set(target, "unavailable")
+    with pytest.raises(HomeAssistantError, match="is unavailable"):
+        await action(hass, service, entity_id="switch.onboard_port3")
+    assert hw.calls == []

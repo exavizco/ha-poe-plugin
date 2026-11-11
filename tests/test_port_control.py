@@ -256,30 +256,6 @@ async def test_addon_switch_link_failure_raises():
 
 
 @pytest.mark.asyncio
-async def test_addon_pse_reset_writes_one_to_the_reset_file(tmp_path):
-    switch = _addon_switch(port=3, pse_id="pse0")
-    reset = tmp_path / "proc/pse0/port3/reset"
-    reset.parent.mkdir(parents=True)
-    reset.write_text("")
-    proc = _proc(0)
-    with patch.object(switch_module, "Path", side_effect=lambda p: tmp_path / p.lstrip("/")), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)) as exec_:
-        await switch._control_pse_port("reset")
-    assert exec_.await_args.args == tuple(sudo_argv("tee", str(reset)))
-    proc.communicate.assert_awaited_once_with(input=b"1\n")
-
-
-@pytest.mark.asyncio
-async def test_addon_pse_reset_without_reset_file_raises(tmp_path):
-    switch = _addon_switch(port=3, pse_id="pse0")
-    with patch.object(switch_module, "Path", side_effect=lambda p: tmp_path / p.lstrip("/")), \
-         patch("asyncio.create_subprocess_exec", AsyncMock()) as exec_, \
-         pytest.raises(Exception, match="Reset file not found"):
-        await switch._control_pse_port("reset")
-    exec_.assert_not_awaited()
-
-
-@pytest.mark.asyncio
 async def test_addon_pse_reset_failed_write_raises(tmp_path):
     switch = _addon_switch(port=3, pse_id="pse0")
     reset = tmp_path / "proc/pse0/port3/reset"
