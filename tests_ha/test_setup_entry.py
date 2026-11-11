@@ -28,14 +28,6 @@ CARD_JS = Path(exaviz.__file__).parent / "www" / "exaviz-cards.js"
 CARD_URL = f"/exaviz_static/exaviz-cards.js?v={exaviz._INTEGRATION_VERSION}"
 OTHER = {"res_type": "module", "url": "/local/other-card.js"}
 
-floor_has_no_lovelace_data = pytest.mark.xfail(
-    LOVELACE_DATA is None,
-    strict=True,
-    reason="bug: HA 2024.12 has no LOVELACE_DATA, so the card resource is never "
-    "registered on the declared floor (__init__.py:90)",
-)
-
-
 @pytest.fixture
 def no_frontend_registration():
     """Override the conftest fixture: run the real frontend registration."""
@@ -120,16 +112,34 @@ async def test_no_static_path_api_warns_and_skips_the_resource(
     assert CARD_URL not in _urls(hass)
 
 
-async def test_no_lovelace_data_warns_with_the_manual_step(
-    hass, hass_client_no_auth, monkeypatch, caplog
-):
-    """What every HA 2024.12 user sees; simulated on newer HA."""
+async def test_pre_2025_lovelace_layout_registers_the_card(hass, monkeypatch):
+    """HA before 2025.1 (the hacs.json floor) has no LOVELACE_DATA and keeps
+    a plain dict under "lovelace". Real on the floor, simulated on newer HA."""
     import homeassistant.components.lovelace as lovelace
 
     # Lovelace itself needs the name while it sets up; hide it afterwards.
     assert await async_setup_component(hass, "lovelace", {})
+    resources = _resources(hass)
     monkeypatch.delattr(lovelace, "LOVELACE_DATA", raising=False)
+    if not isinstance(hass.data["lovelace"], dict):
+        monkeypatch.setitem(hass.data, "lovelace", {"resources": resources})
+    stale = "/exaviz_static/exaviz-cards.js?v=1.0.0"
+    await resources.async_create_item({"res_type": "module", "url": stale})
     await _setup(hass)
+    assert [(i["url"], i["type"]) for i in resources.async_items()] == [
+        (CARD_URL, "module")
+    ]
+
+
+async def test_resource_api_error_warns_with_the_manual_step(
+    hass, hass_client_no_auth, caplog
+):
+    from homeassistant.components.lovelace.resources import ResourceStorageCollection
+
+    with patch.object(
+        ResourceStorageCollection, "async_create_item", side_effect=KeyError("res_type")
+    ):
+        await _setup(hass)
     assert "Could not auto-register Lovelace resource" in caplog.text
     assert f"Add {CARD_URL} as a resource" in caplog.text
     assert hass.data[DOMAIN]["frontend_registered"] is True
@@ -141,14 +151,12 @@ async def test_no_lovelace_data_warns_with_the_manual_step(
 # --- The Lovelace resource entry --------------------------------------------
 
 
-@floor_has_no_lovelace_data
 async def test_fresh_install_adds_one_versioned_module_resource(hass):
     await _setup(hass)
     items = _resources(hass).async_items()
     assert [(i["url"], i["type"]) for i in items] == [(CARD_URL, "module")]
 
 
-@floor_has_no_lovelace_data
 @pytest.mark.parametrize("current_present", [False, True])
 async def test_loaded_resource_list_drops_stale_card_urls(hass, current_present):
     """Old /local/ path, unversioned and older ?v= entries go; others stay."""
@@ -172,7 +180,6 @@ async def test_loaded_resource_list_drops_stale_card_urls(hass, current_present)
         assert current["id"] in [i["id"] for i in resources.async_items()]
 
 
-@floor_has_no_lovelace_data
 async def test_restart_with_stored_resources_keeps_one_card_entry(hass, hass_storage):
     hass_storage["lovelace_resources"] = {
         "version": 1,
