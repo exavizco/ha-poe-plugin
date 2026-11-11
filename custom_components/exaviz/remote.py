@@ -13,6 +13,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import ssl
@@ -408,10 +409,10 @@ def map_total_ports(board: dict[str, Any]) -> int | None:
 def map_health(health: dict[str, Any]) -> float | None:
     """GET /system/health -> board temperature in degrees C, or None.
 
-    A value that is not a number (a bool is not one) counts as missing.
+    A value that is not a finite number (a bool is not one) counts as missing.
     """
     temp = health.get("cpu_temp_c")
-    if isinstance(temp, (int, float)) and not isinstance(temp, bool):
+    if isinstance(temp, (int, float)) and not isinstance(temp, bool) and math.isfinite(temp):
         return temp
     return None
 

@@ -553,6 +553,14 @@ class TestLinkState:
         assert (link, admin_up, speed) == ("lowerlayerdown", True, 0)
 
     @pytest.mark.asyncio
+    async def test_missing_flags_file_means_admin_down(self, root):
+        # Unlike unreadable flags, a missing file is not inferred from operstate.
+        base = _make_iface(root, "poe2", operstate="lowerlayerdown", flags="0x1003")
+        (base / "flags").unlink()
+        link, admin_up, _speed = await _read_link_state(base)
+        assert (link, admin_up) == ("lowerlayerdown", False)
+
+    @pytest.mark.asyncio
     async def test_speed_read_error_reports_zero(self, root):
         # The kernel returns EINVAL reading speed on some PHY states; any
         # OSError leaves speed at 0 rather than failing the poll.

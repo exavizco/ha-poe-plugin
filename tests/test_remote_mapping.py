@@ -174,7 +174,10 @@ def test_t18_health():
     assert map_health({}) is None
 
 
-@pytest.mark.parametrize("value", ["n/a", "52.3", True, None, [52.3], {"c": 52.3}])
+@pytest.mark.parametrize(
+    "value",
+    ["n/a", "52.3", True, None, [52.3], {"c": 52.3}, float("nan"), float("inf"), float("-inf")],
+)
 def test_health_temperature_of_the_wrong_type_is_missing(value):
     assert map_health({"cpu_temp_c": value}) is None
 
