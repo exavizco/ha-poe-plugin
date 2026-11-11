@@ -199,6 +199,44 @@ async def test_esp32_command_tries_the_next_device_when_bash_cannot_start(tmp_pa
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("exited_meanwhile", [False, True])
+async def test_esp32_write_that_never_finishes_is_killed_and_fails(
+    tmp_path, caplog, exited_meanwhile
+):
+    """A blocked serial device cannot hang the action (or a reset cycle)."""
+    import asyncio
+
+    device = tmp_path / "pse"
+    device.write_text("")
+    proc = MagicMock()
+    proc.returncode = None
+    if exited_meanwhile:
+        # The write finished between the timeout and the kill.
+        proc.kill.side_effect = ProcessLookupError
+
+    async def never_returns():
+        await asyncio.Event().wait()
+
+    proc.communicate = never_returns
+    with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
+         patch.object(switch_module, "ESP32_WRITE_TIMEOUT", 0.05), \
+         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
+         caplog.at_level(logging.WARNING, logger=switch_module.__name__):
+        result = await asyncio.wait_for(
+            ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2"), timeout=2
+        )
+    assert result is False
+    proc.kill.assert_called_once_with()
+    assert f"ESP32 command 'disable-port 1 2' timed out on {device}" in caplog.text
+    assert "No ESP32 serial device found" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_esp32_write_timeout_is_a_few_seconds():
+    assert switch_module.ESP32_WRITE_TIMEOUT == 5
+
+
+@pytest.mark.asyncio
 async def test_enable_and_disable_send_the_mapped_esp32_commands():
     switch = ExavizPoEPortSwitch(_coordinator(None), "onboard", 5, "e")
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", AsyncMock(return_value=True)) as send:

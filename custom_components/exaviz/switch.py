@@ -40,6 +40,10 @@ PARALLEL_UPDATES = 1
 # Device path for ESP32 serial interface (udev symlink or direct UART)
 _PSE_DEVICE_PATHS = [Path("/dev/pse"), Path("/dev/ttyAMA3")]
 
+# Seconds one command write may take; a blocked serial device must not hang
+# the action (or leave a reset cycle half done).
+ESP32_WRITE_TIMEOUT = 5
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -211,7 +215,19 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                _, stderr = await proc.communicate()
+                try:
+                    _, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=ESP32_WRITE_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass  # it finished just now
+                    _LOGGER.warning(
+                        "ESP32 command '%s' timed out on %s", command, device_path
+                    )
+                    continue
                 if proc.returncode == 0:
                     _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
                     return True
