@@ -39,7 +39,6 @@ from custom_components.exaviz.poe_readers import (
     _get_connected_device_from_arp,
     _parse_bridge_fdb,
     _parse_esp32_line,
-    _parse_field,
     _read_all_esp32_data,
     _read_bridge_fdb,
     _read_link_state,
@@ -943,15 +942,3 @@ class TestResolveBridgedEndToEnd:
         assert device["detection_method"] == "bridge FDB (br0) + arp-scan"
         assert device["arp_state"] == "BRIDGE_FDB"
         assert "poe3 has 2 learned MACs, using first: 3e:ac:94:54:25:fa" in caplog.text
-
-
-# ---------------------------------------------------------------------------
-# _parse_field (no production caller; see report)
-# ---------------------------------------------------------------------------
-
-class TestParseField:
-    def test_captures_and_strips(self):
-        assert _parse_field("state: power-on \nclass: 3", r"state:([^\n]*)") == "power-on"
-
-    def test_no_match(self):
-        assert _parse_field("class: 3", r"state:(.*)") is None
