@@ -207,11 +207,16 @@ async def test_onboard_reset_fails_when_power_restore_fails():
     button.coordinator.async_request_refresh.assert_awaited_once()
 
 
-@pytest.mark.parametrize("cancel_at", ["disable-port", "settle"])
+@pytest.mark.parametrize(
+    ("cancel_at", "restore_ok"),
+    [("disable-port", True), ("settle", True), ("settle", False)],
+)
 @pytest.mark.asyncio
-async def test_cancelled_reset_still_finishes_the_cycle(cancel_at):
-    """A press cancelled mid-cycle (restarted script, shutdown) completes it."""
+async def test_cancelled_reset_still_finishes_the_cycle(cancel_at, restore_ok, caplog):
+    """A press cancelled mid-cycle (restarted script, shutdown) completes it,
+    then logs a failed restore and refreshes the state itself."""
     button = _button()
+    button.hass = MagicMock()
     calls: list[str] = []
     reached = asyncio.Event()
     go_on = asyncio.Event()
@@ -221,7 +226,7 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at):
             reached.set()
             await go_on.wait()
         calls.append(command)
-        return True
+        return restore_ok or not command.startswith("enable-port")
 
     async def link(interface: str, action: str) -> bool:
         calls.append(f"link {action}")
@@ -242,10 +247,16 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at):
         press.cancel()
         with pytest.raises(asyncio.CancelledError):
             await press
+        button.hass.async_create_task.assert_not_called()
         go_on.set()
         for _ in range(10):
             await real_sleep(0)
     assert calls == FULL_RESET
+    # The refresh comes after the cycle, not when the press was cancelled.
+    button.hass.async_create_task.assert_called_once()
+    button.hass.async_create_task.call_args.args[0].close()
+    failed = "Reset of PoE port onboard:0 (press cancelled) failed" in caplog.text
+    assert failed is not restore_ok
 
 
 @pytest.mark.asyncio
@@ -272,3 +283,19 @@ def test_addon_reset_button_is_unavailable_with_a_note():
     onboard.coordinator.can_control = True
     onboard.coordinator.last_update_success = True
     assert onboard.available is True
+
+
+@pytest.mark.asyncio
+async def test_pressing_an_addon_reset_directly_is_refused():
+    """Never runs the onboard cycle (it would cut onboard poe0)."""
+    button = _button("addon_0", "addon")
+    sent: list[str] = []
+
+    async def send(command: str) -> bool:
+        sent.append(command)
+        return True
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+         pytest.raises(HomeAssistantError, match="not supported on add-on board port"):
+        await button.async_press()
+    assert sent == []

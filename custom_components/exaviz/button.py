@@ -114,6 +114,10 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             # The board runs the whole power cycle itself.
             await self.coordinator.async_port_action(self._port_number, "reset")
             return
+        if self._poe_set.startswith("addon_"):
+            raise HomeAssistantError(
+                f"Reset is not supported on add-on board port {self._poe_set}:{self._port_number}"
+            )
         try:
             await self._reset_onboard_port()
         except HomeAssistantError:
@@ -130,9 +134,25 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         """Power-cycle an onboard PoE port without rebooting the ESP32.
 
         Shielded, so a cancelled press (a restarted script, shutdown) still
-        finishes the cycle and never leaves the port without power.
+        finishes the cycle and never leaves the port without power. Nobody
+        awaits a cancelled press, so the cycle then logs its own failure and
+        refreshes the state once it is done.
         """
-        await asyncio.shield(self._power_cycle_onboard_port())
+        cycle = asyncio.ensure_future(self._power_cycle_onboard_port())
+        try:
+            await asyncio.shield(cycle)
+        except asyncio.CancelledError:
+            cycle.add_done_callback(self._after_cancelled_cycle)
+            raise
+
+    def _after_cancelled_cycle(self, cycle: asyncio.Future) -> None:
+        """Report the outcome of a power cycle whose press was cancelled."""
+        if not cycle.cancelled() and (err := cycle.exception()) is not None:
+            _LOGGER.error(
+                "Reset of PoE port %s:%d (press cancelled) failed: %s",
+                self._poe_set, self._port_number, err,
+            )
+        self.hass.async_create_task(self.coordinator.async_request_refresh())
 
     async def _power_cycle_onboard_port(self) -> None:
         """disable-port → link down → settle → link up → enable-port.

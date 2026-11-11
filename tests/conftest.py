@@ -100,7 +100,11 @@ sys.modules["homeassistant.components.binary_sensor"].BinarySensorDeviceClass = 
 sys.modules["homeassistant.components.button"].ButtonEntity = _StubEntity
 sys.modules["homeassistant.components.button"].ButtonDeviceClass = MagicMock()
 sys.modules["homeassistant.components.camera"].Camera = _StubEntity
-sys.modules["homeassistant.exceptions"].HomeAssistantError = Exception
+class _StubHomeAssistantError(Exception):
+    """Distinct class so pytest.raises(HomeAssistantError) means that class."""
+
+
+sys.modules["homeassistant.exceptions"].HomeAssistantError = _StubHomeAssistantError
 sys.modules["homeassistant.exceptions"].ConfigEntryNotReady = Exception
 sys.modules["homeassistant.exceptions"].ServiceValidationError = Exception
 

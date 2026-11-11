@@ -296,37 +296,18 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         """Control add-on board port via /proc/pse interface.
 
         Args:
-            action: "enable", "disable", or "reset"
+            action: "enable" or "disable"
         """
         pse_id = self._get_pse_num()
 
-        if action == "reset":
-            reset_file = Path(f"/proc/pse{pse_id}/port{self._port_number}/reset")
-            if not reset_file.exists():
-                raise HomeAssistantError(f"Reset file not found: {reset_file}")
-
-            proc = await asyncio.create_subprocess_exec(
-                *sudo_argv("tee", str(reset_file)),
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.communicate(input=b"1\n")
-            if proc.returncode != 0:
-                raise HomeAssistantError("Failed to reset port")
-            _LOGGER.info(
-                "Reset PSE port %s:%d via %s",
-                self._poe_set, self._port_number, reset_file,
-            )
-        else:
-            interface = f"poe{pse_id}-{self._port_number}"
-            link_action = "up" if action == "enable" else "down"
-            if not await self._run_ip_link(interface, link_action):
-                raise HomeAssistantError(f"Failed to {action} port via {interface}")
-            _LOGGER.info(
-                "%s PSE port %s:%d via interface %s",
-                action.title(), self._poe_set, self._port_number, interface,
-            )
+        interface = f"poe{pse_id}-{self._port_number}"
+        link_action = "up" if action == "enable" else "down"
+        if not await self._run_ip_link(interface, link_action):
+            raise HomeAssistantError(f"Failed to {action} port via {interface}")
+        _LOGGER.info(
+            "%s PSE port %s:%d via interface %s",
+            action.title(), self._poe_set, self._port_number, interface,
+        )
 
     # ------------------------------------------------------------------
     # HA switch interface
