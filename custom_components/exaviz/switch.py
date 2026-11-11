@@ -43,6 +43,7 @@ _PSE_DEVICE_PATHS = [Path("/dev/pse"), Path("/dev/ttyAMA3")]
 # Seconds one command write may take; a blocked serial device must not hang
 # the action (or leave a reset cycle half done).
 ESP32_WRITE_TIMEOUT = 5
+ESP32_KILL_WAIT = 2
 
 
 async def async_setup_entry(
@@ -203,7 +204,9 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     async def _send_esp32_command(command: str) -> bool:
         """Send a text command to the ESP32 via /dev/pse serial interface.
 
-        Returns True if the command was written successfully.
+        Returns True if the command was written successfully. A write that
+        times out is killed and not retried on another path: /dev/pse is
+        usually a symlink to /dev/ttyAMA3, the same UART.
         """
         for device_path in _PSE_DEVICE_PATHS:
             if not await asyncio.to_thread(device_path.exists):
@@ -224,10 +227,18 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                         proc.kill()
                     except ProcessLookupError:
                         pass  # it finished just now
-                    _LOGGER.warning(
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=ESP32_KILL_WAIT)
+                    except asyncio.TimeoutError:
+                        _LOGGER.error(
+                            "ESP32 command '%s' timed out on %s and the write "
+                            "did not stop", command, device_path,
+                        )
+                        return False
+                    _LOGGER.error(
                         "ESP32 command '%s' timed out on %s", command, device_path
                     )
-                    continue
+                    return False
                 if proc.returncode == 0:
                     _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
                     return True

@@ -169,6 +169,11 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         if not await ExavizPoEPortSwitch._send_esp32_command(
             f"disable-port {pse_num} {pse_port}"
         ):
+            # A timed-out write may still have landed, so turn the port back
+            # on to be sure; on a port that stayed on this changes nothing.
+            await ExavizPoEPortSwitch._send_esp32_command(
+                f"enable-port {pse_num} {pse_port}"
+            )
             raise HomeAssistantError(
                 f"The PoE controller did not disable port {interface}"
             )

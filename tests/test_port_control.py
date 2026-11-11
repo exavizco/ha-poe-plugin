@@ -199,15 +199,21 @@ async def test_esp32_command_tries_the_next_device_when_bash_cannot_start(tmp_pa
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("exited_meanwhile", [False, True])
+@pytest.mark.parametrize(
+    ("exited_meanwhile", "stops_after_kill"),
+    [(False, True), (True, True), (False, False)],
+)
 async def test_esp32_write_that_never_finishes_is_killed_and_fails(
-    tmp_path, caplog, exited_meanwhile
+    tmp_path, caplog, exited_meanwhile, stops_after_kill
 ):
-    """A blocked serial device cannot hang the action (or a reset cycle)."""
+    """A blocked serial device cannot hang the action (or a reset cycle), and
+    the same command is not written again through the other path while the
+    killed write may still be on the UART (/dev/pse links to /dev/ttyAMA3)."""
     import asyncio
 
-    device = tmp_path / "pse"
-    device.write_text("")
+    first, second = tmp_path / "pse", tmp_path / "ttyAMA3"
+    first.write_text("")
+    second.write_text("")
     proc = MagicMock()
     proc.returncode = None
     if exited_meanwhile:
@@ -218,17 +224,22 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
         await asyncio.Event().wait()
 
     proc.communicate = never_returns
-    with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
+    proc.wait = AsyncMock() if stops_after_kill else never_returns
+    exec_ = AsyncMock(return_value=proc)
+    with patch.object(switch_module, "_PSE_DEVICE_PATHS", [first, second]), \
          patch.object(switch_module, "ESP32_WRITE_TIMEOUT", 0.05), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
+         patch.object(switch_module, "ESP32_KILL_WAIT", 0.05), \
+         patch("asyncio.create_subprocess_exec", exec_), \
          caplog.at_level(logging.WARNING, logger=switch_module.__name__):
         result = await asyncio.wait_for(
             ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2"), timeout=2
         )
     assert result is False
     proc.kill.assert_called_once_with()
-    assert f"ESP32 command 'disable-port 1 2' timed out on {device}" in caplog.text
-    assert "No ESP32 serial device found" in caplog.text
+    assert exec_.await_count == 1
+    assert f"ESP32 command 'disable-port 1 2' timed out on {first}" in caplog.text
+    assert ("did not stop" in caplog.text) is not stops_after_kill
+    assert "No ESP32 serial device found" not in caplog.text
 
 
 @pytest.mark.asyncio

@@ -172,8 +172,9 @@ async def test_onboard_reset_fails_when_power_cut_fails():
     calls, (p1, p2, p3) = _patch_button({"disable-port": False}, {})
     with p1, p2, p3, pytest.raises(HomeAssistantError, match="did not disable port poe0"):
         await button.async_press()
-    # Nothing was cut, so nothing is touched.
-    assert calls == ["disable-port 1 0"]
+    # A timed-out disable may still have landed, so power is sent back on;
+    # the link is not touched.
+    assert calls == ["disable-port 1 0", "enable-port 1 0"]
     button.coordinator.async_request_refresh.assert_awaited_once()
 
 
