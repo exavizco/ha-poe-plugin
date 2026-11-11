@@ -178,6 +178,24 @@ async def test_onboard_reset_fails_when_power_cut_fails():
     button.coordinator.async_request_refresh.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_reset_sends_nothing_after_a_write_that_did_not_stop():
+    """A disable that may still land must not be followed by enable-port."""
+    button = _button()
+    sent: list[str] = []
+
+    async def send(command: str) -> bool:
+        sent.append(command)
+        if command.startswith("disable-port"):
+            raise HomeAssistantError("The write of 'disable-port 1 0' did not stop")
+        return True
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+         pytest.raises(HomeAssistantError, match="did not stop"):
+        await button.async_press()
+    assert sent == ["disable-port 1 0"]
+
+
 @pytest.mark.parametrize("link_rc", [{"down": 1}, {"down": "oserror"}])
 @pytest.mark.asyncio
 async def test_onboard_reset_ends_powered_and_up_after_a_failed_link_down(link_rc):

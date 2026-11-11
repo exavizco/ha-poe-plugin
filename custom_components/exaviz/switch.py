@@ -206,7 +206,8 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
         Returns True if the command was written successfully. A write that
         times out is killed and not retried on another path: /dev/pse is
-        usually a symlink to /dev/ttyAMA3, the same UART.
+        usually a symlink to /dev/ttyAMA3, the same UART. Raises
+        HomeAssistantError if the killed write does not stop.
         """
         for device_path in _PSE_DEVICE_PATHS:
             if not await asyncio.to_thread(device_path.exists):
@@ -230,11 +231,16 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     try:
                         await asyncio.wait_for(proc.wait(), timeout=ESP32_KILL_WAIT)
                     except asyncio.TimeoutError:
-                        _LOGGER.error(
-                            "ESP32 command '%s' timed out on %s and the write "
-                            "did not stop", command, device_path,
-                        )
-                        return False
+                        # The write may still land later, so no caller may
+                        # follow it with another command (a reset's restore).
+                        raise HomeAssistantError(
+                            f"The write of '{command}' to {device_path} timed out "
+                            "and did not stop; the port's state is unknown"
+                        ) from None
+                    if proc.returncode == 0:
+                        # It finished just before the kill.
+                        _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
+                        return True
                     _LOGGER.error(
                         "ESP32 command '%s' timed out on %s", command, device_path
                     )

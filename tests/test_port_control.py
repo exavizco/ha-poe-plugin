@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.exaviz import switch as switch_module
 from custom_components.exaviz.board_detector import BoardType
@@ -200,11 +201,11 @@ async def test_esp32_command_tries_the_next_device_when_bash_cannot_start(tmp_pa
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("exited_meanwhile", "stops_after_kill"),
-    [(False, True), (True, True), (False, False)],
+    ("exited_meanwhile", "late_returncode"),
+    [(False, -9), (True, -9), (True, 0)],
 )
 async def test_esp32_write_that_never_finishes_is_killed_and_fails(
-    tmp_path, caplog, exited_meanwhile, stops_after_kill
+    tmp_path, caplog, exited_meanwhile, late_returncode
 ):
     """A blocked serial device cannot hang the action (or a reset cycle), and
     the same command is not written again through the other path while the
@@ -223,23 +224,56 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
     async def never_returns():
         await asyncio.Event().wait()
 
+    async def exits():
+        proc.returncode = late_returncode
+
     proc.communicate = never_returns
-    proc.wait = AsyncMock() if stops_after_kill else never_returns
+    proc.wait = exits
     exec_ = AsyncMock(return_value=proc)
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [first, second]), \
          patch.object(switch_module, "ESP32_WRITE_TIMEOUT", 0.05), \
-         patch.object(switch_module, "ESP32_KILL_WAIT", 0.05), \
          patch("asyncio.create_subprocess_exec", exec_), \
-         caplog.at_level(logging.WARNING, logger=switch_module.__name__):
+         caplog.at_level(logging.INFO, logger=switch_module.__name__):
         result = await asyncio.wait_for(
             ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2"), timeout=2
         )
-    assert result is False
+    # A write that finished just before the kill counts as sent.
+    assert result is (late_returncode == 0)
     proc.kill.assert_called_once_with()
     assert exec_.await_count == 1
-    assert f"ESP32 command 'disable-port 1 2' timed out on {first}" in caplog.text
-    assert ("did not stop" in caplog.text) is not stops_after_kill
+    timed_out = f"ESP32 command 'disable-port 1 2' timed out on {first}" in caplog.text
+    assert timed_out is (late_returncode != 0)
     assert "No ESP32 serial device found" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
+    """The write may still land, so the caller must not send anything after it."""
+    import asyncio
+
+    device = tmp_path / "pse"
+    device.write_text("")
+    proc = MagicMock()
+    proc.returncode = None
+
+    async def never_returns():
+        await asyncio.Event().wait()
+
+    proc.communicate = never_returns
+    proc.wait = never_returns
+    with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
+         patch.object(switch_module, "ESP32_WRITE_TIMEOUT", 0.05), \
+         patch.object(switch_module, "ESP32_KILL_WAIT", 0.05), \
+         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
+         pytest.raises(HomeAssistantError, match="did not stop"):
+        await asyncio.wait_for(
+            ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2"), timeout=2
+        )
+
+
+@pytest.mark.asyncio
+async def test_esp32_kill_wait_is_a_couple_of_seconds():
+    assert switch_module.ESP32_KILL_WAIT == 2
 
 
 @pytest.mark.asyncio
