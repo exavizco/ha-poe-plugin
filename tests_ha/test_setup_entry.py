@@ -172,12 +172,7 @@ async def test_loaded_resource_list_drops_stale_card_urls(hass, current_present)
         assert current["id"] in [i["id"] for i in resources.async_items()]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="bug: after a restart the resource collection is not loaded yet, so "
-    "async_items() is empty; stale entries stay and a duplicate is added on "
-    "every restart (__init__.py:97)",
-)
+@floor_has_no_lovelace_data
 async def test_restart_with_stored_resources_keeps_one_card_entry(hass, hass_storage):
     hass_storage["lovelace_resources"] = {
         "version": 1,
@@ -186,6 +181,8 @@ async def test_restart_with_stored_resources_keeps_one_card_entry(hass, hass_sto
         "data": {
             "items": [
                 {"id": "current", "type": "module", "url": CARD_URL},
+                # A repeat that 1.4.0 and earlier added on a restart.
+                {"id": "repeat", "type": "module", "url": CARD_URL},
                 {
                     "id": "old",
                     "type": "module",
