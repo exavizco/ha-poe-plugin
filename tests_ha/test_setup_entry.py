@@ -194,6 +194,8 @@ async def test_restart_with_stored_resources_keeps_one_card_entry(hass, hass_sto
     }
     await _setup(hass)
     assert sorted(_urls(hass)) == sorted([OTHER["url"], CARD_URL])
+    # The first stored copy is the one kept.
+    assert {item["id"] for item in _resources(hass).async_items()} == {"current", "other"}
 
 
 # --- Board device and title -------------------------------------------------

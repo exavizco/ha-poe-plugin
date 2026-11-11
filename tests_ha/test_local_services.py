@@ -161,7 +161,16 @@ async def test_unexpected_reset_error_reaches_the_caller(hass, local):
     assert reader.await_count == polls + 1
 
 
-async def test_reset_port_action_power_cycles_through_the_button(hass, local):
+@pytest.mark.parametrize(
+    "entity_id",
+    [
+        "switch.onboard_port5",
+        "sensor.onboard_port5_current",
+        "binary_sensor.onboard_port5_powered",
+        "binary_sensor.onboard_port5_plug",
+    ],
+)
+async def test_reset_port_action_power_cycles_through_the_button(hass, local, entity_id):
     _entry, _reader, hw = local
-    await action(hass, "reset_port", entity_id="switch.onboard_port5")
+    await action(hass, "reset_port", entity_id=entity_id)
     assert hw.calls == ["disable-port 0 1", "poe5 down", "poe5 up", "enable-port 0 1"]

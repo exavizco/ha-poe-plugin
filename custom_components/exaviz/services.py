@@ -68,9 +68,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         entity_id = call.data["entity_id"]
         _LOGGER.info("Resetting PoE port: %s", entity_id)
 
-        # Derive the button entity_id from the switch entity_id.
-        # switch.onboard_port0 -> button.onboard_port0_reset
-        button_entity_id = entity_id.replace("switch.", "button.") + "_reset"
+        # switch.onboard_port0 (or one of its sensors) -> button.onboard_port0_reset
+        button_entity_id = (
+            _port_switch_id(entity_id).replace("switch.", "button.", 1) + "_reset"
+        )
 
         await hass.services.async_call(
             "button", "press",
@@ -100,6 +101,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     )
 
 
+def _port_switch_id(entity_id: str) -> str:
+    """Map a port's switch, current sensor or binary sensor to its switch."""
+    if entity_id.startswith("switch."):
+        return entity_id
+    # binary_sensor. first: "sensor." is a substring of it.
+    entity_id = entity_id.replace("binary_sensor.", "switch.").split("_powered")[0]
+    entity_id = entity_id.split("_plug")[0]
+    return entity_id.replace("sensor.", "switch.").split("_current")[0]
+
+
 async def _control_poe_port(
     hass: HomeAssistant, entity_id: str, action: str,
 ) -> None:
@@ -110,13 +121,7 @@ async def _control_poe_port(
     only need to call the standard HA switch domain.
     """
     _LOGGER.debug("PoE port control: %s -> %s", entity_id, action)
-
-    # Ensure the entity_id is a switch
-    if not entity_id.startswith("switch."):
-        # binary_sensor. first: "sensor." is a substring of it.
-        entity_id = entity_id.replace("binary_sensor.", "switch.").split("_powered")[0]
-        entity_id = entity_id.split("_plug")[0]
-        entity_id = entity_id.replace("sensor.", "switch.").split("_current")[0]
+    entity_id = _port_switch_id(entity_id)
 
     service = action  # turn_on, turn_off, toggle are HA switch services
     await hass.services.async_call(
