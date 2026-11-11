@@ -115,9 +115,6 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
                 await self._reset_onboard_port()
             else:
                 await self._reset_addon_port()
-
-            await self.coordinator.async_request_refresh()
-
         except HomeAssistantError:
             raise
         except Exception as ex:
@@ -125,42 +122,44 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             raise HomeAssistantError(
                 f"Could not reset PoE port {self._poe_set}:{self._port_number}: {ex}"
             ) from ex
+        finally:
+            await self.coordinator.async_request_refresh()
 
     async def _reset_onboard_port(self) -> None:
         """Power-cycle an onboard PoE port without rebooting the ESP32.
 
         disable-port → link down → settle → link up → enable-port.
         Bare chip 'reset' is forbidden (mass re-power of siblings).
+        Once power is cut, the restore steps always run; any failed step
+        raises HomeAssistantError afterwards.
         """
         interface = f"poe{self._port_number}"
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
             self._port_number
         )
 
-        await ExavizPoEPortSwitch._send_esp32_command(
+        if not await ExavizPoEPortSwitch._send_esp32_command(
             f"disable-port {pse_num} {pse_port}"
-        )
+        ):
+            raise HomeAssistantError(
+                f"The PoE controller did not disable port {interface}"
+            )
 
-        proc = await asyncio.create_subprocess_exec(
-            *sudo_argv("ip", "link", "set", interface, "down"),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate()
-
+        failed = []
+        if not await ExavizPoEPortSwitch._run_ip_link(interface, "down"):
+            failed.append("link down")
         _LOGGER.info("Port %s power cut for reset, waiting 3 seconds...", interface)
         await asyncio.sleep(3)
-
-        proc = await asyncio.create_subprocess_exec(
-            *sudo_argv("ip", "link", "set", interface, "up"),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate()
-
-        await ExavizPoEPortSwitch._send_esp32_command(
+        if not await ExavizPoEPortSwitch._run_ip_link(interface, "up"):
+            failed.append("link up")
+        if not await ExavizPoEPortSwitch._send_esp32_command(
             f"enable-port {pse_num} {pse_port}"
-        )
+        ):
+            failed.append("power on")
+        if failed:
+            raise HomeAssistantError(
+                f"Reset of port {interface} failed at: {', '.join(failed)}"
+            )
 
         _LOGGER.info("Successfully reset PoE port %s", interface)
 
@@ -173,41 +172,27 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         """Reset an add-on board port via /proc/pse interface."""
         pse_id = self._get_pse_id()
         reset_file = f"/proc/{pse_id}/port{self._port_number}/reset"
-        try:
+        for value, what in ((b"0\n", "disable"), (b"1\n", "re-enable")):
             proc = await asyncio.create_subprocess_exec(
                 *sudo_argv("tee", reset_file),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await proc.communicate(input=b"0\n")
+            await proc.communicate(input=value)
             if proc.returncode != 0:
-                _LOGGER.error("Failed to write to %s", reset_file)
-                return
+                raise HomeAssistantError(
+                    f"Could not {what} {self._poe_set}:{self._port_number} "
+                    f"via {reset_file}"
+                )
+            if what == "disable":
+                _LOGGER.info(
+                    "Port %s:%d disabled for reset, waiting 3 seconds...",
+                    self._poe_set, self._port_number,
+                )
+                await asyncio.sleep(3)
 
-            _LOGGER.info(
-                "Port %s:%d disabled for reset, waiting 3 seconds...",
-                self._poe_set, self._port_number,
-            )
-            await asyncio.sleep(3)
-
-            proc = await asyncio.create_subprocess_exec(
-                *sudo_argv("tee", reset_file),
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.communicate(input=b"1\n")
-            if proc.returncode != 0:
-                _LOGGER.error("Failed to re-enable %s", reset_file)
-                return
-
-            _LOGGER.info(
-                "Successfully reset PoE port %s:%d",
-                self._poe_set, self._port_number,
-            )
-        except OSError as ex:
-            _LOGGER.error(
-                "Failed to reset add-on board port %s:%d: %s",
-                self._poe_set, self._port_number, ex,
-            )
+        _LOGGER.info(
+            "Successfully reset PoE port %s:%d",
+            self._poe_set, self._port_number,
+        )

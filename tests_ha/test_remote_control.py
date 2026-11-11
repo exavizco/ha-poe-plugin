@@ -173,6 +173,36 @@ async def test_t40l_local_entry_uses_local_control(hass):
         await hass.async_block_till_done()
 
 
+async def test_local_failed_power_cut_raises_and_keeps_state(hass):
+    """A False from the ESP32 command reaches the caller; the switch stays on."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={}, unique_id="exaviz_cruiser", entry_id="local_entry"
+    )
+    entry.add_to_hass(hass)
+
+    stack, _reader = patch_local_board()
+    send = AsyncMock(return_value=False)
+    link = AsyncMock(return_value=True)
+    with (
+        stack,
+        patch(
+            "custom_components.exaviz.switch.ExavizPoEPortSwitch._send_esp32_command",
+            send,
+        ),
+        patch("custom_components.exaviz.switch.ExavizPoEPortSwitch._run_ip_link", link),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert hass.states.get("switch.onboard_port0").state == "on"
+        with pytest.raises(HomeAssistantError, match="did not disable port poe0"):
+            await call(hass, "switch", "turn_off", "switch.onboard_port0")
+        send.assert_awaited_once_with("disable-port 1 0")
+        link.assert_not_awaited()
+        assert hass.states.get("switch.onboard_port0").state == "on"
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+
 # --- T-37 control half, T-43: refusals without a request ----------------------------
 
 
