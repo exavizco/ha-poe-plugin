@@ -150,7 +150,8 @@ that runs Home Assistant does not need the Exaviz packages.
 1. In Home Assistant, go to Settings > Devices & services > Add integration > Exaviz, and choose
    **The board is another device on my network**.
 2. Enter the board's IP address. A `.local` name works only where your system resolves it; use
-   the IP address if it does not.
+   the IP address if it does not. Leave **HTTPS port** at 443 unless the board's HTTPS port was
+   changed.
 3. On the board, open More > Home Assistant and click **Add Home Assistant**. Choose
    **Read + PoE control** if you want to switch ports from Home Assistant, or **Read only** if
    you only want to watch them. The code is valid for 5 minutes.
