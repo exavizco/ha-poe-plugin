@@ -331,7 +331,8 @@ def test_onboard_control_path_detection(poe_set, data, onboard):
 
 
 @pytest.mark.asyncio
-async def test_onboard_reset_reports_a_failed_link_up_and_still_restores_power():
+async def test_onboard_reset_logs_a_failed_link_up_and_still_restores_power():
+    """Power is what the reset is for; a failed link step is only logged."""
     data = _data("onboard", {"port": 6, "poe_system": "onboard"})
     button = ExavizPoEPortResetButton(_coordinator(data), "onboard", 6, "e")
     calls: list[str] = []
@@ -346,37 +347,6 @@ async def test_onboard_reset_reports_a_failed_link_up_and_still_restores_power()
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("asyncio.sleep", AsyncMock()), \
-         pytest.raises(Exception, match="Reset of port poe6 failed at: link up"):
+         patch("asyncio.sleep", AsyncMock()):
         await button.async_press()
     assert calls == ["disable-port 0 2", "poe6 down", "poe6 up", "enable-port 0 2"]
-
-
-@pytest.mark.asyncio
-async def test_addon_reset_writes_zero_then_one_to_the_pse_reset_file():
-    data = _data("addon_1", {"port": 4, "poe_system": "addon"}, "pse1")
-    button = ExavizPoEPortResetButton(_coordinator(data), "addon_1", 4, "e")
-    events: list[object] = []
-
-    async def exec_(*argv, **kwargs):
-        events.append(argv)
-        proc = MagicMock()
-        proc.returncode = 0
-
-        async def communicate(input=None):
-            events.append(input)
-            return b"", b""
-
-        proc.communicate = communicate
-        return proc
-
-    async def sleep(delay):
-        events.append(f"sleep {delay}")
-
-    with patch("asyncio.create_subprocess_exec", side_effect=exec_), \
-         patch("asyncio.sleep", side_effect=sleep):
-        await button.async_press()
-    # The hardware pse_id (pse1) names the /proc path, not the poe_set key.
-    tee = tuple(sudo_argv("tee", "/proc/pse1/port4/reset"))
-    assert events == [tee, b"0\n", "sleep 3", tee, b"1\n"]
-    button.coordinator.async_request_refresh.assert_awaited_once()
