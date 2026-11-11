@@ -129,11 +129,17 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
     async def _reset_onboard_port(self) -> None:
         """Power-cycle an onboard PoE port without rebooting the ESP32.
 
-        disable-port → link down → settle → link up → enable-port.
-        Bare chip 'reset' is forbidden (mass re-power of siblings).
-        Once power is cut, enable-port is always sent, even if a link step
-        fails or the press is cancelled. Only a failed PoE power command
-        raises HomeAssistantError; a failed link step is logged.
+        Shielded, so a cancelled press (a restarted script, shutdown) still
+        finishes the cycle and never leaves the port without power.
+        """
+        await asyncio.shield(self._power_cycle_onboard_port())
+
+    async def _power_cycle_onboard_port(self) -> None:
+        """disable-port → link down → settle → link up → enable-port.
+
+        Bare chip 'reset' is forbidden (mass re-power of siblings). Once
+        power is cut, enable-port is always sent. Raises HomeAssistantError
+        when the port does not end up powered with its link up.
         """
         interface = f"poe{self._port_number}"
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
@@ -147,21 +153,23 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
                 f"The PoE controller did not disable port {interface}"
             )
 
+        link_up = False
         try:
             await ExavizPoEPortSwitch._run_ip_link(interface, "down")
             _LOGGER.info("Port %s power cut for reset, waiting 3 seconds...", interface)
             await asyncio.sleep(3)
-            await ExavizPoEPortSwitch._run_ip_link(interface, "up")
+            link_up = await ExavizPoEPortSwitch._run_ip_link(interface, "up")
         finally:
-            # Shielded so a cancelled press still restores power.
-            restored = await asyncio.shield(
-                ExavizPoEPortSwitch._send_esp32_command(
-                    f"enable-port {pse_num} {pse_port}"
-                )
+            restored = await ExavizPoEPortSwitch._send_esp32_command(
+                f"enable-port {pse_num} {pse_port}"
             )
         if not restored:
             raise HomeAssistantError(
                 f"The PoE controller did not turn port {interface} back on after the reset"
+            )
+        if not link_up:
+            raise HomeAssistantError(
+                f"Port {interface} was power-cycled, but its network link did not come back up"
             )
 
         _LOGGER.info("Successfully reset PoE port %s", interface)

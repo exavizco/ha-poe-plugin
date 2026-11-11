@@ -89,16 +89,22 @@ async def test_turn_on_fails_when_power_restore_fails():
     switch.coordinator.async_request_refresh.assert_awaited_once()
 
 
-@pytest.mark.parametrize(("service", "link"), [("async_turn_off", "down"), ("async_turn_on", "up")])
+@pytest.mark.parametrize(
+    ("service", "link", "expected", "message"),
+    [
+        ("async_turn_off", "down", ["disable-port 1 0", "link down"], "power is off, but"),
+        ("async_turn_on", "up", ["link up", "enable-port 1 0"], "power is on, but"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_failed_link_step_is_not_an_error_when_power_changed(service, link):
-    """Power is the port's job; a failed link step is only logged."""
+async def test_failed_link_step_is_reported_after_the_power_step(service, link, expected, message):
+    """The switch shows the link state, so a failed link step is an error too."""
     switch = _switch()
     calls, (p1, p2) = _patch_switch({}, {link: False})
-    with p1, p2:
+    with p1, p2, pytest.raises(HomeAssistantError, match=message):
         await getattr(switch, service)()
-    assert f"link {link}" in calls
-    assert any(c.endswith("able-port 1 0") for c in calls)
+    assert calls == expected
+    switch.coordinator.async_request_refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -127,7 +133,8 @@ async def test_turn_on_restores_power_when_ip_cannot_start():
         return True
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(side_effect=OSError("no sudo"))):
+         patch("asyncio.create_subprocess_exec", AsyncMock(side_effect=OSError("no sudo"))), \
+         pytest.raises(HomeAssistantError, match="link did not come up"):
         await switch.async_turn_on()
     assert sent == ["enable-port 1 0"]
 
@@ -170,12 +177,22 @@ async def test_onboard_reset_fails_when_power_cut_fails():
     button.coordinator.async_request_refresh.assert_awaited_once()
 
 
-@pytest.mark.parametrize("link_rc", [{"down": 1}, {"up": 1}, {"down": "oserror"}])
+@pytest.mark.parametrize("link_rc", [{"down": 1}, {"down": "oserror"}])
 @pytest.mark.asyncio
-async def test_onboard_reset_restores_power_when_a_link_step_fails(link_rc):
+async def test_onboard_reset_ends_powered_and_up_after_a_failed_link_down(link_rc):
     button = _button()
     calls, (p1, p2, p3) = _patch_button({}, link_rc)
     with p1, p2, p3:
+        await button.async_press()
+    assert calls == FULL_RESET
+
+
+@pytest.mark.parametrize("link_rc", [{"up": 1}, {"up": "oserror"}])
+@pytest.mark.asyncio
+async def test_onboard_reset_restores_power_and_reports_a_link_left_down(link_rc):
+    button = _button()
+    calls, (p1, p2, p3) = _patch_button({}, link_rc)
+    with p1, p2, p3, pytest.raises(HomeAssistantError, match="did not come back up"):
         await button.async_press()
     assert calls == FULL_RESET
 
@@ -190,21 +207,45 @@ async def test_onboard_reset_fails_when_power_restore_fails():
     button.coordinator.async_request_refresh.assert_awaited_once()
 
 
+@pytest.mark.parametrize("cancel_at", ["disable-port", "settle"])
 @pytest.mark.asyncio
-async def test_cancelled_reset_still_restores_power():
+async def test_cancelled_reset_still_finishes_the_cycle(cancel_at):
+    """A press cancelled mid-cycle (restarted script, shutdown) completes it."""
     button = _button()
-    sent: list[str] = []
+    calls: list[str] = []
+    reached = asyncio.Event()
+    go_on = asyncio.Event()
 
     async def send(command: str) -> bool:
-        sent.append(command)
+        if command.startswith(cancel_at):
+            reached.set()
+            await go_on.wait()
+        calls.append(command)
         return True
 
+    async def link(interface: str, action: str) -> bool:
+        calls.append(f"link {action}")
+        return True
+
+    real_sleep = asyncio.sleep
+
+    async def settle(delay):
+        if cancel_at == "settle":
+            reached.set()
+            await go_on.wait()
+
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
-         patch.object(ExavizPoEPortSwitch, "_run_ip_link", AsyncMock(return_value=True)), \
-         patch("asyncio.sleep", AsyncMock(side_effect=asyncio.CancelledError)), \
-         pytest.raises(asyncio.CancelledError):
-        await button._reset_onboard_port()
-    assert sent == ["disable-port 1 0", "enable-port 1 0"]
+         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
+         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+        press = asyncio.create_task(button._reset_onboard_port())
+        await reached.wait()
+        press.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await press
+        go_on.set()
+        for _ in range(10):
+            await real_sleep(0)
+    assert calls == FULL_RESET
 
 
 @pytest.mark.asyncio

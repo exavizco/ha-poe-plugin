@@ -247,9 +247,9 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         """Enable or disable an onboard PoE port.
 
         Uses both ESP32 commands (for actual PoE power control via TPS23861)
-        and ip link (for network interface admin state). Raises
-        HomeAssistantError if the PoE power command fails; a failed link step
-        is logged by _run_ip_link. The state is refreshed either way.
+        and ip link (for network interface admin state, which is what the
+        switch shows). Raises HomeAssistantError when a step fails, saying
+        what did happen; the state is refreshed either way.
         """
         interface = f"poe{self._port_number}"
 
@@ -261,15 +261,22 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     raise HomeAssistantError(
                         f"The PoE controller did not disable port {interface}"
                     )
-                await self._run_ip_link(interface, "down")
+                if not await self._run_ip_link(interface, "down"):
+                    raise HomeAssistantError(
+                        f"Port {interface} power is off, but its network link did not go down"
+                    )
                 _LOGGER.info("Disabled onboard PoE port %s (power cut + link down)", interface)
             else:
                 # Bring up network interface, then restore PoE power (even if
                 # the link step failed, power is what the user asked for)
-                await self._run_ip_link(interface, "up")
+                link_up = await self._run_ip_link(interface, "up")
                 if not await self._esp32_enable_port():
                     raise HomeAssistantError(
                         f"The PoE controller did not enable port {interface}"
+                    )
+                if not link_up:
+                    raise HomeAssistantError(
+                        f"Port {interface} power is on, but its network link did not come up"
                     )
                 _LOGGER.info("Enabled onboard PoE port %s (link up + power restored)", interface)
         finally:
