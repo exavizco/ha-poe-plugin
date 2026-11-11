@@ -226,6 +226,38 @@
         "cpu_temp_c": 52.3
       }
     },
+    "zigbee": {
+      "status": 200,
+      "body": {
+        "state": "on",
+        "stub": false,
+        "radio_type": "ziggurat",
+        "listen": "0.0.0.0:9999",
+        "lan_only": true,
+        "enabled": true
+      }
+    },
+    "zigbee_not_available": {
+      "status": 200,
+      "body": {
+        "state": "not_available",
+        "stub": false
+      }
+    },
+    "zigbee_unknown": {
+      "status": 200,
+      "body": {
+        "state": "unknown",
+        "stub": false
+      }
+    },
+    "zigbee_stub": {
+      "status": 200,
+      "body": {
+        "state": "not_available",
+        "stub": true
+      }
+    },
     "pair_201": {
       "status": 201,
       "body": {

@@ -203,6 +203,15 @@
       },
       "temperature": {
         "name": "Temperatur"
+      },
+      "zigbee_radio": {
+        "name": "Zigbee-Funkmodul",
+        "state": {
+          "on": "Ein",
+          "off": "Aus",
+          "starting": "Startet",
+          "failed": "Fehlgeschlagen"
+        }
       }
     },
     "binary_sensor": {

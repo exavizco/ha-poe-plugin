@@ -156,6 +156,7 @@ class FakeBoard:
                 ("GET", "/api/v1/poe/ports"): case("poe_ports"),
                 ("GET", "/api/v1/switch/ports"): case("switch_ports"),
                 ("GET", "/api/v1/system/health"): case("health"),
+                ("GET", "/api/v1/zigbee"): case("zigbee"),
                 ("POST", "/api/v1/ha/pair"): case("pair_201"),
             }
         )
