@@ -205,7 +205,7 @@
         "name": "온도"
       },
       "zigbee_radio": {
-        "name": "Zigbee 라디오",
+        "name": "Zigbee 무선",
         "state": {
           "on": "켜짐",
           "off": "꺼짐",

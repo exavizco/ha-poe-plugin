@@ -209,7 +209,7 @@
         "state": {
           "on": "Aan",
           "off": "Uit",
-          "starting": "Opstarten",
+          "starting": "Wordt gestart",
           "failed": "Mislukt"
         }
       }

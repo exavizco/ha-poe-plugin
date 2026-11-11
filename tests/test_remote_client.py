@@ -254,6 +254,22 @@ async def test_get_zigbee_board_refusal_or_error_is_no_reading(board, session, r
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("error", [CertificateChanged, CannotConnect])
+async def test_get_zigbee_certificate_or_connection_error_still_raises(board, session, error):
+    # These must fail the poll (and start reauth for a certificate change).
+    c = client(session, board, token=TOKEN)
+    with patch.object(c, "_request", side_effect=error("x")), pytest.raises(error):
+        await c.get_zigbee()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [302, 418])
+async def test_get_zigbee_protocol_error_is_no_reading(board, session, status):
+    board.reply("GET", "/zigbee", {"status": status, "body": {}})
+    assert await client(session, board, token=TOKEN).get_zigbee() is None
+
+
+@pytest.mark.asyncio
 async def test_get_zigbee_revoked_token_still_raises(board, session):
     board.reply("GET", "/zigbee", case("unauth_401"))
     with pytest.raises(AuthFailed):

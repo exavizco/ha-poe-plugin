@@ -210,7 +210,7 @@
           "on": "Encendida",
           "off": "Apagada",
           "starting": "Iniciando",
-          "failed": "Con Fallo"
+          "failed": "Fallida"
         }
       }
     },

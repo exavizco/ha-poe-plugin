@@ -107,9 +107,10 @@ async def test_board_not_answering_then_back(hass, board):
     [
         case("control_500"),
         case("control_403"),
-        {"status": 200},  # empty body: not JSON
+        {"status": 200},
+        {"status": 418, "body": {}},
     ],
-    ids=["500", "403", "unreadable"],
+    ids=["500", "403", "empty_body", "protocol_error"],
 )
 async def test_a_zigbee_error_does_not_take_the_ports_down(hass, board, reply):
     """The radio is one optional reading: only its sensor goes unavailable."""
