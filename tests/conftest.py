@@ -104,9 +104,13 @@ class _StubHomeAssistantError(Exception):
     """Distinct class so pytest.raises(HomeAssistantError) means that class."""
 
 
+class _StubServiceValidationError(_StubHomeAssistantError):
+    """Bad user input; a HomeAssistantError, as in HA."""
+
+
 sys.modules["homeassistant.exceptions"].HomeAssistantError = _StubHomeAssistantError
 sys.modules["homeassistant.exceptions"].ConfigEntryNotReady = Exception
-sys.modules["homeassistant.exceptions"].ServiceValidationError = Exception
+sys.modules["homeassistant.exceptions"].ServiceValidationError = _StubServiceValidationError
 
 
 class _StubConfigEntryAuthFailed(Exception):

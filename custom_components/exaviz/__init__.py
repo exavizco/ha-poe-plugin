@@ -87,11 +87,17 @@ async def _register_frontend(hass: HomeAssistant) -> None:
     # Replace any stale entry (unversioned URL or an older ?v= tag) with the
     # current versioned URL so the browser always fetches the latest JS.
     try:
-        from homeassistant.components.lovelace import LOVELACE_DATA
         from homeassistant.components.lovelace.resources import ResourceStorageCollection
 
-        lovelace_data = hass.data.get(LOVELACE_DATA)
-        resources = getattr(lovelace_data, "resources", None) if lovelace_data else None
+        try:
+            from homeassistant.components.lovelace import LOVELACE_DATA
+        except ImportError:
+            # HA before 2025.1 (the hacs.json floor) keeps a plain dict.
+            lovelace_data = hass.data.get("lovelace") or {}
+            resources = lovelace_data.get("resources")
+        else:
+            lovelace_data = hass.data.get(LOVELACE_DATA)
+            resources = getattr(lovelace_data, "resources", None) if lovelace_data else None
 
         if isinstance(resources, ResourceStorageCollection):
             # At startup the collection is not read from storage yet and
@@ -236,12 +242,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("Unloading Exaviz PoE integration for entry: %s", entry.entry_id)
 
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    if unload_ok:
-        await entry.runtime_data.async_shutdown()
-
-    return unload_ok
+    # The coordinator shuts itself down: HA registers its async_shutdown
+    # with the entry's unload callbacks.
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

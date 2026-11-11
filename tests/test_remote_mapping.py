@@ -8,7 +8,13 @@ import pytest
 
 from custom_components.exaviz import remote
 from custom_components.exaviz.coordinator import ExavizDataUpdateCoordinator
-from custom_components.exaviz.remote import map_board, map_health, map_ports, map_zigbee
+from custom_components.exaviz.remote import (
+    map_board,
+    map_health,
+    map_ports,
+    map_total_ports,
+    map_zigbee,
+)
 
 from .fake_board import case
 
@@ -164,7 +170,25 @@ def test_t17_board_to_system_info():
 
 def test_t18_health():
     assert map_health({"cpu_temp_c": 52.3}) == 52.3
+    assert map_health({"cpu_temp_c": 52}) == 52
     assert map_health({}) is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["n/a", "52.3", True, None, [52.3], {"c": 52.3}, float("nan"), float("inf"), float("-inf")],
+)
+def test_health_temperature_of_the_wrong_type_is_missing(value):
+    assert map_health({"cpu_temp_c": value}) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(8, 8), (4, 4), ("8", None), (8.0, None), (True, None), (0, None), (-1, None), (None, None)],
+)
+def test_board_port_count_must_be_a_positive_int(value, expected):
+    assert map_total_ports({"total_poe_ports": value}) == expected
+    assert map_total_ports({}) is None
 
 
 @pytest.mark.parametrize(

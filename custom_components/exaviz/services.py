@@ -7,9 +7,10 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import Context, HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
 
@@ -47,23 +48,23 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def turn_on_port(call: ServiceCall) -> None:
         """Turn on a PoE port."""
         entity_id = call.data["entity_id"]
-        await _control_poe_port(hass, entity_id, "turn_on")
+        await _control_poe_port(hass, entity_id, "turn_on", call.context)
 
     async def turn_off_port(call: ServiceCall) -> None:
         """Turn off a PoE port."""
         entity_id = call.data["entity_id"]
-        await _control_poe_port(hass, entity_id, "turn_off")
+        await _control_poe_port(hass, entity_id, "turn_off", call.context)
 
     async def toggle_port(call: ServiceCall) -> None:
         """Toggle a PoE port."""
         entity_id = call.data["entity_id"]
-        await _control_poe_port(hass, entity_id, "toggle")
+        await _control_poe_port(hass, entity_id, "toggle", call.context)
 
     async def control_port(call: ServiceCall) -> None:
         """Control a PoE port with specified action."""
         entity_id = call.data["entity_id"]
         action = call.data.get("action", "toggle")
-        await _control_poe_port(hass, entity_id, action)
+        await _control_poe_port(hass, entity_id, action, call.context)
 
     async def reset_port(call: ServiceCall) -> None:
         """Reset a PoE port (power cycle) by pressing its reset button."""
@@ -75,11 +76,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _port_switch_id(entity_id).replace("switch.", "button.", 1) + "_reset"
         )
 
-        _require_available(hass, button_entity_id)
+        _require_exaviz_port(hass, button_entity_id)
+        # The caller's context, so HA checks the caller's entity permissions.
         await hass.services.async_call(
             "button", "press",
             {"entity_id": button_entity_id},
             blocking=True,
+            context=call.context,
         )
         _LOGGER.info("Port reset completed for %s", entity_id)
 
@@ -104,11 +107,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     )
 
 
-def _require_available(hass: HomeAssistant, entity_id: str) -> None:
-    """Raise rather than let HA skip a missing or unavailable entity quietly."""
+def _require_exaviz_port(hass: HomeAssistant, entity_id: str) -> None:
+    """Refuse an entity of another integration; raise rather than let HA
+    skip a missing or unavailable entity quietly."""
     state = hass.states.get(entity_id)
     if state is None:
-        raise HomeAssistantError(f"{entity_id} does not exist")
+        raise ServiceValidationError(f"{entity_id} does not exist")
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is None or entry.platform != DOMAIN:
+        raise ServiceValidationError(f"{entity_id} is not an Exaviz PoE port")
     if state.state == STATE_UNAVAILABLE:
         raise HomeAssistantError(
             f"{entity_id} is unavailable (read-only pairing, add-on board port, "
@@ -127,7 +134,7 @@ def _port_switch_id(entity_id: str) -> str:
 
 
 async def _control_poe_port(
-    hass: HomeAssistant, entity_id: str, action: str,
+    hass: HomeAssistant, entity_id: str, action: str, context: Context,
 ) -> None:
     """Control a PoE port by delegating to the HA switch service.
 
@@ -137,13 +144,15 @@ async def _control_poe_port(
     """
     _LOGGER.debug("PoE port control: %s -> %s", entity_id, action)
     entity_id = _port_switch_id(entity_id)
-    _require_available(hass, entity_id)
+    _require_exaviz_port(hass, entity_id)
 
     service = action  # turn_on, turn_off, toggle are HA switch services
+    # The caller's context, so HA checks the caller's entity permissions.
     await hass.services.async_call(
         "switch", service,
         {"entity_id": entity_id},
         blocking=True,
+        context=context,
     )
     _LOGGER.info("PoE port %s: %s completed", entity_id, action)
 

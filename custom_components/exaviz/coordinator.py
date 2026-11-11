@@ -5,7 +5,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -50,6 +50,8 @@ REMOTE_SETTLE_SECONDS = 3
 from .poe_readers import read_all_addon_ports, read_all_onboard_ports
 
 _LOGGER = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 
 def parse_esp32_info(output: str) -> dict[str, str]:
@@ -472,7 +474,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         # Startup window: the board has parsed no port yet. Not ready, never
         # "no PoE detected"; after a good poll the old ports stay (stale) and
         # the port count keeps its last non-zero value.
-        total = board.get("total_poe_ports") or self.total_poe_ports
+        total = remote.map_total_ports(board) or self.total_poe_ports
         if not ports or not total:
             raise UpdateFailed("the board is starting; no PoE ports yet")
         for port in ports:
@@ -516,10 +518,6 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             },
             "last_updated": datetime.now().isoformat(),
         }
-
-    async def async_shutdown(self) -> None:
-        """Shutdown coordinator and clean up resources."""
-        _LOGGER.debug("Coordinator shutdown complete")
 
     @property
     def board_info(self) -> dict[str, Any]:
@@ -593,6 +591,14 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         return first.replace(",", " ").replace("-", " ").title()
 
     @staticmethod
+    async def _read_if_present(read: Callable[[], _T]) -> _T | None:
+        """Run a Path read in a worker thread; None if the file is missing."""
+        try:
+            return await asyncio.to_thread(read)
+        except (FileNotFoundError, NotADirectoryError):
+            return None
+
+    @staticmethod
     async def _run_cmd(*args: str) -> str:
         """Run a shell command and return stripped stdout, or '' on error."""
         try:
@@ -621,8 +627,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             #   Interceptor: "raspberrypi,4-compute-module\0brcm,bcm2711\0"
             cm_gen = ""  # "4" or "5" — used for model number construction
             compat_path = Path("/proc/device-tree/compatible")
-            if compat_path.exists():
-                raw = await asyncio.to_thread(compat_path.read_bytes)
+            raw = await self._read_if_present(compat_path.read_bytes)
+            if raw is not None:
                 info["compute_module"] = self._parse_compute_module(raw)
                 # Extract generation for model number (e.g., "4" from CM4)
                 first = raw.decode(errors="replace").split("\x00")[0].strip()
@@ -640,8 +646,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
 
             # OS version from os-release
             os_release = Path("/etc/os-release")
-            if os_release.exists():
-                text = await asyncio.to_thread(os_release.read_text)
+            text = await self._read_if_present(os_release.read_text)
+            if text is not None:
                 for line in text.splitlines():
                     if line.startswith("PRETTY_NAME="):
                         info["os_version"] = line.split("=", 1)[1].strip('"')
@@ -691,8 +697,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             # Board serial from device tree (fallback for non-ESP32 boards)
             if "board_serial" not in info:
                 board_dt = Path("/proc/device-tree/chosen/board")
-                if board_dt.exists():
-                    raw = await asyncio.to_thread(board_dt.read_bytes)
+                raw = await self._read_if_present(board_dt.read_bytes)
+                if raw is not None:
                     dt_board = raw.decode(errors="replace").rstrip("\x00").strip()
                     # Format: "interceptor-raspberrypi-cm4" — not a serial,
                     # but useful as a board identifier
@@ -801,7 +807,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         """
         info: dict[str, str] = {}
         pse_file = Path("/proc/pse")
-        if not pse_file.exists():
+        if not await asyncio.to_thread(pse_file.exists):
             return info
 
         try:
@@ -841,10 +847,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         """
         info: dict[str, str] = {}
         pse_dev = Path("/dev/pse")
-        if not pse_dev.exists():
+        if not await asyncio.to_thread(pse_dev.exists):
             pse_dev = Path("/dev/ttyAMA3")
-        if not pse_dev.exists():
-            return info
+            if not await asyncio.to_thread(pse_dev.exists):
+                return info
 
         try:
             # Configure serial port

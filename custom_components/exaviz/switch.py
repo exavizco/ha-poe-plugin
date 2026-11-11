@@ -40,6 +40,11 @@ PARALLEL_UPDATES = 1
 # Device path for ESP32 serial interface (udev symlink or direct UART)
 _PSE_DEVICE_PATHS = [Path("/dev/pse"), Path("/dev/ttyAMA3")]
 
+# Seconds one command write may take; a blocked serial device must not hang
+# the action (or leave a reset cycle half done).
+ESP32_WRITE_TIMEOUT = 5
+ESP32_KILL_WAIT = 2
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -199,10 +204,13 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     async def _send_esp32_command(command: str) -> bool:
         """Send a text command to the ESP32 via /dev/pse serial interface.
 
-        Returns True if the command was written successfully.
+        Returns True if the command was written successfully. A write that
+        times out is killed and not retried on another path: /dev/pse is
+        usually a symlink to /dev/ttyAMA3, the same UART. Raises
+        HomeAssistantError if the killed write does not stop.
         """
         for device_path in _PSE_DEVICE_PATHS:
-            if not device_path.exists():
+            if not await asyncio.to_thread(device_path.exists):
                 continue
 
             try:
@@ -211,7 +219,32 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                _, stderr = await proc.communicate()
+                try:
+                    _, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=ESP32_WRITE_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass  # it finished just now
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=ESP32_KILL_WAIT)
+                    except asyncio.TimeoutError:
+                        # The write may still land later, so no caller may
+                        # follow it with another command (a reset's restore).
+                        raise HomeAssistantError(
+                            f"The write of '{command}' to {device_path} timed out "
+                            "and did not stop; the port's state is unknown"
+                        ) from None
+                    if proc.returncode == 0:
+                        # It finished just before the kill.
+                        _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
+                        return True
+                    _LOGGER.error(
+                        "ESP32 command '%s' timed out on %s", command, device_path
+                    )
+                    return False
                 if proc.returncode == 0:
                     _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
                     return True

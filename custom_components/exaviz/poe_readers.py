@@ -60,6 +60,27 @@ def _unavailable_port(**overrides: Any) -> dict[str, Any]:
     return result
 
 
+# Readings that are unavailable now. HA's log-when-unavailable rule: warn
+# once when a reading is lost and log once when it is back, not every poll.
+_unavailable: set[str] = set()
+
+
+def _log_unavailable(key: str, msg: str, *args: Any) -> None:
+    """Warn the first time `key` fails; later failures log at debug."""
+    if key in _unavailable:
+        _LOGGER.debug(msg, *args)
+        return
+    _unavailable.add(key)
+    _LOGGER.warning(msg, *args)
+
+
+def _log_available(key: str) -> None:
+    """Log once that `key` is readable again after a failure."""
+    if key in _unavailable:
+        _unavailable.discard(key)
+        _LOGGER.info("%s is readable again", key)
+
+
 def get_allocated_power_watts(poe_class: str) -> float:
     """Get allocated power in watts based on PoE class.
     
@@ -96,7 +117,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
     pse_file = Path("/proc/pse")
     
     try:
-        if not pse_file.exists():
+        if not await asyncio.to_thread(pse_file.exists):
             _LOGGER.debug("/proc/pse not found")
             return _unavailable_port()
         
@@ -113,8 +134,9 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
                 timeout=5
             )
             pse_text = result.stdout
+            _log_available("/proc/pse")
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-            _LOGGER.error("Failed to read /proc/pse: %s", e)
+            _log_unavailable("/proc/pse", "Failed to read /proc/pse: %s", e)
             return {
                 "available": False,
                 "state": "error",
@@ -149,6 +171,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
                 temperature_celsius = float(temp_parts[0]) if temp_parts else 0.0
                 
                 allocated_power = get_allocated_power_watts(poe_class)
+                _log_available(f"{pse_id} port {port_num}")
                 
                 return {
                     "available": True,
@@ -164,11 +187,17 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
                 }
         
         # Port not found in output
-        _LOGGER.warning("Port %d-%d not found in /proc/pse", pse_num, port_num)
+        _log_unavailable(
+            f"{pse_id} port {port_num}",
+            "Port %d-%d not found in /proc/pse", pse_num, port_num,
+        )
         return _unavailable_port()
         
     except Exception as ex:
-        _LOGGER.error("Failed to read PSE port status %s/port%d: %s", pse_id, port_num, ex)
+        _log_unavailable(
+            f"{pse_id} port {port_num}",
+            "Failed to read PSE port status %s/port%d: %s", pse_id, port_num, ex,
+        )
         return {
             "available": False,
             "state": "error",
@@ -254,7 +283,7 @@ async def _read_esp32_serial_stream(pse_num: int, port_num: int) -> dict[str, An
     """
     # Try both /dev/pse (udev symlink) and /dev/ttyAMA3 (direct UART)
     for device_path in [Path("/dev/pse"), Path("/dev/ttyAMA3")]:
-        if not device_path.exists():
+        if not await asyncio.to_thread(device_path.exists):
             continue
         
         try:
@@ -352,28 +381,30 @@ async def _read_link_state(sys_net_path: Path) -> tuple[str, bool, int]:
     # Operational state
     link_state = "unknown"
     operstate_file = sys_net_path / "operstate"
-    if operstate_file.exists():
+    try:
         link_state = (await asyncio.to_thread(operstate_file.read_text)).strip()
+    except FileNotFoundError:
+        pass
 
     # Administrative state (IFF_UP flag)
     admin_up = False
     flags_file = sys_net_path / "flags"
-    if flags_file.exists():
-        try:
-            flags_hex = (await asyncio.to_thread(flags_file.read_text)).strip()
-            admin_up = bool(int(flags_hex, 16) & 0x1)
-        except (ValueError, OSError):
-            admin_up = link_state in ("up", "lowerlayerdown")
+    try:
+        flags_hex = (await asyncio.to_thread(flags_file.read_text)).strip()
+        admin_up = bool(int(flags_hex, 16) & 0x1)
+    except FileNotFoundError:
+        pass
+    except (ValueError, OSError):
+        admin_up = link_state in ("up", "lowerlayerdown")
 
     # Speed (only meaningful when link is up)
     speed_mbps = 0
     if link_state == "up":
         speed_file = sys_net_path / "speed"
-        if speed_file.exists():
-            try:
-                speed_mbps = int((await asyncio.to_thread(speed_file.read_text)).strip())
-            except (ValueError, OSError):
-                pass
+        try:
+            speed_mbps = int((await asyncio.to_thread(speed_file.read_text)).strip())
+        except (ValueError, OSError):  # including a missing file
+            pass
 
     return link_state, admin_up, speed_mbps
 
@@ -386,20 +417,16 @@ async def _read_traffic_stats(sys_net_path: Path) -> tuple[int, int]:
     """
     stats_path = sys_net_path / "statistics"
     rx_bytes = tx_bytes = 0
-    if not stats_path.exists():
-        return rx_bytes, tx_bytes
-
     for name, attr in [("rx_bytes", "rx_bytes"), ("tx_bytes", "tx_bytes")]:
         f = stats_path / name
-        if f.exists():
-            try:
-                val = int((await asyncio.to_thread(f.read_text)).strip())
-                if attr == "rx_bytes":
-                    rx_bytes = val
-                else:
-                    tx_bytes = val
-            except (ValueError, OSError):
-                pass
+        try:
+            val = int((await asyncio.to_thread(f.read_text)).strip())
+            if attr == "rx_bytes":
+                rx_bytes = val
+            else:
+                tx_bytes = val
+        except (ValueError, OSError):  # including a missing file
+            pass
     return rx_bytes, tx_bytes
 
 
@@ -454,10 +481,12 @@ async def _get_bridge_master(interface: str) -> str | None:
     the symlink means the port is not in switch/bridge mode.
     """
     master = Path(f"/sys/class/net/{interface}/master")
-    if not master.exists():
-        return None
+
+    def bridge_name() -> str | None:
+        return master.resolve().name if master.exists() else None
+
     try:
-        return (await asyncio.to_thread(master.resolve)).name
+        return await asyncio.to_thread(bridge_name)
     except OSError:
         return None
 
@@ -466,9 +495,7 @@ async def _collect_local_macs() -> set[str]:
     """Collect this host's own interface MACs (to exclude from FDB matches)."""
     macs: set[str] = set()
     net = Path("/sys/class/net")
-    if not net.exists():
-        return macs
-    try:
+    try:  # a missing directory is an OSError too
         entries = await asyncio.to_thread(lambda: list(net.iterdir()))
     except OSError:
         return macs
@@ -633,7 +660,7 @@ async def _do_arp_scan(bridge: str) -> dict[str, dict[str, str]]:
     ]
     # Ubuntu 26.04's arp-scan can't find its default OUI db; point it at the
     # packaged file so the vendor column resolves. Skip if absent.
-    if Path(ARP_SCAN_OUI_FILE).exists():
+    if await asyncio.to_thread(Path(ARP_SCAN_OUI_FILE).exists):
         cmd.append(f"--ouifile={ARP_SCAN_OUI_FILE}")
 
     proc = None
@@ -796,7 +823,7 @@ async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[in
     """
     try:
         sys_net_path = Path(f"/sys/class/net/{interface}")
-        if not sys_net_path.exists():
+        if not await asyncio.to_thread(sys_net_path.exists):
             return {"available": False, "state": "unavailable", "link_state": "down"}
 
         port_num = int(interface.replace("poe", ""))
@@ -823,6 +850,7 @@ async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[in
             interface, link_state, rx_bytes, tx_bytes, connected_device,
         )
 
+        _log_available(f"interface {interface}")
         return _build_onboard_result(
             link_state=link_state,
             admin_up=admin_up,
@@ -834,7 +862,10 @@ async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[in
         )
 
     except Exception as ex:
-        _LOGGER.error("Failed to read network port status %s: %s", interface, ex)
+        _log_unavailable(
+            f"interface {interface}",
+            "Failed to read network port status %s: %s", interface, ex,
+        )
         return {"available": False, "state": "error", "error": str(ex)}
 
 
@@ -1038,7 +1069,10 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> dict[int, di
     port_data = {}
     for port_num, result in enumerate(results):
         if isinstance(result, Exception):
-            _LOGGER.error("Failed to read port %s/%d: %s", pse_id, port_num, result)
+            _log_unavailable(
+                f"{pse_id} port {port_num}",
+                "Failed to read port %s/%d: %s", pse_id, port_num, result,
+            )
             port_data[port_num] = {
                 "available": False,
                 "state": "error",
@@ -1070,7 +1104,7 @@ async def _read_all_esp32_data() -> dict[tuple[int, int], dict[str, Any]]:
     
     # Try both /dev/pse (udev symlink) and /dev/ttyAMA3 (direct UART)
     for device_path in [Path("/dev/pse"), Path("/dev/ttyAMA3")]:
-        if not device_path.exists():
+        if not await asyncio.to_thread(device_path.exists):
             continue
         
         try:
@@ -1138,7 +1172,10 @@ async def read_all_onboard_ports(interfaces: list[str], switch_mode_discovery: b
     port_data = {}
     for interface, result in zip(interfaces, results):
         if isinstance(result, Exception):
-            _LOGGER.error("Failed to read interface %s: %s", interface, result)
+            _log_unavailable(
+                f"interface {interface}",
+                "Failed to read interface %s: %s", interface, result,
+            )
             port_data[interface] = {
                 "available": False,
                 "state": "error",
