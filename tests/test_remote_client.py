@@ -246,13 +246,17 @@ async def test_get_zigbee_404_is_no_reading_not_an_error(board, session):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("reply", "error"),
-    [("unauth_401", AuthFailed), ("control_403", Forbidden), ("control_500", BoardError)],
-)
-async def test_get_zigbee_other_errors_raise(board, session, reply, error):
+@pytest.mark.parametrize("reply", ["control_403", "control_500"])
+async def test_get_zigbee_board_refusal_or_error_is_no_reading(board, session, reply):
+    # An optional reading: it must not fail the whole poll.
     board.reply("GET", "/zigbee", case(reply))
-    with pytest.raises(error):
+    assert await client(session, board, token=TOKEN).get_zigbee() is None
+
+
+@pytest.mark.asyncio
+async def test_get_zigbee_revoked_token_still_raises(board, session):
+    board.reply("GET", "/zigbee", case("unauth_401"))
+    with pytest.raises(AuthFailed):
         await client(session, board, token=TOKEN).get_zigbee()
 
 

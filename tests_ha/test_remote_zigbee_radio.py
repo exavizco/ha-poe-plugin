@@ -102,12 +102,30 @@ async def test_board_not_answering_then_back(hass, board):
     assert state(hass, RADIO).state == "on"
 
 
-async def test_zigbee_error_fails_the_poll_like_the_other_reads(hass, board):
+@pytest.mark.parametrize(
+    "reply",
+    [
+        case("control_500"),
+        case("control_403"),
+        {"status": 200},  # empty body: not JSON
+    ],
+    ids=["500", "403", "unreadable"],
+)
+async def test_a_zigbee_error_does_not_take_the_ports_down(hass, board, reply):
+    """The radio is one optional reading: only its sensor goes unavailable."""
     entry = await setup_remote(hass, board)
-    board.reply("GET", "/zigbee", case("control_500"))
+    board.reply("GET", "/zigbee", reply)
     await poll(hass, entry)
     assert state(hass, RADIO).state == "unavailable"
-    assert state(hass, "switch.onboard_port0").state == "unavailable"
+    assert state(hass, "switch.onboard_port0").state == "on"
+    assert state(hass, "sensor.board_status").state == "Operational"
+
+
+async def test_revoked_token_on_zigbee_still_starts_reauth(hass, board):
+    entry = await setup_remote(hass, board)
+    board.reply("GET", "/zigbee", case("unauth_401"))
+    await poll(hass, entry)
+    assert len(reauth_flows(hass)) == 1
 
 
 async def test_read_only_pairing_reads_the_radio(hass, board):

@@ -358,10 +358,17 @@ class RemoteClient:
         return (await self._request("GET", "/system/health"))[0]
 
     async def get_zigbee(self) -> Any:
-        """The radio status, or None from a board without the route (404)."""
+        """The radio status, or None when the board gives none.
+
+        The radio is one optional reading, so a board without the route
+        (404), a refusal (403), a board-side error (5xx) or an unreadable
+        reply only leave its sensor unavailable. Auth, certificate and
+        connection errors still fail the poll like every other read.
+        """
         try:
             return (await self._request("GET", "/zigbee"))[0]
-        except NotFound:
+        except (NotFound, Forbidden, BoardError, ProtocolError) as err:
+            _LOGGER.debug("No Zigbee radio state from the board: %s", err)
             return None
 
     async def pair(self, code: str, name: str = "Home Assistant") -> dict[str, Any]:
