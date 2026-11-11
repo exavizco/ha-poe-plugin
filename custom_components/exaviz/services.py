@@ -112,7 +112,7 @@ def _require_exaviz_port(hass: HomeAssistant, entity_id: str) -> None:
     skip a missing or unavailable entity quietly."""
     state = hass.states.get(entity_id)
     if state is None:
-        raise HomeAssistantError(f"{entity_id} does not exist")
+        raise ServiceValidationError(f"{entity_id} does not exist")
     entry = er.async_get(hass).async_get(entity_id)
     if entry is None or entry.platform != DOMAIN:
         raise ServiceValidationError(f"{entity_id} is not an Exaviz PoE port")

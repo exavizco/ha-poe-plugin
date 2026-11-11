@@ -189,9 +189,10 @@ async def test_reset_port_action_power_cycles_through_the_button(hass, local, en
 
 
 @pytest.mark.parametrize("service", ["turn_off_port", "reset_port"])
-async def test_port_action_on_a_missing_entity_is_an_error(hass, local, service):
+async def test_port_action_on_a_missing_entity_is_a_validation_error(hass, local, service):
+    """A target that does not exist is bad input (HA action-exceptions rule)."""
     _entry, _reader, hw = local
-    with pytest.raises(HomeAssistantError, match="does not exist"):
+    with pytest.raises(ServiceValidationError, match="does not exist"):
         await action(hass, service, entity_id="switch.onboard_port99")
     assert hw.calls == []
 
@@ -204,8 +205,10 @@ async def test_port_action_on_an_unavailable_entity_is_an_error(hass, local, ser
     """HA would skip it quietly; the action says why nothing happened."""
     _entry, _reader, hw = local
     hass.states.async_set(target, "unavailable")
-    with pytest.raises(HomeAssistantError, match="is unavailable"):
+    with pytest.raises(HomeAssistantError, match="is unavailable") as err:
         await action(hass, service, entity_id="switch.onboard_port3")
+    # Not the caller's mistake: the port exists but cannot act right now.
+    assert not isinstance(err.value, ServiceValidationError)
     assert hw.calls == []
 
 
