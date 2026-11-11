@@ -395,3 +395,44 @@ def test_unparseable_leaf_is_a_key_mismatch():
 
     with pytest.raises(aiohttp.ServerFingerprintMismatch):
         remote._SpkiPin(b"\x00" * 32).check(Transport())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [402, 418, 451])
+async def test_unmapped_4xx_is_a_protocol_error_and_body_is_ignored(
+    board, session, status
+):
+    """A 4xx with no meaning in the contract is never read as data."""
+    board.reply("GET", "/system/health", {"status": status, "body": case("health")["body"]})
+    with pytest.raises(ProtocolError, match=f"status {status}"):
+        await client(session, board, token=TOKEN).get_health()
+
+
+@pytest.mark.asyncio
+async def test_ca_verified_leaf_unreachable_is_cannot_connect_not_unverified(tmp_path):
+    """None means "does not verify"; a failed connection must say so instead."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    ctx = remote.build_ca_context(str(bundle))
+
+    fake = await FakeBoard(cert=make_cert(("127.0.0.1",), issuer=ca)).start()
+    port = fake.port
+    await fake.stop()
+    with pytest.raises(CannotConnect):
+        await remote.ca_verified_leaf("127.0.0.1", port, ctx)
+
+    # Not TLS at all: an SSL error that is not a verification failure.
+    async def plain_http(reader, writer):
+        writer.write(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_server(plain_http, "127.0.0.1", 0)
+    try:
+        plain_port = server.sockets[0].getsockname()[1]
+        with pytest.raises(CannotConnect):
+            await remote.ca_verified_leaf("127.0.0.1", plain_port, ctx, timeout=2)
+    finally:
+        server.close()
+        await server.wait_closed()

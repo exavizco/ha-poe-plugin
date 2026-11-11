@@ -224,6 +224,8 @@ async def test_t22a_pair_serial_mismatch_creates_nothing(hass, board):
         ("ftp://127.0.0.1", "invalid_host"),
         ("127.0.0.1/admin", "invalid_host"),
         ("", "invalid_host"),
+        ("https://127.0.0.1:99999", "invalid_host"),
+        ("127.0.0.1:notaport", "invalid_host"),
     ],
 )
 async def test_t23_host_input_refused_before_any_socket(hass, board, host, error):
@@ -698,3 +700,193 @@ def test_parse_host_accepts_bare_ipv6(typed, expected):
     from custom_components.exaviz.config_flow import _parse_host
 
     assert _parse_host(typed, 443) == expected
+
+
+# --- Coverage: local step error branches -------------------------------------
+
+PREREQS_OK = {"all_ok": True, "missing": []}
+PREREQS_MISSING = {"all_ok": False, "missing": ["exaviz-dkms"]}
+
+
+async def _local_steps(hass, prereqs, detect, in_docker=False) -> list[dict]:
+    """Menu -> local (auto-detect) -> submit when a form without errors shows.
+
+    `prereqs` and `detect` are side effects: one value per call.
+    """
+    results = []
+    with (
+        patch(
+            "custom_components.exaviz.config_flow.check_prerequisites",
+            side_effect=prereqs,
+        ),
+        patch(
+            "custom_components.exaviz.config_flow.detect_all_poe_systems",
+            side_effect=detect,
+        ),
+        patch("custom_components.exaviz.config_flow.Path") as path,
+    ):
+        path.return_value.exists.return_value = in_docker
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"next_step_id": "local"}
+        )
+        results.append(result)
+        if result["type"] is FlowResultType.FORM and not result["errors"]:
+            results.append(
+                await hass.config_entries.flow.async_configure(
+                    result["flow_id"], {"update_interval": 30}
+                )
+            )
+    return results
+
+
+async def test_local_in_docker_continues_past_missing_packages(hass, caplog):
+    """Docker hides host packages: warn, then trust board detection."""
+    shown, created = await _local_steps(
+        hass, [PREREQS_MISSING] * 2, [_detection()] * 2, in_docker=True
+    )
+    assert shown["description_placeholders"]["total_ports"] == "8"
+    assert created["type"] is FlowResultType.CREATE_ENTRY
+    assert created["data"]["total_poe_ports"] == 8
+    assert "inside Docker" in caplog.text
+    assert "exaviz-dkms" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("prereqs", "detect", "error"),
+    [
+        ([PREREQS_OK, PREREQS_MISSING], [_detection()], "missing_packages"),
+        ([PREREQS_OK] * 2, [_detection(), _detection(0)], "no_poe_detected"),
+        ([PREREQS_OK, RuntimeError("dpkg crashed")], [_detection()], "unknown"),
+    ],
+)
+async def test_local_submit_errors_keep_the_form(hass, caplog, prereqs, detect, error):
+    """The board changed between showing the form and submitting it."""
+    shown, submitted = await _local_steps(hass, prereqs, detect)
+    assert shown["errors"] == {}
+    assert submitted["type"] is FlowResultType.FORM
+    assert submitted["step_id"] == "local"
+    assert submitted["errors"] == {"base": error}
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    if error == "unknown":
+        assert "Unexpected exception during board detection" in caplog.text
+
+
+async def test_local_unexpected_error_on_first_show_is_unknown(hass, caplog):
+    (shown,) = await _local_steps(hass, RuntimeError("dpkg crashed"), [_detection()])
+    assert shown["type"] is FlowResultType.FORM
+    assert shown["errors"] == {"base": "unknown"}
+    assert "Unexpected exception during initial detection" in caplog.text
+
+
+# --- Coverage: remote error branches -----------------------------------------
+
+
+async def test_pair_board_gone_stays_on_step_and_can_retry(hass, board):
+    result = await to_pair(hass, board)
+    await board.stop()
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "pair"
+    assert result["errors"] == {"base": "board_unreachable"}
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    await board.start()
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_pair_certificate_change_with_board_gone_aborts(hass, board):
+    result = await to_pair(hass, board)
+    await board.restart(make_cert())
+
+    async def gone(host, port, timeout=10):
+        raise remote.CannotConnect("test")
+
+    with patch.object(remote, "fetch_leaf_certificate", gone):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"code": CODE}
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "board_unreachable"
+    assert pair_calls(board) == []
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+async def test_reauth_probe_serial_mismatch_keeps_entry(hass, board):
+    """Another board now answers at the address: abort before any pairing."""
+    entry = remote_entry(board)
+    entry.add_to_hass(hass)
+    before = dict(entry.data)
+    other = case("board")
+    other["body"]["serial"] = "CRU-OTHER-0002"
+    board.reply("GET", "/board", other)
+    result = await _reauth(hass, entry)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "serial_mismatch"
+    assert entry.data == before
+    assert pair_calls(board) == []
+
+
+async def test_reconfigure_board_unreachable_keeps_entry(hass, board):
+    entry = remote_entry(board)
+    entry.add_to_hass(hass)
+    before = dict(entry.data)
+    await board.stop()
+    result = await _reconfigure(hass, entry, board)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    assert result["errors"] == {"base": "board_unreachable"}
+    assert entry.data == before
+
+
+async def test_ca_check_unreachable_falls_back_to_pin(hass, board, monkeypatch, tmp_path):
+    """Same certificate and bundle as the T-28 "ca" case, but the board is
+    gone when trust is decided: no CA trust without a verified handshake."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(bundle))
+    await board.restart(make_cert(("127.0.0.1",), issuer=ca))
+    result = await start_remote(hass, board.host, board.port)
+    assert result["step_id"] == "fingerprint"
+    await board.stop()
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"confirm": True}
+    )
+    assert result["step_id"] == "pair"
+    await board.start()
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["trust_mode"] == "pin"
+
+
+async def test_ca_mode_new_key_needs_the_fingerprint_even_when_ca_valid(
+    hass, board, monkeypatch, tmp_path
+):
+    """CA mode pins the key: a CA-valid leaf with a new key is re-confirmed."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(bundle))
+    first = make_cert(("127.0.0.1",), issuer=ca)
+    await board.restart(make_cert(("127.0.0.1",), issuer=ca))
+    entry = remote_entry(
+        board, fingerprint=first.sha256, spki=first.spki_sha256, trust_mode="ca"
+    )
+    entry.add_to_hass(hass)
+    before = dict(entry.data)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "fingerprint"
+    assert result["description_placeholders"]["fingerprint"] == grouped(
+        board.cert.sha256
+    )
+    assert entry.data == before
+    assert pair_calls(board) == []
