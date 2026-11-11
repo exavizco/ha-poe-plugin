@@ -202,7 +202,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         Returns True if the command was written successfully.
         """
         for device_path in _PSE_DEVICE_PATHS:
-            if not device_path.exists():
+            if not await asyncio.to_thread(device_path.exists):
                 continue
 
             try:
