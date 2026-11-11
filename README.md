@@ -201,6 +201,9 @@ Settings > Devices & services > Exaviz > Configure:
 
 The port switches and reset buttons work with Home Assistant's own `switch` and `button` actions too.
 
+If the board cannot carry out a port command, the action fails with an error message and the
+switch keeps showing the port's real state.
+
 ## Removing the integration
 
 1. Settings > Devices & services > Exaviz > the three dots > **Delete**.
