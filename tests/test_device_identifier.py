@@ -71,11 +71,6 @@ class TestMacVendorLookup:
         # The first listed entry with the prefix wins (00:1D:0F before 00:1D:70).
         assert get_mac_vendor("00:1d:aa:01:02:03") == "Ubiquiti Networks (partial match)"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="bug: MAC_VENDOR_DB lists 00:50:56 twice; the later "
-        "'Cisco Systems' entry overrides VMware's OUI",
-    )
     def test_vmware_oui(self):
         assert get_mac_vendor("00:50:56:AA:BB:CC") == "VMware Virtual"
 
