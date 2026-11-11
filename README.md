@@ -167,7 +167,8 @@ that runs Home Assistant does not need the Exaviz packages.
 - With **Read only**, the port switches and reset buttons are unavailable.
 - A board added this way also gets a **Zigbee Radio** sensor (`sensor.zigbee_radio`): on, off,
   starting or failed, read from the board on every poll. It is unavailable when the radio service
-  is not installed or the board's Exaviz Management does not report it.
+  is not installed or the board's Exaviz Management does not report it, and Unknown when the
+  board could not read the radio service's state.
 - Home Assistant keeps the pairing token in its configuration files and backups as plain text,
   not encrypted. Anyone who can read your Home Assistant configuration can read it.
 - Removing the integration does not revoke the token. Revoke it on the board in
