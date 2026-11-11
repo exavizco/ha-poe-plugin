@@ -60,6 +60,27 @@ def _unavailable_port(**overrides: Any) -> dict[str, Any]:
     return result
 
 
+# Readings that are unavailable now. HA's log-when-unavailable rule: warn
+# once when a reading is lost and log once when it is back, not every poll.
+_unavailable: set[str] = set()
+
+
+def _log_unavailable(key: str, msg: str, *args: Any) -> None:
+    """Warn the first time `key` fails; later failures log at debug."""
+    if key in _unavailable:
+        _LOGGER.debug(msg, *args)
+        return
+    _unavailable.add(key)
+    _LOGGER.warning(msg, *args)
+
+
+def _log_available(key: str) -> None:
+    """Log once that `key` is readable again after a failure."""
+    if key in _unavailable:
+        _unavailable.discard(key)
+        _LOGGER.info("%s is readable again", key)
+
+
 def get_allocated_power_watts(poe_class: str) -> float:
     """Get allocated power in watts based on PoE class.
     
@@ -113,8 +134,9 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
                 timeout=5
             )
             pse_text = result.stdout
+            _log_available("/proc/pse")
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-            _LOGGER.error("Failed to read /proc/pse: %s", e)
+            _log_unavailable("/proc/pse", "Failed to read /proc/pse: %s", e)
             return {
                 "available": False,
                 "state": "error",
@@ -149,6 +171,7 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
                 temperature_celsius = float(temp_parts[0]) if temp_parts else 0.0
                 
                 allocated_power = get_allocated_power_watts(poe_class)
+                _log_available(f"{pse_id} port {port_num}")
                 
                 return {
                     "available": True,
@@ -164,11 +187,17 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
                 }
         
         # Port not found in output
-        _LOGGER.warning("Port %d-%d not found in /proc/pse", pse_num, port_num)
+        _log_unavailable(
+            f"{pse_id} port {port_num}",
+            "Port %d-%d not found in /proc/pse", pse_num, port_num,
+        )
         return _unavailable_port()
         
     except Exception as ex:
-        _LOGGER.error("Failed to read PSE port status %s/port%d: %s", pse_id, port_num, ex)
+        _log_unavailable(
+            f"{pse_id} port {port_num}",
+            "Failed to read PSE port status %s/port%d: %s", pse_id, port_num, ex,
+        )
         return {
             "available": False,
             "state": "error",
@@ -823,6 +852,7 @@ async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[in
             interface, link_state, rx_bytes, tx_bytes, connected_device,
         )
 
+        _log_available(f"interface {interface}")
         return _build_onboard_result(
             link_state=link_state,
             admin_up=admin_up,
@@ -834,7 +864,10 @@ async def read_network_port_status(interface: str, esp32_data_map: dict[tuple[in
         )
 
     except Exception as ex:
-        _LOGGER.error("Failed to read network port status %s: %s", interface, ex)
+        _log_unavailable(
+            f"interface {interface}",
+            "Failed to read network port status %s: %s", interface, ex,
+        )
         return {"available": False, "state": "error", "error": str(ex)}
 
 
@@ -1038,7 +1071,10 @@ async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> dict[int, di
     port_data = {}
     for port_num, result in enumerate(results):
         if isinstance(result, Exception):
-            _LOGGER.error("Failed to read port %s/%d: %s", pse_id, port_num, result)
+            _log_unavailable(
+                f"{pse_id} port {port_num}",
+                "Failed to read port %s/%d: %s", pse_id, port_num, result,
+            )
             port_data[port_num] = {
                 "available": False,
                 "state": "error",
@@ -1138,7 +1174,10 @@ async def read_all_onboard_ports(interfaces: list[str], switch_mode_discovery: b
     port_data = {}
     for interface, result in zip(interfaces, results):
         if isinstance(result, Exception):
-            _LOGGER.error("Failed to read interface %s: %s", interface, result)
+            _log_unavailable(
+                f"interface {interface}",
+                "Failed to read interface %s: %s", interface, result,
+            )
             port_data[interface] = {
                 "available": False,
                 "state": "error",

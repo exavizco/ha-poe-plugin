@@ -190,9 +190,11 @@ def no_dns():
 def _clean_arp_cache():
     poe_readers._arp_scan_cache.clear()
     poe_readers._arp_scan_locks.clear()
+    poe_readers._unavailable.clear()
     yield
     poe_readers._arp_scan_cache.clear()
     poe_readers._arp_scan_locks.clear()
+    poe_readers._unavailable.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +259,7 @@ class TestProcPse:
         with patch.object(
             poe_readers.subprocess, "run",
             side_effect=subprocess.TimeoutExpired(["head"], 5),
-        ), caplog.at_level(logging.ERROR):
+        ), caplog.at_level(logging.WARNING):
             result = await read_pse_port_status("pse0", 0)
 
         assert result["available"] is False
@@ -519,7 +521,7 @@ class TestReadAllOnboardPorts:
 
         with patch.object(poe_readers, "_read_all_esp32_data", AsyncMock(return_value={})), \
              patch.object(poe_readers, "read_network_port_status", side_effect=fake_read), \
-             caplog.at_level(logging.ERROR):
+             caplog.at_level(logging.WARNING):
             ports = await read_all_onboard_ports(["poe0", "poe1"])
 
         assert ports["poe0"]["state"] == "power on"
@@ -658,7 +660,7 @@ class TestOnboardResult:
     async def test_bad_interface_name_is_error(self, root, caplog):
         # A sysfs entry that is not poeN cannot be mapped to a port number.
         _make_iface(root, "poeX")
-        with caplog.at_level(logging.ERROR):
+        with caplog.at_level(logging.WARNING):
             result = await read_network_port_status("poeX", {})
         assert result["available"] is False
         assert result["state"] == "error"
@@ -942,3 +944,129 @@ class TestResolveBridgedEndToEnd:
         assert device["detection_method"] == "bridge FDB (br0) + arp-scan"
         assert device["arp_state"] == "BRIDGE_FDB"
         assert "poe3 has 2 learned MACs, using first: 3e:ac:94:54:25:fa" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Log when unavailable: once when a reading is lost, once when it is back
+# ---------------------------------------------------------------------------
+
+PROC_PSE_WITH_0_7 = PROC_PSE + (
+    "0-7: power-on 0 15.50 48.2500 0.09700/0.80000 33.1250/150.0000 af\n"
+)
+
+
+def _logged(caplog) -> list[tuple[int, str]]:
+    """(level, message) of the reader's records at INFO and above."""
+    return [
+        (r.levelno, r.getMessage())
+        for r in caplog.records
+        if r.name == poe_readers.__name__ and r.levelno >= logging.INFO
+    ]
+
+
+class TestLogWhenUnavailable:
+    """HA silver rule log-when-unavailable: no error log on every poll."""
+
+    @pytest.mark.asyncio
+    async def test_missing_port_warns_once_and_says_when_it_is_back(self, root, caplog):
+        _write(root, "proc/pse", PROC_PSE)
+        with caplog.at_level(logging.DEBUG, logger=poe_readers.__name__):
+            for _ in range(3):
+                assert (await read_pse_port_status("pse0", 7))["available"] is False
+            _write(root, "proc/pse", PROC_PSE_WITH_0_7)
+            for _ in range(2):
+                assert (await read_pse_port_status("pse0", 7))["available"] is True
+            _write(root, "proc/pse", PROC_PSE)
+            await read_pse_port_status("pse0", 7)
+
+        assert _logged(caplog) == [
+            (logging.WARNING, "Port 0-7 not found in /proc/pse"),
+            (logging.INFO, "pse0 port 7 is readable again"),
+            (logging.WARNING, "Port 0-7 not found in /proc/pse"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_proc_pse_timeout_warns_once_for_all_ports_and_polls(self, root, caplog):
+        _write(root, "proc/pse", PROC_PSE)
+        with caplog.at_level(logging.DEBUG, logger=poe_readers.__name__):
+            with patch.object(
+                poe_readers.subprocess, "run",
+                side_effect=subprocess.TimeoutExpired(["head"], 5),
+            ):
+                for _ in range(3):
+                    for port in range(8):
+                        await read_pse_port_status("pse0", port)
+            await read_pse_port_status("pse0", 0)
+            await read_pse_port_status("pse0", 0)
+
+        assert _logged(caplog) == [
+            (
+                logging.WARNING,
+                "Failed to read /proc/pse: Command '['head']' timed out after 5 seconds",
+            ),
+            (logging.INFO, "/proc/pse is readable again"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_proc_pse_parse_error_warns_once_per_port(self, root, caplog):
+        _write(root, "proc/pse", PROC_PSE.replace("48.2500 0.09700", "x.y 0.09700"))
+        with caplog.at_level(logging.DEBUG, logger=poe_readers.__name__):
+            for _ in range(3):
+                assert (await read_pse_port_status("pse0", 0))["state"] == "error"
+            _write(root, "proc/pse", PROC_PSE)
+            assert (await read_pse_port_status("pse0", 0))["available"] is True
+
+        assert _logged(caplog) == [
+            (
+                logging.WARNING,
+                "Failed to read PSE port status pse0/port0: could not convert "
+                "string to float: 'x.y'",
+            ),
+            (logging.INFO, "pse0 port 0 is readable again"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_interface_error_warns_once_and_says_when_it_is_back(self, root, caplog):
+        _make_iface(root, "poe1", operstate="down", speed=None)
+        fake = FakeExec({("ip", "neigh"): (b"", 0)})
+        with caplog.at_level(logging.DEBUG, logger=poe_readers.__name__), \
+             patch("asyncio.create_subprocess_exec", fake):
+            with patch.object(
+                poe_readers, "_read_link_state", AsyncMock(side_effect=OSError("sysfs gone"))
+            ):
+                for _ in range(3):
+                    assert (await read_network_port_status("poe1", {}))["state"] == "error"
+            for _ in range(2):
+                assert (await read_network_port_status("poe1", {}))["available"] is True
+
+        assert _logged(caplog) == [
+            (logging.WARNING, "Failed to read network port status poe1: sysfs gone"),
+            (logging.INFO, "interface poe1 is readable again"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_gathered_onboard_exception_warns_once(self, caplog):
+        with patch.object(poe_readers, "_read_all_esp32_data", AsyncMock(return_value={})), \
+             patch.object(
+                 poe_readers, "read_network_port_status",
+                 AsyncMock(side_effect=RuntimeError("sysfs vanished")),
+             ), caplog.at_level(logging.DEBUG, logger=poe_readers.__name__):
+            for _ in range(3):
+                await read_all_onboard_ports(["poe1"])
+
+        assert _logged(caplog) == [
+            (logging.WARNING, "Failed to read interface poe1: sysfs vanished"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_gathered_addon_exception_warns_once(self, caplog):
+        with patch.object(
+            poe_readers, "read_pse_port_status",
+            AsyncMock(side_effect=RuntimeError("driver gone")),
+        ), caplog.at_level(logging.DEBUG, logger=poe_readers.__name__):
+            for _ in range(3):
+                await read_all_addon_ports("pse0", port_count=1)
+
+        assert _logged(caplog) == [
+            (logging.WARNING, "Failed to read port pse0/0: driver gone"),
+        ]
