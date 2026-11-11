@@ -2,6 +2,14 @@
   "title": "Exaviz PoE-Verwaltung",
   "config": {
     "step": {
+      "user": {
+        "title": "Exaviz-Board hinzufügen",
+        "description": "Wo befindet sich das Board?",
+        "menu_options": {
+          "local": "Home Assistant läuft auf diesem Board",
+          "remote": "Das Board ist ein anderes Gerät in meinem Netzwerk"
+        }
+      },
       "local": {
         "title": "Exaviz Lokale Board PoE-Verwaltung",
         "description": "Erkannt: {board_type} Board mit {total_ports} PoE-Ports ({addon_boards} Add-on-Boards, {onboard_ports} integrierte Ports). Konfigurieren Sie das Aktualisierungsintervall unten.",
@@ -11,16 +19,96 @@
         "data_description": {
           "update_interval": "Wie oft der PoE-Port-Status gescannt werden soll (10-300 Sekunden)"
         }
+      },
+      "remote": {
+        "title": "Exaviz-Board in Ihrem Netzwerk",
+        "description": "Geben Sie die IP-Adresse oder den Hostnamen des Boards ein. Das Board benötigt Exaviz Management mit Home-Assistant-Kopplung. Verwenden Sie die IP-Adresse des Boards, wenn ein .local-Name nicht funktioniert.",
+        "data": {
+          "host": "Adresse",
+          "port": "HTTPS-Port",
+          "update_interval": "Aktualisierungsintervall (Sekunden)"
+        },
+        "data_description": {
+          "update_interval": "Wie oft der PoE-Port-Status gelesen werden soll (10-300 Sekunden)",
+          "host": "Die IP-Adresse des Boards oder ein Hostname, den Ihr Netzwerk auflöst.",
+          "port": "Belassen Sie den Wert bei 443, sofern der HTTPS-Port des Boards nicht geändert wurde."
+        }
+      },
+      "fingerprint": {
+        "title": "Zertifikat des Boards prüfen",
+        "description": "Starten Sie jetzt die Kopplung auf dem Board (More > Home Assistant); der Code ist 5 Minuten lang gültig.\n\nVergleichen Sie diesen Fingerabdruck mit dem Fingerabdruck auf dem Kopplungsbildschirm des Boards:\n\n`{fingerprint}`\n\nSetzen Sie das Häkchen nur, wenn beide gleich sind.",
+        "data": {
+          "confirm": "Die Fingerabdrücke sind gleich"
+        },
+        "data_description": {
+          "confirm": "Wenn sie sich unterscheiden, entfernen Sie das Häkchen und senden Sie ab: Es wird nichts gekoppelt."
+        }
+      },
+      "pair": {
+        "title": "Kopplungscode eingeben",
+        "description": "Geben Sie den Code aus 8 Zeichen vom Kopplungsbildschirm des Boards ein, z. B. ABCD-EFGH.",
+        "data": {
+          "code": "Kopplungscode"
+        },
+        "data_description": {
+          "code": "Wird auf dem Board unter More > Home Assistant angezeigt, nachdem Sie die Kopplung gestartet haben."
+        }
+      },
+      "repair": {
+        "title": "Erneut mit dem Board koppeln",
+        "description": "Starten Sie jetzt die Kopplung auf dem Board (More > Home Assistant); der Code ist 5 Minuten lang gültig. Geben Sie den Code aus 8 Zeichen ein, z. B. ABCD-EFGH.\n\nWiderrufen Sie nach der Kopplung das alte Token `{old_token_id}` auf dem Board unter More > Home Assistant.",
+        "data": {
+          "code": "Kopplungscode"
+        },
+        "data_description": {
+          "code": "Wird auf dem Board unter More > Home Assistant angezeigt, nachdem Sie die Kopplung gestartet haben."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Erneut mit dem Board koppeln",
+        "description": "Home Assistant kann das Board unter {host} nicht mehr lesen: Sein Token wurde widerrufen oder sein Zertifikat hat sich geändert. Prüfen Sie, ob das Board eingeschaltet ist, und senden Sie dann ab, um erneut zu koppeln."
+      },
+      "reconfigure": {
+        "title": "Adresse des Boards ändern",
+        "description": "Geben Sie die neue IP-Adresse oder den neuen Hostnamen des Boards ein. Wenn sich sein Zertifikat geändert hat, vergleichen Sie den neuen Fingerabdruck und koppeln erneut.",
+        "data": {
+          "host": "Adresse",
+          "port": "HTTPS-Port"
+        },
+        "data_description": {
+          "host": "Die IP-Adresse des Boards oder ein Hostname, den Ihr Netzwerk auflöst.",
+          "port": "Belassen Sie den Wert bei 443, sofern der HTTPS-Port des Boards nicht geändert wurde."
+        }
       }
     },
     "error": {
-      "cannot_connect": "Board-Hardware kann nicht erkannt werden. Stellen Sie sicher, dass Sie auf einem Exaviz Interceptor oder Cruiser Board arbeiten.",
-      "no_poe_detected": "Keine PoE-Systeme auf diesem Board erkannt. Überprüfen Sie die Hardware-Verbindungen.",
+      "cannot_connect": "Board-Hardware kann nicht erkannt werden. Stellen Sie sicher, dass Sie auf einem Exaviz Interceptor oder Cruiser Board mit installiertem exaviz-dkms arbeiten.",
+      "missing_packages": "Erforderliche Exaviz-Pakete (exaviz-dkms, exaviz-netplan) sind auf dem Host-Betriebssystem nicht installiert. Installieren Sie sie aus dem Exaviz-apt-Repository (apt.exaviz.com), bevor Sie diese Integration hinzufügen.",
+      "no_poe_detected": "Keine PoE-Systeme auf diesem Board erkannt. Überprüfen Sie die Hardware-Verbindungen und ob exaviz-dkms installiert ist.",
       "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-      "missing_packages": "Erforderliche Exaviz-Pakete (exaviz-dkms, exaviz-netplan) sind auf dem Host-Betriebssystem nicht installiert. Installieren Sie sie aus dem Exaviz-apt-Repository (apt.exaviz.com), bevor Sie diese Integration hinzufügen."
+      "https_required": "Das Board muss über HTTPS erreicht werden. Geben Sie die Adresse ohne http:// ein.",
+      "invalid_host": "Geben Sie nur eine IP-Adresse oder einen Hostnamen ein, optional mit https:// und einem Port.",
+      "board_unreachable": "Das Board hat nicht geantwortet. Prüfen Sie die Adresse und ob das Board eingeschaltet ist.",
+      "no_management": "Exaviz Management ist auf diesem Board nicht installiert.",
+      "management_too_old": "Aktualisieren Sie Exaviz Management auf dem Board und versuchen Sie es dann erneut.",
+      "unsupported_contract": "Exaviz Management auf dem Board ist neuer als diese Integration. Aktualisieren Sie die Exaviz-Integration.",
+      "unsupported_board": "In dieser Version können nur Cruiser Boards über das Netzwerk hinzugefügt werden.",
+      "invalid_code": "Der Code ist falsch, abgelaufen oder wurde abgebrochen. Starten Sie die Kopplung auf dem Board erneut und geben Sie den neuen Code ein.",
+      "too_many_attempts": "Zu viele falsche Codes. Warten Sie {retry_after} Sekunden, starten Sie eine neue Kopplung auf dem Board und geben Sie den neuen Code ein.",
+      "token_limit": "Das Board hat bereits 20 Home-Assistant-Tokens. Widerrufen Sie eines auf dem Board unter More > Home Assistant und geben Sie dann denselben Code erneut ein."
     },
     "abort": {
-      "already_configured": "Dieses Board ist bereits konfiguriert."
+      "already_configured": "Dieses Board ist bereits konfiguriert.",
+      "single_instance_allowed": "In dieser Version kann nur ein Exaviz-Board zu Home Assistant hinzugefügt werden.",
+      "fingerprint_rejected": "Die Fingerabdrücke waren nicht gleich, daher wurde nichts gekoppelt. Prüfen Sie, ob Sie die Adresse des richtigen Boards eingegeben haben.",
+      "serial_mismatch": "Ein anderes Board hat geantwortet. Wenn sich die Seriennummer dieses Boards geändert hat, löschen Sie die Integration und fügen Sie sie erneut hinzu.",
+      "board_unreachable": "Das Board hat unter seiner gespeicherten Adresse nicht geantwortet. Wenn es umgezogen ist, verwenden Sie „Neu konfigurieren“ in der Exaviz-Integration, um seine neue Adresse einzugeben.",
+      "reauth_successful": "Home Assistant ist wieder mit dem Board gekoppelt.",
+      "reconfigure_successful": "Die Adresse des Boards wurde aktualisiert.",
+      "reconfigure_local": "Auf diesem Board läuft Home Assistant selbst, daher gibt es keine Adresse zu ändern.",
+      "no_management": "Exaviz Management ist auf diesem Board nicht installiert.",
+      "management_too_old": "Aktualisieren Sie Exaviz Management auf dem Board und versuchen Sie es dann erneut.",
+      "unsupported_contract": "Exaviz Management auf dem Board ist neuer als diese Integration. Aktualisieren Sie die Exaviz-Integration."
     }
   },
   "options": {
@@ -29,10 +117,12 @@
         "title": "Exaviz Optionen",
         "description": "Konfigurationsoptionen für die Exaviz Board-Integration aktualisieren.",
         "data": {
-          "update_interval": "Aktualisierungsintervall (Sekunden)"
+          "update_interval": "Aktualisierungsintervall (Sekunden)",
+          "switch_mode_discovery": "Geräteerkennung im Switch-Modus"
         },
         "data_description": {
-          "update_interval": "Wie oft der PoE-Port-Status gescannt werden soll"
+          "update_interval": "Wie oft der PoE-Port-Status gescannt werden soll",
+          "switch_mode_discovery": "Im Switch-/Bridge-Modus wird das Gerät an jedem PoE-Port über die Bridge-FDB und einen arp-scan des Bridge-Subnetzes ermittelt. Für den Modus pro Port deaktiviert lassen."
         }
       }
     },
@@ -42,60 +132,60 @@
   },
   "services": {
     "refresh_data": {
-      "name": "PoE-Daten Aktualisieren",
+      "name": "PoE-Daten aktualisieren",
       "description": "PoE-Port-Daten vom lokalen Board aktualisieren."
     },
     "turn_on_port": {
-      "name": "Turn On PoE Port",
-      "description": "Enable power on a PoE port.",
+      "name": "PoE-Port einschalten",
+      "description": "Stromversorgung an einem PoE-Port einschalten.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entitäts-ID",
+          "description": "Entitäts-ID des PoE-Port-Schalters."
         }
       }
     },
     "turn_off_port": {
-      "name": "Turn Off PoE Port",
-      "description": "Disable power on a PoE port.",
+      "name": "PoE-Port ausschalten",
+      "description": "Stromversorgung an einem PoE-Port ausschalten.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entitäts-ID",
+          "description": "Entitäts-ID des PoE-Port-Schalters."
         }
       }
     },
     "toggle_port": {
-      "name": "Toggle PoE Port",
-      "description": "Toggle power on a PoE port.",
+      "name": "PoE-Port umschalten",
+      "description": "Stromversorgung an einem PoE-Port umschalten.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entitäts-ID",
+          "description": "Entitäts-ID des PoE-Port-Schalters."
         }
       }
     },
     "control_port": {
-      "name": "Control PoE Port",
-      "description": "Control a PoE port with a specified action.",
+      "name": "PoE-Port steuern",
+      "description": "Einen PoE-Port mit einer angegebenen Aktion steuern.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entitäts-ID",
+          "description": "Entitäts-ID des PoE-Port-Schalters."
         },
         "action": {
-          "name": "Action",
-          "description": "Action to perform: turn_on, turn_off, or toggle."
+          "name": "Aktion",
+          "description": "Auszuführende Aktion: turn_on, turn_off oder toggle."
         }
       }
     },
     "reset_port": {
-      "name": "Reset PoE Port",
-      "description": "Reset (power cycle) a PoE port.",
+      "name": "PoE-Port zurücksetzen",
+      "description": "Einen PoE-Port zurücksetzen (aus- und wieder einschalten).",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entitäts-ID",
+          "description": "Entitäts-ID des PoE-Port-Schalters."
         }
       }
     }

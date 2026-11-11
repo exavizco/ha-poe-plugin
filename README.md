@@ -25,7 +25,7 @@ Click any port tile to see detailed information:
 - **Device Discovery** -- Identifies connected devices by IP, MAC, and manufacturer
 - **Zigbee Coordinator Status** -- Cruiser only: shows whether the ESP32-C6 has Zigbee firmware, with a helper message when it does not
 - **Modern Dashboard** -- Lovelace card with dark/light theme support
-- **Multi-language** -- 10 languages for setup on the board (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH); setup for a board on the network is in English for now
+- **Multi-language** -- 10 languages (EN, DE, ES, FR, IT, JA, KO, NL, PT-BR, ZH), for setup on the board and for a board on the network
 
 ## Supported Hardware
 

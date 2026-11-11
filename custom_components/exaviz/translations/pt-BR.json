@@ -2,25 +2,113 @@
   "title": "Gerenciamento PoE Exaviz",
   "config": {
     "step": {
+      "user": {
+        "title": "Adicionar uma placa Exaviz",
+        "description": "Onde está a placa?",
+        "menu_options": {
+          "local": "O Home Assistant é executado nesta placa",
+          "remote": "A placa é outro dispositivo na minha rede"
+        }
+      },
       "local": {
         "title": "Gerenciamento PoE Placa Local Exaviz",
         "description": "Detectado: Placa {board_type} com {total_ports} portas PoE ({addon_boards} placas adicionais, {onboard_ports} portas integradas). Configure o intervalo de atualização abaixo.",
         "data": {
-          "update_interval": "Intervalo de Atualização (segundos)"
+          "update_interval": "Intervalo de atualização (segundos)"
         },
         "data_description": {
           "update_interval": "Com que frequência verificar o status das portas PoE (10-300 segundos)"
         }
+      },
+      "remote": {
+        "title": "Placa Exaviz na sua rede",
+        "description": "Digite o endereço IP ou o nome de host da placa. A placa precisa do Exaviz Management com pareamento do Home Assistant. Use o endereço IP da placa se um nome .local não funcionar.",
+        "data": {
+          "host": "Endereço",
+          "port": "Porta HTTPS",
+          "update_interval": "Intervalo de atualização (segundos)"
+        },
+        "data_description": {
+          "update_interval": "Com que frequência ler o status das portas PoE (10-300 segundos)",
+          "host": "O endereço IP da placa, ou um nome de host que sua rede resolve.",
+          "port": "Deixe em 443, a menos que a porta HTTPS da placa tenha sido alterada."
+        }
+      },
+      "fingerprint": {
+        "title": "Verifique o certificado da placa",
+        "description": "Inicie o pareamento na placa agora (More > Home Assistant); o código é válido por 5 minutos.\n\nCompare esta impressão digital com a impressão digital na tela de pareamento da placa:\n\n`{fingerprint}`\n\nMarque a caixa somente se forem iguais.",
+        "data": {
+          "confirm": "As impressões digitais são iguais"
+        },
+        "data_description": {
+          "confirm": "Desmarque e envie se forem diferentes: nada será pareado."
+        }
+      },
+      "pair": {
+        "title": "Digite o código de pareamento",
+        "description": "Digite o código de 8 caracteres da tela de pareamento da placa, como ABCD-EFGH.",
+        "data": {
+          "code": "Código de pareamento"
+        },
+        "data_description": {
+          "code": "Exibido na placa em More > Home Assistant depois que você inicia o pareamento."
+        }
+      },
+      "repair": {
+        "title": "Parear com a placa novamente",
+        "description": "Inicie o pareamento na placa agora (More > Home Assistant); o código é válido por 5 minutos. Digite o código de 8 caracteres, como ABCD-EFGH.\n\nDepois do pareamento, revogue o token antigo `{old_token_id}` na placa em More > Home Assistant.",
+        "data": {
+          "code": "Código de pareamento"
+        },
+        "data_description": {
+          "code": "Exibido na placa em More > Home Assistant depois que você inicia o pareamento."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Parear com a placa novamente",
+        "description": "O Home Assistant não consegue mais ler a placa em {host}: o token dela foi revogado ou o certificado dela mudou. Verifique se a placa está ligada e envie para parear novamente."
+      },
+      "reconfigure": {
+        "title": "Alterar o endereço da placa",
+        "description": "Digite o novo endereço IP ou nome de host da placa. Se o certificado dela mudou, você vai comparar a nova impressão digital e parear novamente.",
+        "data": {
+          "host": "Endereço",
+          "port": "Porta HTTPS"
+        },
+        "data_description": {
+          "host": "O endereço IP da placa, ou um nome de host que sua rede resolve.",
+          "port": "Deixe em 443, a menos que a porta HTTPS da placa tenha sido alterada."
+        }
       }
     },
     "error": {
-      "cannot_connect": "Não é possível detectar o hardware da placa. Certifique-se de estar executando em uma placa Exaviz Interceptor ou Cruiser.",
-      "no_poe_detected": "Nenhum sistema PoE detectado nesta placa. Verifique as conexões de hardware.",
+      "cannot_connect": "Não é possível detectar o hardware da placa. Certifique-se de que o Home Assistant está sendo executado em uma placa Exaviz Interceptor ou Cruiser com exaviz-dkms instalado.",
+      "missing_packages": "Os pacotes Exaviz necessários (exaviz-dkms, exaviz-netplan) não estão instalados no sistema operacional do host. Instale-os a partir do repositório apt da Exaviz (apt.exaviz.com) antes de adicionar esta integração.",
+      "no_poe_detected": "Nenhum sistema PoE detectado nesta placa. Verifique as conexões de hardware e se o exaviz-dkms está instalado.",
       "unknown": "Ocorreu um erro inesperado. Por favor, tente novamente.",
-      "missing_packages": "Os pacotes Exaviz necessários (exaviz-dkms, exaviz-netplan) não estão instalados no sistema operacional do host. Instale-os a partir do repositório apt da Exaviz (apt.exaviz.com) antes de adicionar esta integração."
+      "https_required": "A placa deve ser acessada por HTTPS. Digite o endereço sem http://.",
+      "invalid_host": "Digite apenas um endereço IP ou nome de host, opcionalmente com https:// e uma porta.",
+      "board_unreachable": "A placa não respondeu. Verifique o endereço e se a placa está ligada.",
+      "no_management": "O Exaviz Management não está instalado nesta placa.",
+      "management_too_old": "Atualize o Exaviz Management na placa e tente novamente.",
+      "unsupported_contract": "O Exaviz Management da placa é mais recente que esta integração. Atualize a integração Exaviz.",
+      "unsupported_board": "Nesta versão, somente placas Cruiser podem ser adicionadas pela rede.",
+      "invalid_code": "O código está errado, expirou ou foi cancelado. Inicie o pareamento na placa novamente e digite o novo código.",
+      "too_many_attempts": "Muitos códigos errados. Aguarde {retry_after} segundos, inicie um novo pareamento na placa e digite o novo código.",
+      "token_limit": "A placa já tem 20 tokens do Home Assistant. Revogue um na placa em More > Home Assistant e digite o mesmo código novamente."
     },
     "abort": {
-      "already_configured": "Esta placa já está configurada."
+      "already_configured": "Esta placa já está configurada.",
+      "single_instance_allowed": "Nesta versão, somente uma placa Exaviz pode ser adicionada ao Home Assistant.",
+      "fingerprint_rejected": "As impressões digitais não eram iguais, então nada foi pareado. Verifique se você digitou o endereço da placa certa.",
+      "serial_mismatch": "Uma placa diferente respondeu. Se o número de série desta placa mudou, exclua a integração e adicione-a novamente.",
+      "board_unreachable": "A placa não respondeu no endereço salvo. Se ela mudou de lugar, use Reconfigurar na integração Exaviz para digitar o novo endereço.",
+      "reauth_successful": "O Home Assistant está pareado com a placa novamente.",
+      "reconfigure_successful": "O endereço da placa foi atualizado.",
+      "reconfigure_local": "Esta placa executa o próprio Home Assistant, então não há endereço para alterar.",
+      "no_management": "O Exaviz Management não está instalado nesta placa.",
+      "management_too_old": "Atualize o Exaviz Management na placa e tente novamente.",
+      "unsupported_contract": "O Exaviz Management da placa é mais recente que esta integração. Atualize a integração Exaviz."
     }
   },
   "options": {
@@ -29,10 +117,12 @@
         "title": "Opções Exaviz",
         "description": "Atualizar opções de configuração para a integração da placa Exaviz.",
         "data": {
-          "update_interval": "Intervalo de Atualização (segundos)"
+          "update_interval": "Intervalo de atualização (segundos)",
+          "switch_mode_discovery": "Descoberta de dispositivos no modo switch"
         },
         "data_description": {
-          "update_interval": "Com que frequência verificar o status das portas PoE"
+          "update_interval": "Com que frequência verificar o status das portas PoE",
+          "switch_mode_discovery": "No modo switch/bridge, o dispositivo em cada porta PoE é identificado pela FDB da bridge e por um arp-scan da sub-rede da bridge. Deixe desativado para o modo por porta."
         }
       }
     },
@@ -42,60 +132,60 @@
   },
   "services": {
     "refresh_data": {
-      "name": "Atualizar Dados PoE",
+      "name": "Atualizar dados PoE",
       "description": "Atualizar dados de portas PoE da placa local."
     },
     "turn_on_port": {
-      "name": "Turn On PoE Port",
-      "description": "Enable power on a PoE port.",
+      "name": "Ligar porta PoE",
+      "description": "Ativar a energia em uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID da entidade",
+          "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Turn Off PoE Port",
-      "description": "Disable power on a PoE port.",
+      "name": "Desligar porta PoE",
+      "description": "Desativar a energia em uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID da entidade",
+          "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Toggle PoE Port",
-      "description": "Toggle power on a PoE port.",
+      "name": "Alternar porta PoE",
+      "description": "Alternar a energia em uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID da entidade",
+          "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     },
     "control_port": {
-      "name": "Control PoE Port",
-      "description": "Control a PoE port with a specified action.",
+      "name": "Controlar porta PoE",
+      "description": "Controlar uma porta PoE com uma ação especificada.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID da entidade",
+          "description": "ID da entidade do interruptor da porta PoE."
         },
         "action": {
-          "name": "Action",
-          "description": "Action to perform: turn_on, turn_off, or toggle."
+          "name": "Ação",
+          "description": "Ação a executar: turn_on, turn_off ou toggle."
         }
       }
     },
     "reset_port": {
-      "name": "Reset PoE Port",
-      "description": "Reset (power cycle) a PoE port.",
+      "name": "Redefinir porta PoE",
+      "description": "Redefinir (desligar e religar) uma porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID da entidade",
+          "description": "ID da entidade do interruptor da porta PoE."
         }
       }
     }

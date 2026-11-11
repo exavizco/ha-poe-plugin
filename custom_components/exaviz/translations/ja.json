@@ -2,6 +2,14 @@
   "title": "Exaviz PoE管理",
   "config": {
     "step": {
+      "user": {
+        "title": "Exavizボードを追加",
+        "description": "ボードはどこにありますか？",
+        "menu_options": {
+          "local": "Home Assistantはこのボードで動作しています",
+          "remote": "ボードはネットワーク上の別のデバイスです"
+        }
+      },
       "local": {
         "title": "Exavizローカルボード PoE管理",
         "description": "検出: {board_type}ボード、{total_ports}個のPoEポート（{addon_boards}個のアドオンボード、{onboard_ports}個のオンボードポート）。以下で更新間隔を設定してください。",
@@ -11,16 +19,96 @@
         "data_description": {
           "update_interval": "PoEポートの状態をスキャンする頻度（10〜300秒）"
         }
+      },
+      "remote": {
+        "title": "ネットワーク上のExavizボード",
+        "description": "ボードのIPアドレスまたはホスト名を入力してください。ボードには、Home Assistantとのペアリングに対応したExaviz Managementが必要です。.local名が機能しない場合は、ボードのIPアドレスを使用してください。",
+        "data": {
+          "host": "アドレス",
+          "port": "HTTPSポート",
+          "update_interval": "更新間隔（秒）"
+        },
+        "data_description": {
+          "update_interval": "PoEポートの状態を読み取る頻度（10〜300秒）",
+          "host": "ボードのIPアドレス、またはネットワークで名前解決できるホスト名。",
+          "port": "ボードのHTTPSポートを変更していない限り、443のままにしてください。"
+        }
+      },
+      "fingerprint": {
+        "title": "ボードの証明書を確認",
+        "description": "今すぐボードでペアリングを開始してください（More > Home Assistant）。コードの有効期間は5分です。\n\nこのフィンガープリントを、ボードのペアリング画面に表示されているフィンガープリントと比較してください。\n\n`{fingerprint}`\n\n一致する場合にのみ、チェックボックスをオンにしてください。",
+        "data": {
+          "confirm": "フィンガープリントが一致しています"
+        },
+        "data_description": {
+          "confirm": "一致しない場合は、チェックを外して送信してください。何もペアリングされません。"
+        }
+      },
+      "pair": {
+        "title": "ペアリングコードを入力",
+        "description": "ボードのペアリング画面に表示されている8文字のコード（例：ABCD-EFGH）を入力してください。",
+        "data": {
+          "code": "ペアリングコード"
+        },
+        "data_description": {
+          "code": "ペアリングを開始すると、ボードのMore > Home Assistantに表示されます。"
+        }
+      },
+      "repair": {
+        "title": "ボードと再度ペアリング",
+        "description": "今すぐボードでペアリングを開始してください（More > Home Assistant）。コードの有効期間は5分です。8文字のコード（例：ABCD-EFGH）を入力してください。\n\nペアリング後、ボードのMore > Home Assistantで古いトークン`{old_token_id}`を取り消してください。",
+        "data": {
+          "code": "ペアリングコード"
+        },
+        "data_description": {
+          "code": "ペアリングを開始すると、ボードのMore > Home Assistantに表示されます。"
+        }
+      },
+      "reauth_confirm": {
+        "title": "ボードと再度ペアリング",
+        "description": "Home Assistantは{host}のボードを読み取れなくなりました。トークンが取り消されたか、証明書が変更されています。ボードの電源が入っていることを確認してから、送信して再度ペアリングしてください。"
+      },
+      "reconfigure": {
+        "title": "ボードのアドレスを変更",
+        "description": "ボードの新しいIPアドレスまたはホスト名を入力してください。証明書が変更されている場合は、新しいフィンガープリントを比較して再度ペアリングします。",
+        "data": {
+          "host": "アドレス",
+          "port": "HTTPSポート"
+        },
+        "data_description": {
+          "host": "ボードのIPアドレス、またはネットワークで名前解決できるホスト名。",
+          "port": "ボードのHTTPSポートを変更していない限り、443のままにしてください。"
+        }
       }
     },
     "error": {
-      "cannot_connect": "ボードのハードウェアを検出できません。Exaviz InterceptorまたはCruiserボードで実行していることを確認してください。",
-      "no_poe_detected": "このボードでPoEシステムが検出されませんでした。ハードウェア接続を確認してください。",
+      "cannot_connect": "ボードのハードウェアを検出できません。exaviz-dkmsがインストールされたExaviz InterceptorまたはCruiserボードで実行していることを確認してください。",
+      "missing_packages": "必要な Exaviz パッケージ (exaviz-dkms、exaviz-netplan) がホスト OS にインストールされていません。この統合を追加する前に、Exaviz apt リポジトリ (apt.exaviz.com) からインストールしてください。",
+      "no_poe_detected": "このボードでPoEシステムが検出されませんでした。ハードウェア接続と、exaviz-dkmsがインストールされていることを確認してください。",
       "unknown": "予期しないエラーが発生しました。もう一度お試しください。",
-      "missing_packages": "必要な Exaviz パッケージ (exaviz-dkms、exaviz-netplan) がホスト OS にインストールされていません。この統合を追加する前に、Exaviz apt リポジトリ (apt.exaviz.com) からインストールしてください。"
+      "https_required": "ボードにはHTTPSで接続する必要があります。http://を付けずにアドレスを入力してください。",
+      "invalid_host": "IPアドレスまたはホスト名のみを入力してください。https://とポートは付けても構いません。",
+      "board_unreachable": "ボードが応答しませんでした。アドレスと、ボードの電源が入っていることを確認してください。",
+      "no_management": "このボードにはExaviz Managementがインストールされていません。",
+      "management_too_old": "ボードのExaviz Managementを更新してから、もう一度お試しください。",
+      "unsupported_contract": "ボードのExaviz Managementがこの統合より新しいバージョンです。Exaviz統合を更新してください。",
+      "unsupported_board": "このバージョンでは、ネットワーク経由で追加できるのはCruiserボードのみです。",
+      "invalid_code": "コードが間違っているか、期限切れか、キャンセルされています。ボードでペアリングをもう一度開始し、新しいコードを入力してください。",
+      "too_many_attempts": "間違ったコードが多すぎます。{retry_after}秒待ってから、ボードで新しいペアリングを開始し、新しいコードを入力してください。",
+      "token_limit": "ボードにはすでに20個のHome Assistantトークンがあります。ボードのMore > Home Assistantで1つ取り消してから、同じコードをもう一度入力してください。"
     },
     "abort": {
-      "already_configured": "このボードは既に設定されています。"
+      "already_configured": "このボードは既に設定されています。",
+      "single_instance_allowed": "このバージョンでは、Home Assistantに追加できるExavizボードは1台のみです。",
+      "fingerprint_rejected": "フィンガープリントが一致しなかったため、何もペアリングされませんでした。正しいボードのアドレスを入力したか確認してください。",
+      "serial_mismatch": "別のボードが応答しました。このボードのシリアル番号が変わった場合は、統合を削除してから再度追加してください。",
+      "board_unreachable": "保存されたアドレスでボードが応答しませんでした。ボードを移動した場合は、Exaviz統合の「再設定」を使用して新しいアドレスを入力してください。",
+      "reauth_successful": "Home Assistantはボードと再度ペアリングされました。",
+      "reconfigure_successful": "ボードのアドレスを更新しました。",
+      "reconfigure_local": "このボード自体でHome Assistantが動作しているため、変更するアドレスはありません。",
+      "no_management": "このボードにはExaviz Managementがインストールされていません。",
+      "management_too_old": "ボードのExaviz Managementを更新してから、もう一度お試しください。",
+      "unsupported_contract": "ボードのExaviz Managementがこの統合より新しいバージョンです。Exaviz統合を更新してください。"
     }
   },
   "options": {
@@ -29,10 +117,12 @@
         "title": "Exavizオプション",
         "description": "Exavizボード統合の設定オプションを更新します。",
         "data": {
-          "update_interval": "更新間隔（秒）"
+          "update_interval": "更新間隔（秒）",
+          "switch_mode_discovery": "スイッチモードのデバイス検出"
         },
         "data_description": {
-          "update_interval": "PoEポートの状態をスキャンする頻度"
+          "update_interval": "PoEポートの状態をスキャンする頻度",
+          "switch_mode_discovery": "スイッチ/ブリッジモードでは、ブリッジのFDBとブリッジのサブネットのarp-scanにより、各PoEポートのデバイスを特定します。ポートごとのモードではオフのままにしてください。"
         }
       }
     },
@@ -46,56 +136,56 @@
       "description": "ローカルボードからPoEポートデータを更新します。"
     },
     "turn_on_port": {
-      "name": "Turn On PoE Port",
-      "description": "Enable power on a PoE port.",
+      "name": "PoEポートをオン",
+      "description": "PoEポートの電源を有効にします。",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "エンティティID",
+          "description": "PoEポートスイッチのエンティティID。"
         }
       }
     },
     "turn_off_port": {
-      "name": "Turn Off PoE Port",
-      "description": "Disable power on a PoE port.",
+      "name": "PoEポートをオフ",
+      "description": "PoEポートの電源を無効にします。",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "エンティティID",
+          "description": "PoEポートスイッチのエンティティID。"
         }
       }
     },
     "toggle_port": {
-      "name": "Toggle PoE Port",
-      "description": "Toggle power on a PoE port.",
+      "name": "PoEポートを切り替え",
+      "description": "PoEポートの電源を切り替えます。",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "エンティティID",
+          "description": "PoEポートスイッチのエンティティID。"
         }
       }
     },
     "control_port": {
-      "name": "Control PoE Port",
-      "description": "Control a PoE port with a specified action.",
+      "name": "PoEポートを制御",
+      "description": "指定したアクションでPoEポートを制御します。",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "エンティティID",
+          "description": "PoEポートスイッチのエンティティID。"
         },
         "action": {
-          "name": "Action",
-          "description": "Action to perform: turn_on, turn_off, or toggle."
+          "name": "アクション",
+          "description": "実行するアクション：turn_on、turn_off、またはtoggle。"
         }
       }
     },
     "reset_port": {
-      "name": "Reset PoE Port",
-      "description": "Reset (power cycle) a PoE port.",
+      "name": "PoEポートをリセット",
+      "description": "PoEポートをリセット（電源を入れ直し）します。",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "エンティティID",
+          "description": "PoEポートスイッチのエンティティID。"
         }
       }
     }

@@ -2,25 +2,113 @@
   "title": "Gestione PoE Exaviz",
   "config": {
     "step": {
+      "user": {
+        "title": "Aggiungi una scheda Exaviz",
+        "description": "Dove si trova la scheda?",
+        "menu_options": {
+          "local": "Home Assistant è in esecuzione su questa scheda",
+          "remote": "La scheda è un altro dispositivo della mia rete"
+        }
+      },
       "local": {
         "title": "Gestione PoE Scheda Locale Exaviz",
         "description": "Rilevato: Scheda {board_type} con {total_ports} porte PoE ({addon_boards} schede aggiuntive, {onboard_ports} porte integrate). Configura l'intervallo di aggiornamento di seguito.",
         "data": {
-          "update_interval": "Intervallo di Aggiornamento (secondi)"
+          "update_interval": "Intervallo di aggiornamento (secondi)"
         },
         "data_description": {
           "update_interval": "Frequenza di scansione dello stato delle porte PoE (10-300 secondi)"
         }
+      },
+      "remote": {
+        "title": "Scheda Exaviz sulla tua rete",
+        "description": "Inserisci l'indirizzo IP o il nome host della scheda. La scheda richiede Exaviz Management con l'abbinamento a Home Assistant. Usa l'indirizzo IP della scheda se un nome .local non funziona.",
+        "data": {
+          "host": "Indirizzo",
+          "port": "Porta HTTPS",
+          "update_interval": "Intervallo di aggiornamento (secondi)"
+        },
+        "data_description": {
+          "update_interval": "Frequenza di lettura dello stato delle porte PoE (10-300 secondi)",
+          "host": "L'indirizzo IP della scheda, o un nome host che la tua rete risolve.",
+          "port": "Lascia 443 a meno che la porta HTTPS della scheda non sia stata modificata."
+        }
+      },
+      "fingerprint": {
+        "title": "Verifica il certificato della scheda",
+        "description": "Avvia ora l'abbinamento sulla scheda (More > Home Assistant); il codice è valido per 5 minuti.\n\nConfronta questa impronta digitale con l'impronta digitale mostrata nella schermata di abbinamento della scheda:\n\n`{fingerprint}`\n\nSeleziona la casella solo se sono uguali.",
+        "data": {
+          "confirm": "Le impronte digitali sono uguali"
+        },
+        "data_description": {
+          "confirm": "Deseleziona e invia se sono diverse: non viene abbinato nulla."
+        }
+      },
+      "pair": {
+        "title": "Inserisci il codice di abbinamento",
+        "description": "Inserisci il codice di 8 caratteri mostrato nella schermata di abbinamento della scheda, ad esempio ABCD-EFGH.",
+        "data": {
+          "code": "Codice di abbinamento"
+        },
+        "data_description": {
+          "code": "Mostrato sulla scheda in More > Home Assistant dopo aver avviato l'abbinamento."
+        }
+      },
+      "repair": {
+        "title": "Abbina di nuovo la scheda",
+        "description": "Avvia ora l'abbinamento sulla scheda (More > Home Assistant); il codice è valido per 5 minuti. Inserisci il codice di 8 caratteri, ad esempio ABCD-EFGH.\n\nDopo l'abbinamento, revoca il vecchio token `{old_token_id}` sulla scheda in More > Home Assistant.",
+        "data": {
+          "code": "Codice di abbinamento"
+        },
+        "data_description": {
+          "code": "Mostrato sulla scheda in More > Home Assistant dopo aver avviato l'abbinamento."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Abbina di nuovo la scheda",
+        "description": "Home Assistant non riesce più a leggere la scheda all'indirizzo {host}: il suo token è stato revocato o il suo certificato è cambiato. Verifica che la scheda sia accesa, poi invia per abbinarla di nuovo."
+      },
+      "reconfigure": {
+        "title": "Cambia l'indirizzo della scheda",
+        "description": "Inserisci il nuovo indirizzo IP o nome host della scheda. Se il suo certificato è cambiato, confronterai la nuova impronta digitale e la abbinerai di nuovo.",
+        "data": {
+          "host": "Indirizzo",
+          "port": "Porta HTTPS"
+        },
+        "data_description": {
+          "host": "L'indirizzo IP della scheda, o un nome host che la tua rete risolve.",
+          "port": "Lascia 443 a meno che la porta HTTPS della scheda non sia stata modificata."
+        }
       }
     },
     "error": {
-      "cannot_connect": "Impossibile rilevare l'hardware della scheda. Assicurati di utilizzare una scheda Exaviz Interceptor o Cruiser.",
-      "no_poe_detected": "Nessun sistema PoE rilevato su questa scheda. Verifica le connessioni hardware.",
+      "cannot_connect": "Impossibile rilevare l'hardware della scheda. Assicurati di utilizzare una scheda Exaviz Interceptor o Cruiser con exaviz-dkms installato.",
+      "missing_packages": "I pacchetti Exaviz richiesti (exaviz-dkms, exaviz-netplan) non sono installati sul sistema operativo host. Installali dal repository apt di Exaviz (apt.exaviz.com) prima di aggiungere questa integrazione.",
+      "no_poe_detected": "Nessun sistema PoE rilevato su questa scheda. Verifica le connessioni hardware e che exaviz-dkms sia installato.",
       "unknown": "Si è verificato un errore imprevisto. Riprova.",
-      "missing_packages": "I pacchetti Exaviz richiesti (exaviz-dkms, exaviz-netplan) non sono installati sul sistema operativo host. Installali dal repository apt di Exaviz (apt.exaviz.com) prima di aggiungere questa integrazione."
+      "https_required": "La scheda deve essere raggiunta tramite HTTPS. Inserisci l'indirizzo senza http://.",
+      "invalid_host": "Inserisci solo un indirizzo IP o un nome host, facoltativamente con https:// e una porta.",
+      "board_unreachable": "La scheda non ha risposto. Verifica l'indirizzo e che la scheda sia accesa.",
+      "no_management": "Exaviz Management non è installato su questa scheda.",
+      "management_too_old": "Aggiorna Exaviz Management sulla scheda, poi riprova.",
+      "unsupported_contract": "L'Exaviz Management della scheda è più recente di questa integrazione. Aggiorna l'integrazione Exaviz.",
+      "unsupported_board": "In questa versione solo le schede Cruiser possono essere aggiunte tramite la rete.",
+      "invalid_code": "Il codice è errato, scaduto o annullato. Avvia di nuovo l'abbinamento sulla scheda e inserisci il nuovo codice.",
+      "too_many_attempts": "Troppi codici errati. Attendi {retry_after} secondi, avvia un nuovo abbinamento sulla scheda e inserisci il nuovo codice.",
+      "token_limit": "La scheda ha già 20 token di Home Assistant. Revocane uno sulla scheda in More > Home Assistant, poi inserisci di nuovo lo stesso codice."
     },
     "abort": {
-      "already_configured": "Questa scheda è già configurata."
+      "already_configured": "Questa scheda è già configurata.",
+      "single_instance_allowed": "In questa versione è possibile aggiungere a Home Assistant una sola scheda Exaviz.",
+      "fingerprint_rejected": "Le impronte digitali non erano uguali, quindi non è stato abbinato nulla. Verifica di aver inserito l'indirizzo della scheda giusta.",
+      "serial_mismatch": "Ha risposto una scheda diversa. Se il numero di serie di questa scheda è cambiato, elimina l'integrazione e aggiungila di nuovo.",
+      "board_unreachable": "La scheda non ha risposto al suo indirizzo salvato. Se è stata spostata, usa Riconfigura nell'integrazione Exaviz per inserire il suo nuovo indirizzo.",
+      "reauth_successful": "Home Assistant è di nuovo abbinato alla scheda.",
+      "reconfigure_successful": "L'indirizzo della scheda è stato aggiornato.",
+      "reconfigure_local": "Questa scheda esegue direttamente Home Assistant, quindi non c'è alcun indirizzo da cambiare.",
+      "no_management": "Exaviz Management non è installato su questa scheda.",
+      "management_too_old": "Aggiorna Exaviz Management sulla scheda, poi riprova.",
+      "unsupported_contract": "L'Exaviz Management della scheda è più recente di questa integrazione. Aggiorna l'integrazione Exaviz."
     }
   },
   "options": {
@@ -29,10 +117,12 @@
         "title": "Opzioni Exaviz",
         "description": "Aggiorna le opzioni di configurazione per l'integrazione della scheda Exaviz.",
         "data": {
-          "update_interval": "Intervallo di Aggiornamento (secondi)"
+          "update_interval": "Intervallo di aggiornamento (secondi)",
+          "switch_mode_discovery": "Rilevamento dispositivi in modalità switch"
         },
         "data_description": {
-          "update_interval": "Frequenza di scansione dello stato delle porte PoE"
+          "update_interval": "Frequenza di scansione dello stato delle porte PoE",
+          "switch_mode_discovery": "In modalità switch/bridge, individua il dispositivo su ogni porta PoE tramite la FDB del bridge e un arp-scan della sottorete del bridge. Lascia disattivato per la modalità per porta."
         }
       }
     },
@@ -42,60 +132,60 @@
   },
   "services": {
     "refresh_data": {
-      "name": "Aggiorna Dati PoE",
+      "name": "Aggiorna dati PoE",
       "description": "Aggiorna i dati delle porte PoE dalla scheda locale."
     },
     "turn_on_port": {
-      "name": "Turn On PoE Port",
-      "description": "Enable power on a PoE port.",
+      "name": "Accendi porta PoE",
+      "description": "Abilita l'alimentazione su una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID entità",
+          "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Turn Off PoE Port",
-      "description": "Disable power on a PoE port.",
+      "name": "Spegni porta PoE",
+      "description": "Disabilita l'alimentazione su una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID entità",
+          "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Toggle PoE Port",
-      "description": "Toggle power on a PoE port.",
+      "name": "Commuta porta PoE",
+      "description": "Commuta l'alimentazione su una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID entità",
+          "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     },
     "control_port": {
-      "name": "Control PoE Port",
-      "description": "Control a PoE port with a specified action.",
+      "name": "Controlla porta PoE",
+      "description": "Controlla una porta PoE con un'azione specificata.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID entità",
+          "description": "ID entità dell'interruttore della porta PoE."
         },
         "action": {
-          "name": "Action",
-          "description": "Action to perform: turn_on, turn_off, or toggle."
+          "name": "Azione",
+          "description": "Azione da eseguire: turn_on, turn_off o toggle."
         }
       }
     },
     "reset_port": {
-      "name": "Reset PoE Port",
-      "description": "Reset (power cycle) a PoE port.",
+      "name": "Ripristina porta PoE",
+      "description": "Ripristina (spegni e riaccendi) una porta PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID entità",
+          "description": "ID entità dell'interruttore della porta PoE."
         }
       }
     }
