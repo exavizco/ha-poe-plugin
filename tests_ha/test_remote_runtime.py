@@ -456,3 +456,29 @@ async def test_unreadable_port_data_marks_the_poll_failed(hass, board, caplog):
         "Error fetching exaviz data: the board sent data this integration cannot read"
     ]
     assert not any(r.exc_info for r in errors)
+
+
+# --- LOW-1: board fields of the wrong type are treated as missing -----------
+
+
+@pytest.mark.parametrize("total", ["8", 8.0, True, -1, None])
+@pytest.mark.parametrize("temp", ["n/a", True, [52.3], None])
+async def test_board_fields_of_the_wrong_type_are_missing(hass, board, caplog, total, temp):
+    """A buggy Management build must not make a traceback every poll."""
+    entry = await setup_remote(hass, board)
+    assert state(hass, "sensor.board_temperature").state != "unavailable"
+    reply = case("board")
+    reply["body"]["total_poe_ports"] = total
+    board.reply("GET", "/board", reply)
+    health = case("health")
+    health["body"]["cpu_temp_c"] = temp
+    board.reply("GET", "/system/health", health)
+    caplog.clear()
+    await poll(hass, entry)
+    coordinator = entry.runtime_data
+    assert coordinator.last_update_success
+    # The last good port count stays; the temperature is unknown.
+    assert coordinator.total_poe_ports == 8
+    assert state(hass, "sensor.board_status").state == "Operational"
+    assert state(hass, "sensor.board_temperature").state == "unavailable"
+    assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []

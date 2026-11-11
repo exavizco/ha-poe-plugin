@@ -474,7 +474,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         # Startup window: the board has parsed no port yet. Not ready, never
         # "no PoE detected"; after a good poll the old ports stay (stale) and
         # the port count keeps its last non-zero value.
-        total = board.get("total_poe_ports") or self.total_poe_ports
+        total = remote.map_total_ports(board) or self.total_poe_ports
         if not ports or not total:
             raise UpdateFailed("the board is starting; no PoE ports yet")
         for port in ports:
