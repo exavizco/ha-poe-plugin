@@ -176,11 +176,6 @@ async def test_cm_model_cm5_8gb_wifi_32gb_emmc(coordinator, root):
     assert result["emmc_storage"] == "32 GB"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="bug: cm_model is CM{gen}{ram}{wifi}{emmc} (CM581032), but the "
-    "docstring and Raspberry Pi part numbers are CM{gen}{wifi}{ram:02}{emmc} (CM5108032)",
-)
 async def test_cm_model_string_matches_raspberry_pi_part_number(coordinator, root):
     put(root, "/proc/meminfo", MEMINFO_8GB)
     put(root, "/sys/class/net/wlan0/")
@@ -198,7 +193,7 @@ async def test_cm_model_lite_no_wifi(coordinator, root):
         "total_ram_gb": "2 GB",
         "has_wifi": "No",
         "emmc_storage": "None (Lite)",
-        "cm_model": "CM420000",
+        "cm_model": "CM4002000",
     }
 
 
@@ -301,7 +296,7 @@ async def test_gather_cruiser(coordinator, root):
     with patch("asyncio.create_subprocess_exec", fake):
         info = await coordinator._gather_system_info()
 
-    info.pop("cm_model")  # covered by the xfail part-number test above
+    info.pop("cm_model")  # covered by the part-number tests above
     assert info == {
         "plugin_version": PLUGIN_VERSION,
         "compute_module": "Raspberry Pi CM5",
@@ -353,7 +348,7 @@ async def test_gather_cm3_without_chosen_board(coordinator, root):
     with patch("asyncio.create_subprocess_exec", FakeExec()):
         info = await coordinator._gather_system_info()
     assert info["compute_module"] == "Raspberry Pi CM3"
-    assert info["cm_model"].startswith("CM31")
+    assert info["cm_model"].startswith("CM30")
     assert "os_version" not in info  # no PRETTY_NAME line
     assert "board_identifier" not in info
     assert "board_model_esp32" not in info  # no board type to fall back on
