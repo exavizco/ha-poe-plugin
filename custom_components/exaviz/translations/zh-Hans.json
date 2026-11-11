@@ -11,8 +11,8 @@
         }
       },
       "local": {
-        "title": "Exaviz 本地板 PoE 管理",
-        "description": "检测到：{board_type} 板，有 {total_ports} 个 PoE 端口（{addon_boards} 个扩展板，{onboard_ports} 个板载端口）。请在下方配置更新间隔。",
+        "title": "Exaviz 本地板卡 PoE 管理",
+        "description": "检测到：{board_type} 板卡，有 {total_ports} 个 PoE 端口（{addon_boards} 个扩展板，{onboard_ports} 个板载端口）。请在下方配置更新间隔。",
         "data": {
           "update_interval": "更新间隔（秒）"
         },
@@ -115,7 +115,7 @@
     "step": {
       "init": {
         "title": "Exaviz 选项",
-        "description": "更新 Exaviz 板集成的配置选项。",
+        "description": "更新 Exaviz 板卡集成的配置选项。",
         "data": {
           "update_interval": "更新间隔（秒）",
           "switch_mode_discovery": "交换模式设备发现"
@@ -133,7 +133,7 @@
   "services": {
     "refresh_data": {
       "name": "刷新 PoE 数据",
-      "description": "从本地板刷新 PoE 端口数据。"
+      "description": "从本地板卡刷新 PoE 端口数据。"
     },
     "turn_on_port": {
       "name": "打开 PoE 端口",
