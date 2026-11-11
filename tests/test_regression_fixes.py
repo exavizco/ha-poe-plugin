@@ -141,7 +141,7 @@ class TestIsPortActive:
 
 
 # ---------------------------------------------------------------------------
-# 5. Utils port mapping completeness
+# 5. Binary sensor thresholds
 # ---------------------------------------------------------------------------
 
 class TestBinarySensorThresholds:
@@ -155,7 +155,7 @@ class TestBinarySensorThresholds:
 
 
 # ---------------------------------------------------------------------------
-# 7. Version alignment between manifest.json and pyproject.toml
+# 6. Version alignment between manifest.json and pyproject.toml
 # ---------------------------------------------------------------------------
 
 class TestVersionAlignment:
