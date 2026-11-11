@@ -11,7 +11,7 @@ turn_on_port:
   fields:
     entity_id:
       name: Entity ID
-      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      description: Entity ID of the PoE port switch (e.g., switch.onboard_port0)
       required: true
       selector:
         entity:
@@ -24,7 +24,7 @@ turn_off_port:
   fields:
     entity_id:
       name: Entity ID
-      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      description: Entity ID of the PoE port switch (e.g., switch.onboard_port0)
       required: true
       selector:
         entity:
@@ -37,7 +37,7 @@ toggle_port:
   fields:
     entity_id:
       name: Entity ID
-      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      description: Entity ID of the PoE port switch (e.g., switch.onboard_port0)
       required: true
       selector:
         entity:
@@ -50,7 +50,7 @@ control_port:
   fields:
     entity_id:
       name: Entity ID
-      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      description: Entity ID of the PoE port switch (e.g., switch.onboard_port0)
       required: true
       selector:
         entity:
@@ -74,7 +74,7 @@ reset_port:
   fields:
     entity_id:
       name: Entity ID
-      description: Entity ID of the PoE port switch (e.g., switch.exaviz_poe_port_0)
+      description: Entity ID of the PoE port switch (e.g., switch.onboard_port0)
       required: true
       selector:
         entity:

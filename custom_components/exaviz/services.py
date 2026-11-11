@@ -6,7 +6,9 @@ import logging
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
@@ -68,10 +70,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         entity_id = call.data["entity_id"]
         _LOGGER.info("Resetting PoE port: %s", entity_id)
 
-        # Derive the button entity_id from the switch entity_id.
-        # switch.onboard_port0 -> button.onboard_port0_reset
-        button_entity_id = entity_id.replace("switch.", "button.") + "_reset"
+        # switch.onboard_port0 (or one of its sensors) -> button.onboard_port0_reset
+        button_entity_id = (
+            _port_switch_id(entity_id).replace("switch.", "button.", 1) + "_reset"
+        )
 
+        _require_available(hass, button_entity_id)
         await hass.services.async_call(
             "button", "press",
             {"entity_id": button_entity_id},
@@ -100,6 +104,28 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     )
 
 
+def _require_available(hass: HomeAssistant, entity_id: str) -> None:
+    """Raise rather than let HA skip a missing or unavailable entity quietly."""
+    state = hass.states.get(entity_id)
+    if state is None:
+        raise HomeAssistantError(f"{entity_id} does not exist")
+    if state.state == STATE_UNAVAILABLE:
+        raise HomeAssistantError(
+            f"{entity_id} is unavailable (read-only pairing, add-on board port, "
+            "or the board is not answering)"
+        )
+
+
+def _port_switch_id(entity_id: str) -> str:
+    """Map a port's switch, current sensor or binary sensor to its switch."""
+    if entity_id.startswith("switch."):
+        return entity_id
+    # binary_sensor. first: "sensor." is a substring of it.
+    entity_id = entity_id.replace("binary_sensor.", "switch.").split("_powered")[0]
+    entity_id = entity_id.split("_plug")[0]
+    return entity_id.replace("sensor.", "switch.").split("_current")[0]
+
+
 async def _control_poe_port(
     hass: HomeAssistant, entity_id: str, action: str,
 ) -> None:
@@ -110,12 +136,8 @@ async def _control_poe_port(
     only need to call the standard HA switch domain.
     """
     _LOGGER.debug("PoE port control: %s -> %s", entity_id, action)
-
-    # Ensure the entity_id is a switch
-    if not entity_id.startswith("switch."):
-        entity_id = entity_id.replace("sensor.", "switch.").split("_current")[0]
-        entity_id = entity_id.replace("binary_sensor.", "switch.").split("_powered")[0]
-        entity_id = entity_id.replace("binary_sensor.", "switch.").split("_plug")[0]
+    entity_id = _port_switch_id(entity_id)
+    _require_available(hass, entity_id)
 
     service = action  # turn_on, turn_off, toggle are HA switch services
     await hass.services.async_call(

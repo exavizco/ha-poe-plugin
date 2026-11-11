@@ -94,6 +94,9 @@ async def _register_frontend(hass: HomeAssistant) -> None:
         resources = getattr(lovelace_data, "resources", None) if lovelace_data else None
 
         if isinstance(resources, ResourceStorageCollection):
+            # At startup the collection is not read from storage yet and
+            # async_items() is empty; async_get_info() loads it first.
+            await resources.async_get_info()
             all_items = resources.async_items()
 
             # Stale patterns we recognise and must remove:
@@ -111,8 +114,11 @@ async def _register_frontend(hass: HomeAssistant) -> None:
                 )
             ]
             exact = [r for r in all_items if r.get("url") == resource_url]
+            # Earlier versions could add the current URL again on each restart.
+            stale.extend(exact[1:])
 
-            # Remove stale entries (old /local/ path, old version, or unversioned)
+            # Remove stale entries (old /local/ path, old version, unversioned,
+            # or a repeat of the current one)
             for item in stale:
                 await resources.async_delete_item(item["id"])
                 _LOGGER.info(

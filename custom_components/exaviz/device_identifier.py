@@ -60,7 +60,6 @@ MAC_VENDOR_DB = {
     "00:14:6C": "Cisco Systems",
     "00:18:B9": "Cisco Systems",
     "00:1D:70": "Cisco Systems",
-    "00:50:56": "Cisco Systems",
     "00:22:90": "Cisco Systems",
 }
 

@@ -705,10 +705,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         """Detect CM model number, total RAM, WiFi, and eMMC presence.
 
         Constructs a model string like CM4102000 or CM5108032:
-          CM{gen}{ram_gb}{wifi}{emmc_gb:03d}
+          CM{gen}{wifi}{ram_gb:02d}{emmc_gb:03d}  (Raspberry Pi part number)
             gen   = 4, 5, etc.
-            ram   = 1, 2, 4, 8 (GB)
             wifi  = 0 (none) or 1 (WiFi+BT)
+            ram   = 01, 02, 04, 08, 16 (GB)
             emmc  = 000 (Lite), 008, 016, 032, 064 (GB)
 
         Returns dict with:
@@ -780,7 +780,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         # --- Construct model number ---
         wifi_digit = 1 if has_wifi else 0
         emmc_str = f"{emmc_gb:03d}"
-        model = f"CM{cm_gen}{ram_gb}{wifi_digit}{emmc_str}"
+        model = f"CM{cm_gen}{wifi_digit}{ram_gb:02d}{emmc_str}"
         result["cm_model"] = model
 
         return result

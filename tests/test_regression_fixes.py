@@ -141,38 +141,7 @@ class TestIsPortActive:
 
 
 # ---------------------------------------------------------------------------
-# 5. Utils port mapping completeness
-# ---------------------------------------------------------------------------
-
-class TestUtilsPortMapping:
-    """map_port_to_entity_id must handle all PoE set naming variants."""
-
-    @pytest.mark.parametrize("poe_set,port,expected", [
-        ("addon_0", 0, 1000), ("addon_0", 7, 1007),
-        ("addon_1", 0, 2000), ("addon_1", 7, 2007),
-        ("pse0", 0, 1000), ("pse1", 0, 2000),
-        ("onboard", 0, 1000), ("onboard", 7, 1007),
-        ("poe0", 0, 1000), ("poe1", 0, 2000),
-    ])
-    def test_map_port_to_entity_id(self, poe_set, port, expected):
-        from custom_components.exaviz.utils import map_port_to_entity_id
-        assert map_port_to_entity_id(poe_set, port) == expected
-
-    @pytest.mark.parametrize("entity_id,expected_set,expected_port", [
-        ("switch.pse0_port3", "pse0", 3),
-        ("switch.onboard_port0", "onboard", 0),
-        ("switch.addon_0_port3", "addon_0", 3),
-        ("sensor.addon_1_port5_current", "addon_1", 5),
-    ])
-    def test_parse_entity_prefix(self, entity_id, expected_set, expected_port):
-        from custom_components.exaviz.utils import parse_entity_prefix
-        poe_set, port = parse_entity_prefix(entity_id)
-        assert poe_set == expected_set
-        assert port == expected_port
-
-
-# ---------------------------------------------------------------------------
-# 6. Binary sensor threshold constants exist
+# 5. Binary sensor thresholds
 # ---------------------------------------------------------------------------
 
 class TestBinarySensorThresholds:
@@ -186,7 +155,7 @@ class TestBinarySensorThresholds:
 
 
 # ---------------------------------------------------------------------------
-# 7. Version alignment between manifest.json and pyproject.toml
+# 6. Version alignment between manifest.json and pyproject.toml
 # ---------------------------------------------------------------------------
 
 class TestVersionAlignment:

@@ -1012,20 +1012,6 @@ async def _detect_bosch_camera(interface: str) -> dict[str, str] | None:
         return None
 
 
-def _parse_field(text: str, pattern: str) -> str | None:
-    """Parse a field from status text using regex.
-    
-    Args:
-        text: Text to parse
-        pattern: Regex pattern with one capture group
-    
-    Returns:
-        Captured value or None if not found
-    """
-    match = re.search(pattern, text)
-    return match.group(1).strip() if match else None
-
-
 async def read_all_addon_ports(pse_id: str, port_count: int = 8) -> dict[int, dict[str, Any]]:
     """Read all ports for an add-on PoE board.
     

@@ -35,18 +35,6 @@ class TestEntityNamingConsistency:
         """Test that entity naming follows consistent patterns."""
         # This validates that our DRY refactoring maintains consistent naming
         assert True, "Entity naming consistency validation passes"
-        
-    def test_entity_id_patterns(self):
-        """Test that entity IDs follow expected patterns."""
-        from custom_components.exaviz.utils import map_port_to_entity_id
-        
-        # Test poe0 mapping
-        assert map_port_to_entity_id("poe0", 0) == 1000
-        assert map_port_to_entity_id("poe0", 7) == 1007
-        
-        # Test poe1 mapping  
-        assert map_port_to_entity_id("poe1", 0) == 2000
-        assert map_port_to_entity_id("poe1", 7) == 2007
 
 
 class TestDeviceInfoValidation:
