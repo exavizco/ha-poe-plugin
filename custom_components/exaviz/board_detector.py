@@ -57,9 +57,6 @@ async def _detect_from_device_tree() -> BoardType | None:
     board_file = Path("/proc/device-tree/chosen/board")
 
     try:
-        if not board_file.exists():
-            return None
-
         board_name = await asyncio.to_thread(board_file.read_text)
         board_name = board_name.strip().lower()
 
@@ -73,6 +70,8 @@ async def _detect_from_device_tree() -> BoardType | None:
         _LOGGER.info("Detected Cruiser board via device tree: %s", board_name)
         return BoardType.CRUISER
 
+    except FileNotFoundError:
+        return None
     except Exception as ex:
         _LOGGER.debug("Device tree board detection failed: %s", ex)
         return None
@@ -91,9 +90,6 @@ async def _detect_from_config_txt() -> BoardType | None:
     config_file = Path("/boot/firmware/config.txt")
 
     try:
-        if not config_file.exists():
-            return None
-
         content = await asyncio.to_thread(config_file.read_text)
 
         # Look for dtoverlay=cruiser- or dtoverlay=interceptor-
@@ -118,6 +114,8 @@ async def _detect_from_config_txt() -> BoardType | None:
 
         return None
 
+    except FileNotFoundError:
+        return None
     except Exception as ex:
         _LOGGER.debug("config.txt board detection failed: %s", ex)
         return None
@@ -139,18 +137,18 @@ async def _detect_from_pse_interface() -> BoardType | None:
     dev_ttyama3 = Path("/dev/ttyAMA3")
     proc_pse = Path("/proc/pse")
 
-    if dev_pse.exists():
+    if await asyncio.to_thread(dev_pse.exists):
         _LOGGER.info("Detected Cruiser board via /dev/pse symlink")
         return BoardType.CRUISER
 
-    if dev_ttyama3.exists():
+    if await asyncio.to_thread(dev_ttyama3.exists):
         _LOGGER.info(
             "Detected Cruiser board via /dev/ttyAMA3 "
             "(Docker resolves /dev/pse symlink to the real device)"
         )
         return BoardType.CRUISER
 
-    if proc_pse.exists():
+    if await asyncio.to_thread(proc_pse.exists):
         _LOGGER.info("Detected Interceptor board via /proc/pse")
         return BoardType.INTERCEPTOR
 
@@ -266,7 +264,7 @@ async def detect_addon_boards() -> list[str]:
     try:
         pse_file = Path("/proc/pse")
 
-        if not pse_file.exists():
+        if not await asyncio.to_thread(pse_file.exists):
             _LOGGER.debug("No add-on PoE boards detected (/proc/pse not found)")
             return []
 
@@ -327,20 +325,19 @@ async def detect_onboard_poe() -> list[str]:
         list of interface names (e.g., ["poe0", "poe1", ..., "poe7"])
     """
     conf_path = Path("/proc/sys/net/ipv4/conf")
-    onboard_ports = []
+
+    def scan() -> list[str] | None:
+        # Check specific poe interface paths directly instead of scanning
+        # the directory. Maximum 16 onboard ports (poe0 through poe15).
+        if not conf_path.exists():
+            return None
+        return [f"poe{i}" for i in range(16) if (conf_path / f"poe{i}").is_dir()]
 
     try:
-        if not conf_path.exists():
+        onboard_ports = await asyncio.to_thread(scan)
+        if onboard_ports is None:
             _LOGGER.debug("Network config path not found: %s", conf_path)
             return []
-
-        # Check specific poe interface paths directly instead of scanning
-        # the directory (avoids blocking I/O warning in HA).
-        # Maximum 16 onboard ports (poe0 through poe15).
-        for i in range(16):
-            poe_path = conf_path / f"poe{i}"
-            if poe_path.is_dir():
-                onboard_ports.append(f"poe{i}")
 
         if onboard_ports:
             _LOGGER.info(

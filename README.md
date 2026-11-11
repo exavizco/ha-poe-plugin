@@ -201,6 +201,12 @@ Settings > Devices & services > Exaviz > Configure:
 
 The port switches and reset buttons work with Home Assistant's own `switch` and `button` actions too.
 
+If a port command does not complete (the PoE power or the port's network link), the action fails
+with an error that says what happened.
+
+Ports on add-on PoE boards (Interceptor, and the Cruiser's add-on board) can be read but not
+switched or reset yet: their switches and reset buttons show as unavailable.
+
 ## Removing the integration
 
 1. Settings > Devices & services > Exaviz > the three dots > **Delete**.

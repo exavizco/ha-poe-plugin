@@ -163,14 +163,19 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     # Port control helpers (async, non-blocking)
     # ------------------------------------------------------------------
 
-    async def _run_ip_link(self, interface: str, action: str) -> bool:
+    @staticmethod
+    async def _run_ip_link(interface: str, action: str) -> bool:
         """Run 'ip link set' asynchronously. Returns True on success."""
-        proc = await asyncio.create_subprocess_exec(
-            *sudo_argv("ip", "link", "set", interface, action),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *sudo_argv("ip", "link", "set", interface, action),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+        except OSError as exc:
+            _LOGGER.error("Could not run ip link to %s port %s: %s", action, interface, exc)
+            return False
         if proc.returncode != 0:
             _LOGGER.error(
                 "Failed to %s port %s: %s", action, interface,
@@ -242,22 +247,40 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         """Enable or disable an onboard PoE port.
 
         Uses both ESP32 commands (for actual PoE power control via TPS23861)
-        and ip link (for network interface admin state).
+        and ip link (for network interface admin state, which is what the
+        switch shows). Raises HomeAssistantError when a step fails, saying
+        what did happen; the state is refreshed either way.
         """
         interface = f"poe{self._port_number}"
 
-        if action == "disable":
-            # Cut PoE power first, then bring down the network interface
-            await self._esp32_disable_port()
-            await self._run_ip_link(interface, "down")
-            _LOGGER.info("Disabled onboard PoE port %s (power cut + link down)", interface)
-        else:
-            # Bring up network interface, then restore PoE power
-            await self._run_ip_link(interface, "up")
-            await self._esp32_enable_port()
-            _LOGGER.info("Enabled onboard PoE port %s (link up + power restored)", interface)
-
-        await self.coordinator.async_request_refresh()
+        try:
+            if action == "disable":
+                # Cut PoE power first, then bring down the network interface.
+                # If the power cut fails the port is still on, so leave the link.
+                if not await self._esp32_disable_port():
+                    raise HomeAssistantError(
+                        f"The PoE controller did not disable port {interface}"
+                    )
+                if not await self._run_ip_link(interface, "down"):
+                    raise HomeAssistantError(
+                        f"Port {interface} power is off, but its network link did not go down"
+                    )
+                _LOGGER.info("Disabled onboard PoE port %s (power cut + link down)", interface)
+            else:
+                # Bring up network interface, then restore PoE power (even if
+                # the link step failed, power is what the user asked for)
+                link_up = await self._run_ip_link(interface, "up")
+                if not await self._esp32_enable_port():
+                    raise HomeAssistantError(
+                        f"The PoE controller did not enable port {interface}"
+                    )
+                if not link_up:
+                    raise HomeAssistantError(
+                        f"Port {interface} power is on, but its network link did not come up"
+                    )
+                _LOGGER.info("Enabled onboard PoE port %s (link up + power restored)", interface)
+        finally:
+            await self.coordinator.async_request_refresh()
 
     def _get_pse_num(self) -> int:
         """Look up the numeric PSE ID from coordinator data.
@@ -273,37 +296,18 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         """Control add-on board port via /proc/pse interface.
 
         Args:
-            action: "enable", "disable", or "reset"
+            action: "enable" or "disable"
         """
         pse_id = self._get_pse_num()
 
-        if action == "reset":
-            reset_file = Path(f"/proc/pse{pse_id}/port{self._port_number}/reset")
-            if not reset_file.exists():
-                raise HomeAssistantError(f"Reset file not found: {reset_file}")
-
-            proc = await asyncio.create_subprocess_exec(
-                *sudo_argv("tee", str(reset_file)),
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.communicate(input=b"1\n")
-            if proc.returncode != 0:
-                raise HomeAssistantError("Failed to reset port")
-            _LOGGER.info(
-                "Reset PSE port %s:%d via %s",
-                self._poe_set, self._port_number, reset_file,
-            )
-        else:
-            interface = f"poe{pse_id}-{self._port_number}"
-            link_action = "up" if action == "enable" else "down"
-            if not await self._run_ip_link(interface, link_action):
-                raise HomeAssistantError(f"Failed to {action} port via {interface}")
-            _LOGGER.info(
-                "%s PSE port %s:%d via interface %s",
-                action.title(), self._poe_set, self._port_number, interface,
-            )
+        interface = f"poe{pse_id}-{self._port_number}"
+        link_action = "up" if action == "enable" else "down"
+        if not await self._run_ip_link(interface, link_action):
+            raise HomeAssistantError(f"Failed to {action} port via {interface}")
+        _LOGGER.info(
+            "%s PSE port %s:%d via interface %s",
+            action.title(), self._poe_set, self._port_number, interface,
+        )
 
     # ------------------------------------------------------------------
     # HA switch interface
