@@ -205,11 +205,13 @@ Settings > Devices & services > Exaviz > Configure:
 
 The port switches and reset buttons work with Home Assistant's own `switch` and `button` actions too.
 
-If a port command does not complete (the PoE power or the port's network link), the action fails
-with an error that says what happened.
+On a board running Home Assistant itself, a port action fails with an error that says which
+step failed when the command could not reach the PoE controller or the port's network link did
+not change. For a board on the network, the board carries out the command and Home Assistant
+shows any error it reports.
 
-Ports on add-on PoE boards (Interceptor, and the Cruiser's add-on board) can be read but not
-switched or reset yet: their switches and reset buttons show as unavailable.
+Ports on add-on PoE boards (every port on an Interceptor, and the Cruiser's add-on board) can be
+read but not switched or reset yet: their switches and reset buttons show as unavailable.
 
 ## Removing the integration
 
