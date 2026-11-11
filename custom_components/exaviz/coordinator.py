@@ -517,10 +517,6 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             "last_updated": datetime.now().isoformat(),
         }
 
-    async def async_shutdown(self) -> None:
-        """Shutdown coordinator and clean up resources."""
-        _LOGGER.debug("Coordinator shutdown complete")
-
     @property
     def board_info(self) -> dict[str, Any]:
         """Get board information including system details."""

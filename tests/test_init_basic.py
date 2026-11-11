@@ -119,7 +119,11 @@ class TestAsyncUnloadEntryBasic:
 
     @pytest.mark.asyncio
     async def test_async_unload_entry_success_path(self):
-        """Unloading shuts the entry's coordinator down; actions stay registered."""
+        """Unloading leaves the coordinator to HA; actions stay registered.
+
+        HA runs the coordinator's async_shutdown from the entry's unload
+        callbacks, so async_unload_entry does not call it again.
+        """
         mock_hass = Mock()
         mock_entry = Mock()
         mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
@@ -128,5 +132,5 @@ class TestAsyncUnloadEntryBasic:
         result = await exaviz_init.async_unload_entry(mock_hass, mock_entry)
 
         assert result is True
-        mock_entry.runtime_data.async_shutdown.assert_called_once()
+        mock_entry.runtime_data.async_shutdown.assert_not_called()
         mock_hass.services.async_remove.assert_not_called() 

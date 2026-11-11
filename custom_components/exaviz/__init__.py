@@ -236,12 +236,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("Unloading Exaviz PoE integration for entry: %s", entry.entry_id)
 
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    if unload_ok:
-        await entry.runtime_data.async_shutdown()
-
-    return unload_ok
+    # The coordinator shuts itself down: HA registers its async_shutdown
+    # with the entry's unload callbacks.
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
