@@ -77,3 +77,32 @@ class TestDetectAllPoeSystems:
             result = await detect_all_poe_systems()
 
         assert result["total_poe_ports"] == 0
+
+
+class TestFilesystemOffTheEventLoop:
+    """Every stat and read in board detection runs in a worker thread."""
+
+    @pytest.mark.asyncio
+    async def test_detection_touches_the_filesystem_off_the_loop(self):
+        import asyncio
+        import pathlib
+
+        on_loop: list[str] = []
+
+        def guard(name):
+            original = getattr(pathlib.Path, name)
+
+            def wrapper(self, *args, **kwargs):
+                try:
+                    asyncio.get_running_loop()
+                    on_loop.append(f"{name}({self})")
+                except RuntimeError:
+                    pass
+                return original(self, *args, **kwargs)
+
+            return patch.object(pathlib.Path, name, wrapper)
+
+        with guard("exists"), guard("is_dir"), guard("read_text"), guard("read_bytes"):
+            await detect_all_poe_systems()
+
+        assert on_loop == []
