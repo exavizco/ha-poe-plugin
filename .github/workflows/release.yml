@@ -71,8 +71,9 @@ jobs:
         run: |
           mkdir -p release/exaviz
           
-          # Copy backend integration files
+          # Copy backend integration files (not the bytecode the test step left)
           cp -r custom_components/exaviz/* release/exaviz/
+          find release -name __pycache__ -prune -exec rm -rf {} +
           
           # Create archive
           cd release
