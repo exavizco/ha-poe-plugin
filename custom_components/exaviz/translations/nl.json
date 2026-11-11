@@ -2,6 +2,14 @@
   "title": "Exaviz PoE-beheer",
   "config": {
     "step": {
+      "user": {
+        "title": "Een Exaviz-board toevoegen",
+        "description": "Waar bevindt het board zich?",
+        "menu_options": {
+          "local": "Home Assistant draait op dit board",
+          "remote": "Het board is een ander apparaat in mijn netwerk"
+        }
+      },
       "local": {
         "title": "Exaviz Lokale Board PoE-beheer",
         "description": "Gedetecteerd: {board_type} board met {total_ports} PoE-poorten ({addon_boards} add-on boards, {onboard_ports} onboard poorten). Configureer het update-interval hieronder.",
@@ -11,16 +19,96 @@
         "data_description": {
           "update_interval": "Hoe vaak de PoE-poortstatus moet worden gescand (10-300 seconden)"
         }
+      },
+      "remote": {
+        "title": "Exaviz-board in uw netwerk",
+        "description": "Voer het IP-adres of de hostnaam van het board in. Het board heeft Exaviz Management met Home Assistant-koppeling nodig. Gebruik het IP-adres van het board als een .local-naam niet werkt.",
+        "data": {
+          "host": "Adres",
+          "port": "HTTPS-poort",
+          "update_interval": "Update-interval (seconden)"
+        },
+        "data_description": {
+          "update_interval": "Hoe vaak de PoE-poortstatus moet worden gelezen (10-300 seconden)",
+          "host": "Het IP-adres van het board, of een hostnaam die uw netwerk kan omzetten.",
+          "port": "Laat op 443 staan, tenzij de HTTPS-poort van het board is gewijzigd."
+        }
+      },
+      "fingerprint": {
+        "title": "Controleer het certificaat van het board",
+        "description": "Start nu het koppelen op het board (More > Home Assistant); de code is 5 minuten geldig.\n\nVergelijk deze vingerafdruk met de vingerafdruk op het koppelscherm van het board:\n\n`{fingerprint}`\n\nVink het vakje alleen aan als ze hetzelfde zijn.",
+        "data": {
+          "confirm": "De vingerafdrukken zijn hetzelfde"
+        },
+        "data_description": {
+          "confirm": "Vink uit en verstuur als ze verschillen: er wordt niets gekoppeld."
+        }
+      },
+      "pair": {
+        "title": "Voer de koppelcode in",
+        "description": "Voer de code van 8 tekens van het koppelscherm van het board in, bijvoorbeeld ABCD-EFGH.",
+        "data": {
+          "code": "Koppelcode"
+        },
+        "data_description": {
+          "code": "Wordt op het board getoond onder More > Home Assistant nadat u het koppelen hebt gestart."
+        }
+      },
+      "repair": {
+        "title": "Opnieuw koppelen met het board",
+        "description": "Start nu het koppelen op het board (More > Home Assistant); de code is 5 minuten geldig. Voer de code van 8 tekens in, bijvoorbeeld ABCD-EFGH.\n\nTrek na het koppelen het oude token `{old_token_id}` in op het board onder More > Home Assistant.",
+        "data": {
+          "code": "Koppelcode"
+        },
+        "data_description": {
+          "code": "Wordt op het board getoond onder More > Home Assistant nadat u het koppelen hebt gestart."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Opnieuw koppelen met het board",
+        "description": "Home Assistant kan het board op {host} niet meer lezen: het token is ingetrokken of het certificaat is gewijzigd. Controleer of het board aan staat en verstuur dan om opnieuw te koppelen."
+      },
+      "reconfigure": {
+        "title": "Het adres van het board wijzigen",
+        "description": "Voer het nieuwe IP-adres of de nieuwe hostnaam van het board in. Als het certificaat is gewijzigd, vergelijkt u de nieuwe vingerafdruk en koppelt u opnieuw.",
+        "data": {
+          "host": "Adres",
+          "port": "HTTPS-poort"
+        },
+        "data_description": {
+          "host": "Het IP-adres van het board, of een hostnaam die uw netwerk kan omzetten.",
+          "port": "Laat op 443 staan, tenzij de HTTPS-poort van het board is gewijzigd."
+        }
       }
     },
     "error": {
-      "cannot_connect": "Kan de boardhardware niet detecteren. Zorg ervoor dat u draait op een Exaviz Interceptor of Cruiser board.",
-      "no_poe_detected": "Geen PoE-systemen gedetecteerd op dit board. Controleer de hardwareverbindingen.",
+      "cannot_connect": "Kan de boardhardware niet detecteren. Zorg ervoor dat u draait op een Exaviz Interceptor of Cruiser board waarop exaviz-dkms is geïnstalleerd.",
+      "missing_packages": "Vereiste Exaviz-pakketten (exaviz-dkms, exaviz-netplan) zijn niet geïnstalleerd op het host-besturingssysteem. Installeer ze vanuit de Exaviz apt-repository (apt.exaviz.com) voordat u deze integratie toevoegt.",
+      "no_poe_detected": "Geen PoE-systemen gedetecteerd op dit board. Controleer de hardwareverbindingen en of exaviz-dkms is geïnstalleerd.",
       "unknown": "Er is een onverwachte fout opgetreden. Probeer het opnieuw.",
-      "missing_packages": "Vereiste Exaviz-pakketten (exaviz-dkms, exaviz-netplan) zijn niet geïnstalleerd op het host-besturingssysteem. Installeer ze vanuit de Exaviz apt-repository (apt.exaviz.com) voordat u deze integratie toevoegt."
+      "https_required": "Het board moet via HTTPS worden bereikt. Voer het adres in zonder http://.",
+      "invalid_host": "Voer alleen een IP-adres of hostnaam in, eventueel met https:// en een poort.",
+      "board_unreachable": "Het board heeft niet geantwoord. Controleer het adres en of het board aan staat.",
+      "no_management": "Exaviz Management is niet geïnstalleerd op dit board.",
+      "management_too_old": "Werk Exaviz Management op het board bij en probeer het opnieuw.",
+      "unsupported_contract": "Exaviz Management op het board is nieuwer dan deze integratie. Werk de Exaviz-integratie bij.",
+      "unsupported_board": "In deze versie kunnen alleen Cruiser boards via het netwerk worden toegevoegd.",
+      "invalid_code": "De code is onjuist, verlopen of geannuleerd. Start het koppelen op het board opnieuw en voer de nieuwe code in.",
+      "too_many_attempts": "Te veel onjuiste codes. Wacht {retry_after} seconden, start een nieuwe koppeling op het board en voer de nieuwe code in.",
+      "token_limit": "Het board heeft al 20 Home Assistant-tokens. Trek er een in op het board onder More > Home Assistant en voer daarna dezelfde code opnieuw in."
     },
     "abort": {
-      "already_configured": "Dit board is al geconfigureerd."
+      "already_configured": "Dit board is al geconfigureerd.",
+      "single_instance_allowed": "In deze versie kan maar één Exaviz-board aan Home Assistant worden toegevoegd.",
+      "fingerprint_rejected": "De vingerafdrukken waren niet hetzelfde, dus er is niets gekoppeld. Controleer of u het adres van het juiste board hebt ingevoerd.",
+      "serial_mismatch": "Er antwoordde een ander board. Als het serienummer van dit board is gewijzigd, verwijder dan de integratie en voeg deze opnieuw toe.",
+      "board_unreachable": "Het board antwoordde niet op het opgeslagen adres. Als het is verplaatst, gebruik dan Opnieuw configureren bij de Exaviz-integratie om het nieuwe adres in te voeren.",
+      "reauth_successful": "Home Assistant is weer gekoppeld met het board.",
+      "reconfigure_successful": "Het adres van het board is bijgewerkt.",
+      "reconfigure_local": "Op dit board draait Home Assistant zelf, dus er is geen adres om te wijzigen.",
+      "no_management": "Exaviz Management is niet geïnstalleerd op dit board.",
+      "management_too_old": "Werk Exaviz Management op het board bij en probeer het opnieuw.",
+      "unsupported_contract": "Exaviz Management op het board is nieuwer dan deze integratie. Werk de Exaviz-integratie bij."
     }
   },
   "options": {
@@ -29,10 +117,12 @@
         "title": "Exaviz Opties",
         "description": "Configuratieopties voor de Exaviz board-integratie bijwerken.",
         "data": {
-          "update_interval": "Update-interval (seconden)"
+          "update_interval": "Update-interval (seconden)",
+          "switch_mode_discovery": "Apparaatdetectie in switchmodus"
         },
         "data_description": {
-          "update_interval": "Hoe vaak de PoE-poortstatus moet worden gescand"
+          "update_interval": "Hoe vaak de PoE-poortstatus moet worden gescand",
+          "switch_mode_discovery": "Bepaal in switch-/bridgemodus het apparaat op elke PoE-poort via de bridge-FDB en een arp-scan van het bridge-subnet. Laat uit staan voor de modus per poort."
         }
       }
     },
@@ -46,56 +136,56 @@
       "description": "PoE-poortgegevens van het lokale board vernieuwen."
     },
     "turn_on_port": {
-      "name": "Turn On PoE Port",
-      "description": "Enable power on a PoE port.",
+      "name": "PoE-poort Inschakelen",
+      "description": "Stroom op een PoE-poort inschakelen.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entiteit-ID",
+          "description": "Entiteit-ID van de PoE-poortschakelaar."
         }
       }
     },
     "turn_off_port": {
-      "name": "Turn Off PoE Port",
-      "description": "Disable power on a PoE port.",
+      "name": "PoE-poort Uitschakelen",
+      "description": "Stroom op een PoE-poort uitschakelen.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entiteit-ID",
+          "description": "Entiteit-ID van de PoE-poortschakelaar."
         }
       }
     },
     "toggle_port": {
-      "name": "Toggle PoE Port",
-      "description": "Toggle power on a PoE port.",
+      "name": "PoE-poort Omschakelen",
+      "description": "Stroom op een PoE-poort omschakelen.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entiteit-ID",
+          "description": "Entiteit-ID van de PoE-poortschakelaar."
         }
       }
     },
     "control_port": {
-      "name": "Control PoE Port",
-      "description": "Control a PoE port with a specified action.",
+      "name": "PoE-poort Bedienen",
+      "description": "Een PoE-poort bedienen met een opgegeven actie.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entiteit-ID",
+          "description": "Entiteit-ID van de PoE-poortschakelaar."
         },
         "action": {
-          "name": "Action",
-          "description": "Action to perform: turn_on, turn_off, or toggle."
+          "name": "Actie",
+          "description": "Uit te voeren actie: turn_on, turn_off of toggle."
         }
       }
     },
     "reset_port": {
-      "name": "Reset PoE Port",
-      "description": "Reset (power cycle) a PoE port.",
+      "name": "PoE-poort Resetten",
+      "description": "Een PoE-poort resetten (stroom uit en weer aan).",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "Entiteit-ID",
+          "description": "Entiteit-ID van de PoE-poortschakelaar."
         }
       }
     }

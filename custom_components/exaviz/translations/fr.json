@@ -2,6 +2,14 @@
   "title": "Gestion PoE Exaviz",
   "config": {
     "step": {
+      "user": {
+        "title": "Ajouter une carte Exaviz",
+        "description": "Où se trouve la carte ?",
+        "menu_options": {
+          "local": "Home Assistant s'exécute sur cette carte",
+          "remote": "La carte est un autre appareil de mon réseau"
+        }
+      },
       "local": {
         "title": "Gestion PoE Carte Locale Exaviz",
         "description": "Détecté : Carte {board_type} avec {total_ports} ports PoE ({addon_boards} cartes supplémentaires, {onboard_ports} ports intégrés). Configurez l'intervalle de mise à jour ci-dessous.",
@@ -11,16 +19,96 @@
         "data_description": {
           "update_interval": "Fréquence d'analyse de l'état des ports PoE (10-300 secondes)"
         }
+      },
+      "remote": {
+        "title": "Carte Exaviz sur votre réseau",
+        "description": "Saisissez l'adresse IP ou le nom d'hôte de la carte. La carte doit disposer d'Exaviz Management avec l'appairage Home Assistant. Utilisez l'adresse IP de la carte si un nom .local ne fonctionne pas.",
+        "data": {
+          "host": "Adresse",
+          "port": "Port HTTPS",
+          "update_interval": "Intervalle de Mise à Jour (secondes)"
+        },
+        "data_description": {
+          "update_interval": "Fréquence de lecture de l'état des ports PoE (10-300 secondes)",
+          "host": "L'adresse IP de la carte, ou un nom d'hôte que votre réseau résout.",
+          "port": "Laissez 443 sauf si le port HTTPS de la carte a été modifié."
+        }
+      },
+      "fingerprint": {
+        "title": "Vérifier le certificat de la carte",
+        "description": "Lancez maintenant l'appairage sur la carte (More > Home Assistant) ; le code est valable 5 minutes.\n\nComparez cette empreinte avec l'empreinte affichée sur l'écran d'appairage de la carte :\n\n`{fingerprint}`\n\nCochez la case uniquement si elles sont identiques.",
+        "data": {
+          "confirm": "Les empreintes sont identiques"
+        },
+        "data_description": {
+          "confirm": "Décochez et validez si elles diffèrent : rien n'est appairé."
+        }
+      },
+      "pair": {
+        "title": "Saisir le code d'appairage",
+        "description": "Saisissez le code à 8 caractères affiché sur l'écran d'appairage de la carte, par exemple ABCD-EFGH.",
+        "data": {
+          "code": "Code d'appairage"
+        },
+        "data_description": {
+          "code": "Affiché sur la carte sous More > Home Assistant après le lancement de l'appairage."
+        }
+      },
+      "repair": {
+        "title": "Appairer à nouveau la carte",
+        "description": "Lancez maintenant l'appairage sur la carte (More > Home Assistant) ; le code est valable 5 minutes. Saisissez le code à 8 caractères, par exemple ABCD-EFGH.\n\nAprès l'appairage, révoquez l'ancien jeton `{old_token_id}` sur la carte dans More > Home Assistant.",
+        "data": {
+          "code": "Code d'appairage"
+        },
+        "data_description": {
+          "code": "Affiché sur la carte sous More > Home Assistant après le lancement de l'appairage."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Appairer à nouveau la carte",
+        "description": "Home Assistant ne peut plus lire la carte à l'adresse {host} : son jeton a été révoqué ou son certificat a changé. Vérifiez que la carte est allumée, puis validez pour l'appairer à nouveau."
+      },
+      "reconfigure": {
+        "title": "Modifier l'adresse de la carte",
+        "description": "Saisissez la nouvelle adresse IP ou le nouveau nom d'hôte de la carte. Si son certificat a changé, vous comparerez la nouvelle empreinte et l'appairerez à nouveau.",
+        "data": {
+          "host": "Adresse",
+          "port": "Port HTTPS"
+        },
+        "data_description": {
+          "host": "L'adresse IP de la carte, ou un nom d'hôte que votre réseau résout.",
+          "port": "Laissez 443 sauf si le port HTTPS de la carte a été modifié."
+        }
       }
     },
     "error": {
-      "cannot_connect": "Impossible de détecter le matériel de la carte. Assurez-vous d'utiliser une carte Exaviz Interceptor ou Cruiser.",
-      "no_poe_detected": "Aucun système PoE détecté sur cette carte. Vérifiez les connexions matérielles.",
+      "cannot_connect": "Impossible de détecter le matériel de la carte. Assurez-vous d'utiliser une carte Exaviz Interceptor ou Cruiser sur laquelle exaviz-dkms est installé.",
+      "missing_packages": "Les paquets Exaviz requis (exaviz-dkms, exaviz-netplan) ne sont pas installés sur le système d'exploitation hôte. Installez-les depuis le dépôt apt d'Exaviz (apt.exaviz.com) avant d'ajouter cette intégration.",
+      "no_poe_detected": "Aucun système PoE détecté sur cette carte. Vérifiez les connexions matérielles et qu'exaviz-dkms est installé.",
       "unknown": "Une erreur inattendue s'est produite. Veuillez réessayer.",
-      "missing_packages": "Les paquets Exaviz requis (exaviz-dkms, exaviz-netplan) ne sont pas installés sur le système d'exploitation hôte. Installez-les depuis le dépôt apt d'Exaviz (apt.exaviz.com) avant d'ajouter cette intégration."
+      "https_required": "La carte doit être jointe en HTTPS. Saisissez l'adresse sans http://.",
+      "invalid_host": "Saisissez uniquement une adresse IP ou un nom d'hôte, éventuellement avec https:// et un port.",
+      "board_unreachable": "La carte n'a pas répondu. Vérifiez l'adresse et que la carte est allumée.",
+      "no_management": "Exaviz Management n'est pas installé sur cette carte.",
+      "management_too_old": "Mettez à jour Exaviz Management sur la carte, puis réessayez.",
+      "unsupported_contract": "L'Exaviz Management de la carte est plus récent que cette intégration. Mettez à jour l'intégration Exaviz.",
+      "unsupported_board": "Dans cette version, seules les cartes Cruiser peuvent être ajoutées via le réseau.",
+      "invalid_code": "Le code est erroné, a expiré ou a été annulé. Relancez l'appairage sur la carte et saisissez le nouveau code.",
+      "too_many_attempts": "Trop de codes erronés. Attendez {retry_after} secondes, lancez un nouvel appairage sur la carte et saisissez le nouveau code.",
+      "token_limit": "La carte possède déjà 20 jetons Home Assistant. Révoquez-en un sur la carte dans More > Home Assistant, puis saisissez à nouveau le même code."
     },
     "abort": {
-      "already_configured": "Cette carte est déjà configurée."
+      "already_configured": "Cette carte est déjà configurée.",
+      "single_instance_allowed": "Dans cette version, une seule carte Exaviz peut être ajoutée à Home Assistant.",
+      "fingerprint_rejected": "Les empreintes n'étaient pas identiques, rien n'a donc été appairé. Vérifiez que vous avez saisi l'adresse de la bonne carte.",
+      "serial_mismatch": "Une autre carte a répondu. Si le numéro de série de cette carte a changé, supprimez l'intégration et ajoutez-la à nouveau.",
+      "board_unreachable": "La carte n'a pas répondu à son adresse enregistrée. Si elle a été déplacée, utilisez Reconfigurer sur l'intégration Exaviz pour saisir sa nouvelle adresse.",
+      "reauth_successful": "Home Assistant est de nouveau appairé avec la carte.",
+      "reconfigure_successful": "L'adresse de la carte a été mise à jour.",
+      "reconfigure_local": "Cette carte exécute elle-même Home Assistant, il n'y a donc aucune adresse à modifier.",
+      "no_management": "Exaviz Management n'est pas installé sur cette carte.",
+      "management_too_old": "Mettez à jour Exaviz Management sur la carte, puis réessayez.",
+      "unsupported_contract": "L'Exaviz Management de la carte est plus récent que cette intégration. Mettez à jour l'intégration Exaviz."
     }
   },
   "options": {
@@ -29,10 +117,12 @@
         "title": "Options Exaviz",
         "description": "Mettre à jour les options de configuration pour l'intégration de carte Exaviz.",
         "data": {
-          "update_interval": "Intervalle de Mise à Jour (secondes)"
+          "update_interval": "Intervalle de Mise à Jour (secondes)",
+          "switch_mode_discovery": "Détection des appareils en mode commutateur"
         },
         "data_description": {
-          "update_interval": "Fréquence d'analyse de l'état des ports PoE"
+          "update_interval": "Fréquence d'analyse de l'état des ports PoE",
+          "switch_mode_discovery": "En mode commutateur/pont, identifie l'appareil sur chaque port PoE via la FDB du pont et un arp-scan du sous-réseau du pont. Laissez désactivé pour le mode par port."
         }
       }
     },
@@ -46,56 +136,56 @@
       "description": "Actualiser les données des ports PoE depuis la carte locale."
     },
     "turn_on_port": {
-      "name": "Turn On PoE Port",
-      "description": "Enable power on a PoE port.",
+      "name": "Activer le Port PoE",
+      "description": "Activer l'alimentation d'un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID d'Entité",
+          "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     },
     "turn_off_port": {
-      "name": "Turn Off PoE Port",
-      "description": "Disable power on a PoE port.",
+      "name": "Désactiver le Port PoE",
+      "description": "Désactiver l'alimentation d'un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID d'Entité",
+          "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     },
     "toggle_port": {
-      "name": "Toggle PoE Port",
-      "description": "Toggle power on a PoE port.",
+      "name": "Basculer le Port PoE",
+      "description": "Basculer l'alimentation d'un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID d'Entité",
+          "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     },
     "control_port": {
-      "name": "Control PoE Port",
-      "description": "Control a PoE port with a specified action.",
+      "name": "Contrôler le Port PoE",
+      "description": "Contrôler un port PoE avec une action spécifiée.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID d'Entité",
+          "description": "ID d'entité de l'interrupteur du port PoE."
         },
         "action": {
           "name": "Action",
-          "description": "Action to perform: turn_on, turn_off, or toggle."
+          "description": "Action à effectuer : turn_on, turn_off ou toggle."
         }
       }
     },
     "reset_port": {
-      "name": "Reset PoE Port",
-      "description": "Reset (power cycle) a PoE port.",
+      "name": "Réinitialiser le Port PoE",
+      "description": "Réinitialiser (couper puis rétablir l'alimentation) un port PoE.",
       "fields": {
         "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the PoE port switch."
+          "name": "ID d'Entité",
+          "description": "ID d'entité de l'interrupteur du port PoE."
         }
       }
     }
