@@ -44,6 +44,10 @@ MAX_REMOTE_PORTS = 8
 # capped so a board sending new names cannot grow it without bound.
 _WARNED_PORT_NAMES: set[str] = set()
 _MAX_WARNED_PORT_NAMES = 32
+# GET /zigbee states the sensor shows. "unknown" (the board could not read the
+# unit) is a reading too; anything else means no radio state to show.
+ZIGBEE_RADIO_STATES = ("on", "off", "starting", "failed")
+_ZIGBEE_READINGS = frozenset({*ZIGBEE_RADIO_STATES, "unknown"})
 _POE_NAME_RE = re.compile(r"^poe(\d+)$")
 _NEUTRAL_NAME_RE = re.compile(r"^pse(\d+)-(\d+)$")
 # Cruiser wiring: PSE 1 feeds poe0-3, PSE 0 feeds poe4-7.
@@ -353,6 +357,13 @@ class RemoteClient:
     async def get_health(self) -> dict[str, Any]:
         return (await self._request("GET", "/system/health"))[0]
 
+    async def get_zigbee(self) -> Any:
+        """The radio status, or None from a board without the route (404)."""
+        try:
+            return (await self._request("GET", "/zigbee"))[0]
+        except NotFound:
+            return None
+
     async def pair(self, code: str, name: str = "Home Assistant") -> dict[str, Any]:
         reply = (
             await self._request("POST", "/ha/pair", {"code": code, "name": name})
@@ -384,6 +395,20 @@ def map_board(board: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 def map_health(health: dict[str, Any]) -> float | None:
     """GET /system/health -> board temperature in degrees C."""
     return health.get("cpu_temp_c")
+
+
+def map_zigbee(body: Any) -> str | None:
+    """GET /zigbee -> a ZIGBEE_RADIO_STATES value, "unknown", or None.
+
+    None when there is no radio state: the unit is not installed
+    (not_available), the reply is the stub of a board older than the radio
+    service, the route is missing, or the state is one this plugin does not
+    know (the contract says to treat that as unavailable).
+    """
+    if not isinstance(body, dict) or body.get("stub") is not False:
+        return None
+    state = body.get("state")
+    return state if isinstance(state, str) and state in _ZIGBEE_READINGS else None
 
 
 def _port_number(name: str) -> int | None:

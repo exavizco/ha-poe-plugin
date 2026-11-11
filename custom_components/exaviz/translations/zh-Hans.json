@@ -203,6 +203,15 @@
       },
       "temperature": {
         "name": "温度"
+      },
+      "zigbee_radio": {
+        "name": "Zigbee 无线电",
+        "state": {
+          "on": "开启",
+          "off": "关闭",
+          "starting": "启动中",
+          "failed": "失败"
+        }
       }
     },
     "binary_sensor": {

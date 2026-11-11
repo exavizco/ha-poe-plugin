@@ -18,6 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .const import CONF_SCOPE, DOMAIN, PLUGIN_VERSION
 from .coordinator import ExavizDataUpdateCoordinator
+from .remote import ZIGBEE_RADIO_STATES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,12 +43,29 @@ async def async_setup_entry(
     )
 
     # Always add the board-level sensors
-    async_add_entities(
-        [
-            ExavizServerStatusSensor(coordinator, config_entry.entry_id),
-            ExavizBoardTemperatureSensor(coordinator, config_entry.entry_id),
-        ]
-    )
+    entities: list[SensorEntity] = [
+        ExavizServerStatusSensor(coordinator, config_entry.entry_id),
+        ExavizBoardTemperatureSensor(coordinator, config_entry.entry_id),
+    ]
+    # Only Exaviz Management reports the radio's running state.
+    if coordinator.remote is not None:
+        entities.append(ExavizZigbeeRadioSensor(coordinator, config_entry.entry_id))
+    async_add_entities(entities)
+
+
+def _board_device_info(
+    coordinator: ExavizDataUpdateCoordinator, entry_id: str
+) -> dict[str, Any]:
+    """The board device every board-level sensor belongs to."""
+    board_type = coordinator.board_type
+    board_name = board_type.value.title() if board_type else "Unknown"
+    return {
+        "identifiers": {(DOMAIN, entry_id)},
+        "name": f"Exaviz {board_name}",
+        "manufacturer": "Exaviz (by Axzez LLC)",
+        "model": f"{board_name} Carrier Board",
+        "sw_version": PLUGIN_VERSION,
+    }
 
 
 class ExavizPoECurrentSensor(ExavizPoEBaseEntity, SensorEntity):
@@ -135,16 +153,7 @@ class ExavizServerStatusSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> dict[str, Any]:
         """Return device information."""
-        board_type = self.coordinator.board_type
-        board_name = board_type.value.title() if board_type else "Unknown"
-        
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": f"Exaviz {board_name}",
-            "manufacturer": "Exaviz (by Axzez LLC)",
-            "model": f"{board_name} Carrier Board",
-            "sw_version": PLUGIN_VERSION,
-        }
+        return _board_device_info(self.coordinator, self._entry_id)
 
     @property
     def native_value(self) -> str:
@@ -255,15 +264,7 @@ class ExavizBoardTemperatureSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> dict[str, Any]:
         """Return device information (same parent device as board status)."""
-        board_type = self.coordinator.board_type
-        board_name = board_type.value.title() if board_type else "Unknown"
-        return {
-            "identifiers": {(DOMAIN, self._entry_id)},
-            "name": f"Exaviz {board_name}",
-            "manufacturer": "Exaviz (by Axzez LLC)",
-            "model": f"{board_name} Carrier Board",
-            "sw_version": PLUGIN_VERSION,
-        }
+        return _board_device_info(self.coordinator, self._entry_id)
 
     @property
     def native_value(self) -> float | None:
@@ -281,4 +282,47 @@ class ExavizBoardTemperatureSensor(CoordinatorEntity, SensorEntity):
             self.coordinator.last_update_success
             and self.coordinator.data is not None
             and self.coordinator.data.get("board_temperature_celsius") is not None
+        )
+
+
+class ExavizZigbeeRadioSensor(CoordinatorEntity, SensorEntity):
+    """Whether the board's Zigbee radio service runs (remote boards only).
+
+    The Zigbee Coordinator binary sensor says whether the firmware is
+    installed; this says whether the radio is running. Unavailable when the
+    board reports no radio state (not installed, an older board, a state this
+    plugin does not know); unknown when the board could not read it.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = list(ZIGBEE_RADIO_STATES)
+    _attr_translation_key = "zigbee_radio"
+
+    def __init__(self, coordinator: ExavizDataUpdateCoordinator, entry_id: str) -> None:
+        """Initialize the Zigbee radio sensor."""
+        super().__init__(coordinator)
+        self._entry_id = entry_id
+        self._attr_name = "Zigbee Radio"
+        self._attr_unique_id = f"{entry_id}_zigbee_radio"
+        self._attr_icon = "mdi:zigbee"
+        self.entity_id = "sensor.zigbee_radio"
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        """Return device information (same parent device as board status)."""
+        return _board_device_info(self.coordinator, self._entry_id)
+
+    @property
+    def native_value(self) -> str | None:
+        """The radio state; None (unknown) when the board could not read it."""
+        state = self.coordinator.data["zigbee_radio"]
+        return state if state in ZIGBEE_RADIO_STATES else None
+
+    @property
+    def available(self) -> bool:
+        """Unavailable when the board does not answer or reports no radio."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data is not None
+            and self.coordinator.data.get("zigbee_radio") is not None
         )

@@ -441,6 +441,19 @@
     },
     "state": "0"
   },
+  "sensor.zigbee_radio": {
+    "attributes": {
+      "device_class": "enum",
+      "icon": "mdi:zigbee",
+      "options": [
+        "on",
+        "off",
+        "starting",
+        "failed"
+      ]
+    },
+    "state": "on"
+  },
   "switch.onboard_port0": {
     "attributes": {
       "device_class": "outlet"

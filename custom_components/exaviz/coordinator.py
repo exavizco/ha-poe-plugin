@@ -421,7 +421,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         raise ConfigEntryError(message)
 
     async def _async_update_remote(self) -> dict[str, Any]:
-        """One poll: /board, /poe/ports, /switch/ports, /system/health."""
+        """One poll: /board, /poe/ports, /switch/ports, /system/health, /zigbee."""
         try:
             board = await self.remote.probe()
             if board.get("serial") != self.entry.data[CONF_SERIAL]:
@@ -431,6 +431,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             poe_body, board_date = await self.remote.get_poe_ports()
             switch_body = await self.remote.get_switch_ports()
             health = await self.remote.get_health()
+            zigbee = await self.remote.get_zigbee()
         except remote.AuthFailed as err:
             raise ConfigEntryAuthFailed("the board no longer accepts this pairing") from err
         except remote.CertificateChanged as err:
@@ -448,7 +449,9 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error reading the board: {err}") from err
 
         try:
-            return self._map_remote(board, poe_body, board_date, switch_body, health)
+            return self._map_remote(
+                board, poe_body, board_date, switch_body, health, zigbee
+            )
         except (AttributeError, KeyError, TypeError, ValueError) as err:
             raise UpdateFailed("the board sent data this integration cannot read") from err
 
@@ -459,6 +462,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         board_date: datetime | None,
         switch_body: Any,
         health: Any,
+        zigbee: Any,
     ) -> dict[str, Any]:
         """Turn one poll's replies into coordinator data."""
         _board_type, self.system_info = remote.map_board(board)
@@ -490,6 +494,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             "total_enabled_ports": enabled,
             "total_power_watts": round(power, 2),
             "board_temperature_celsius": remote.map_health(health),
+            "zigbee_radio": remote.map_zigbee(zigbee),
             "poe": {
                 "onboard": {
                     "total_ports": len(ports),

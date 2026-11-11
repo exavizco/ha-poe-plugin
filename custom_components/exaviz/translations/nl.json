@@ -203,6 +203,15 @@
       },
       "temperature": {
         "name": "Temperatuur"
+      },
+      "zigbee_radio": {
+        "name": "Zigbee-radio",
+        "state": {
+          "on": "Aan",
+          "off": "Uit",
+          "starting": "Opstarten",
+          "failed": "Mislukt"
+        }
       }
     },
     "binary_sensor": {

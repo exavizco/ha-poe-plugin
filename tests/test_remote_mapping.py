@@ -8,7 +8,7 @@ import pytest
 
 from custom_components.exaviz import remote
 from custom_components.exaviz.coordinator import ExavizDataUpdateCoordinator
-from custom_components.exaviz.remote import map_board, map_health, map_ports
+from custom_components.exaviz.remote import map_board, map_health, map_ports, map_zigbee
 
 from .fake_board import case
 
@@ -165,6 +165,33 @@ def test_t17_board_to_system_info():
 def test_t18_health():
     assert map_health({"cpu_temp_c": 52.3}) == 52.3
     assert map_health({}) is None
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (case("zigbee")["body"], "on"),
+        (dict(case("zigbee")["body"], state="off"), "off"),
+        (dict(case("zigbee")["body"], state="starting"), "starting"),
+        (dict(case("zigbee")["body"], state="failed"), "failed"),
+        # The board could not read the unit: a value of unknown, not gone.
+        (case("zigbee_unknown")["body"], "unknown"),
+        # No radio to report: the unit is not installed, the reply is the
+        # pre-#462 stub, the state is one this plugin does not know, or the
+        # route is missing (the client passes None).
+        (case("zigbee_not_available")["body"], None),
+        (case("zigbee_stub")["body"], None),
+        (dict(case("zigbee")["body"], stub=True), None),
+        (dict(case("zigbee")["body"], state="sleeping"), None),
+        (dict(case("zigbee")["body"], state=1), None),
+        (dict(case("zigbee")["body"], state=["on"]), None),
+        ({"stub": False}, None),
+        (["on"], None),
+        (None, None),
+    ],
+)
+def test_zigbee_radio_state(body, expected):
+    assert map_zigbee(body) == expected
 
 
 def test_t19_startup_window_keeps_previous_ports_stale():

@@ -203,6 +203,15 @@
       },
       "temperature": {
         "name": "온도"
+      },
+      "zigbee_radio": {
+        "name": "Zigbee 라디오",
+        "state": {
+          "on": "켜짐",
+          "off": "꺼짐",
+          "starting": "시작 중",
+          "failed": "실패"
+        }
       }
     },
     "binary_sensor": {

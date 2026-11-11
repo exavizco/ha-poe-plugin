@@ -212,6 +212,7 @@ async def test_t10_one_door(board, session):
             c.get_poe_ports(),
             c.get_switch_ports(),
             c.get_health(),
+            c.get_zigbee(),
             c.pair("ABCD-EFGH"),
             c.port_action(1, 0, "reset"),
             c.probe(),
@@ -226,6 +227,33 @@ async def test_poe_ports_returns_board_date(board, session):
     body, date = await client(session, board, token=TOKEN).get_poe_ports()
     assert len(body["ports"]) == 8
     assert date == dt.datetime(2026, 11, 10, 19, 30, 1, tzinfo=dt.timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_get_zigbee_reads_the_radio_state(board, session):
+    c = client(session, board, token=TOKEN)
+    assert await c.get_zigbee() == case("zigbee")["body"]
+    (seen,) = board.requests
+    assert (seen.method, seen.path) == ("GET", "/api/v1/zigbee")
+    assert seen.headers["Authorization"] == f"Bearer {TOKEN}"
+
+
+@pytest.mark.asyncio
+async def test_get_zigbee_404_is_no_reading_not_an_error(board, session):
+    # A board without the route (or in its startup window) answers 404.
+    del board.replies[("GET", "/api/v1/zigbee")]
+    assert await client(session, board, token=TOKEN).get_zigbee() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reply", "error"),
+    [("unauth_401", AuthFailed), ("control_403", Forbidden), ("control_500", BoardError)],
+)
+async def test_get_zigbee_other_errors_raise(board, session, reply, error):
+    board.reply("GET", "/zigbee", case(reply))
+    with pytest.raises(error):
+        await client(session, board, token=TOKEN).get_zigbee()
 
 
 @pytest.mark.asyncio
