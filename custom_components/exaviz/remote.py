@@ -481,7 +481,9 @@ def map_ports(
     parsed yet) keeps its last values and is marked stale.
     """
     links = {p.get("name"): p for p in switch_body.get("ports", [])}
-    devices = poe_body.get("connected_devices", {})
+    devices = poe_body.get("connected_devices")
+    if not isinstance(devices, dict):
+        devices = {}
     ports: dict[int, dict[str, Any]] = {}
     for wire in poe_body.get("ports", []):
         name = wire.get("name", "")
@@ -523,7 +525,8 @@ def map_ports(
             "poe_system": "onboard",
             "stale": _is_stale(wire.get("updated_at"), server_date),
         }
-        if device := devices.get(interface):
+        device = devices.get(interface)
+        if isinstance(device, dict) and device:
             port["connected_device"] = {
                 "ip_address": board_text(device.get("ip")),
                 "mac_address": board_text(device.get("mac")),

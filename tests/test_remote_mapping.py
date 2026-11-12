@@ -296,3 +296,24 @@ def test_43_blank_device_text_falls_back():
     device = _device(ip="192.0.2.10", mac="AA:BB:CC:DD:EE:01", manufacturer="  ", hostname="")
     assert device["manufacturer"] == "Unknown"
     assert device["hostname"] is None
+
+
+@pytest.mark.parametrize("devices", [None, [], "text", 7, [{"ip": "192.0.2.10"}]])
+def test_43_connected_devices_that_is_not_a_dict_means_no_devices(devices):
+    body = poe()
+    body["connected_devices"] = devices
+    ports = by_port(map_ports(body, switch(), DATE, None))
+    assert ports and all("connected_device" not in p for p in ports.values())
+
+
+def test_43_a_device_entry_that_is_not_a_dict_drops_only_that_device():
+    body = poe()
+    body["connected_devices"] = {
+        "poe0": "not a dict",
+        "poe1": ["x"],
+        "poe2": {"ip": "192.0.2.12", "mac": "AA:BB:CC:DD:EE:02"},
+    }
+    ports = by_port(map_ports(body, switch(), DATE, None))
+    assert "connected_device" not in ports[0]
+    assert "connected_device" not in ports[1]
+    assert ports[2]["connected_device"]["ip_address"] == "192.0.2.12"

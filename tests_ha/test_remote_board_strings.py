@@ -39,3 +39,17 @@ async def test_long_device_text_is_capped_on_port_switch(hass, board):
     assert attrs["device_manufacturer"] == "M" * CAP
     assert attrs["device_hostname"] is None
     assert attrs["device_ip"] == "192.0.2.10"
+
+
+async def test_malformed_connected_devices_leaves_ports_working(hass, board):
+    reply = case("poe_ports")
+    reply["body"]["connected_devices"] = {
+        "poe0": "not a dict",
+        "poe1": {"ip": "192.0.2.11", "mac": "AA:BB:CC:DD:EE:02"},
+    }
+    board.reply("GET", "/poe/ports", reply)
+    await setup_remote(hass, board)
+
+    assert state(hass, "switch.onboard_port0").state in ("on", "off")
+    assert state(hass, "switch.onboard_port0").attributes["device_ip"] is None
+    assert state(hass, "switch.onboard_port1").attributes["device_ip"] == "192.0.2.11"
