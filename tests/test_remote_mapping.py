@@ -417,8 +417,8 @@ def test_43_a_good_updated_at_still_marks_stale():
 
 def test_43_a_naive_board_date_means_not_stale():
     naive = dt.datetime(2026, 11, 10, 19, 31, 0)
-    old = (UPDATED - dt.timedelta(hours=1)).isoformat()
-    assert _ports([dict(GOOD_PORT, updated_at=old + "Z")], date=naive)[0]["stale"] is False
+    old = (UPDATED - dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    assert _ports([dict(GOOD_PORT, updated_at=old)], date=naive)[0]["stale"] is False
 
 
 @pytest.mark.parametrize("body", [None, [], [1], "text", 7])

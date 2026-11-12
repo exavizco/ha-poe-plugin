@@ -502,9 +502,11 @@ def map_ports(
     A port seen before but missing now (startup window, or one controller not
     parsed yet) keeps its last values and is marked stale.
 
-    A reply that is not a dict, a port list that is not a list, and entries or
-    fields of the wrong type are treated as missing: only that port or value
-    drops out, the rest of the poll is kept.
+    A reply that is not a dict, a port list that is not a list, entries that
+    are not dicts, a port name that is not text, link stats that are not a dict
+    and an unreadable updated_at are treated as missing: only that port or
+    value drops out, the rest of the poll is kept. Measurements (power, speed,
+    byte counts) of the wrong type are not handled here and still fail the poll.
     """
     links = {
         p["name"]: p for p in _entries(switch_body) if isinstance(p.get("name"), str)
