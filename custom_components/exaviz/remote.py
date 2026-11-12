@@ -39,6 +39,8 @@ STALE_AFTER_SECONDS = 10
 _PIN_RE = re.compile(r"^[0-9a-f]{64}$")
 # Largest reply body read; the contract's biggest reply is a few KiB.
 MAX_BODY_BYTES = 1024 * 1024
+# Longest board-supplied text kept for a Board Status attribute.
+MAX_BOARD_STRING_CHARS = 256
 # A Cruiser has 8 onboard ports; higher numbers are not this board's.
 MAX_REMOTE_PORTS = 8
 # Unknown board port names already warned about, so each is logged once,
@@ -390,12 +392,16 @@ class RemoteClient:
 
 
 def map_board(board: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """GET /board -> (board_type, system_info). Empty values are left out."""
-    info: dict[str, Any] = {
-        ours: board[theirs]
-        for theirs, ours in _BOARD_INFO_KEYS.items()
-        if board.get(theirs) not in (None, "")
-    }
+    """GET /board -> (board_type, system_info).
+
+    Empty values and values that are not text are left out; text is trimmed
+    and cut to MAX_BOARD_STRING_CHARS.
+    """
+    info: dict[str, Any] = {}
+    for theirs, ours in _BOARD_INFO_KEYS.items():
+        value = board.get(theirs)
+        if isinstance(value, str) and (value := value.strip()):
+            info[ours] = value[:MAX_BOARD_STRING_CHARS]
     info["plugin_version"] = PLUGIN_VERSION
     return board.get("board_type", "unknown"), info
 
