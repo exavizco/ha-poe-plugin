@@ -262,3 +262,37 @@ def test_unknown_port_name_is_logged_once(caplog):
         map_ports(body, {"ports": []}, DATE, None)
         map_ports(body, {"ports": []}, DATE, None)
     assert sum("pse7-3" in r.getMessage() for r in caplog.records) == 1
+
+
+def _device(**fields):
+    body = poe()
+    body["connected_devices"]["poe0"] = fields
+    return by_port(map_ports(body, switch(), DATE, None))[0]["connected_device"]
+
+
+def test_43_device_text_is_trimmed_and_capped():
+    device = _device(
+        ip="  192.0.2.10 ",
+        mac="AA:BB:CC:DD:EE:01",
+        manufacturer="M" * 500_000,
+        hostname="h" * 300 + "TAIL",
+    )
+    assert device["ip_address"] == "192.0.2.10"
+    assert device["manufacturer"] == "M" * 256
+    assert device["hostname"] == "h" * 256
+
+
+def test_43_device_text_that_is_not_text_falls_back():
+    device = _device(
+        ip=["z"], mac={"x": 1}, manufacturer=["y" * 100_000], hostname=12345
+    )
+    assert device["ip_address"] is None
+    assert device["mac_address"] is None
+    assert device["manufacturer"] == "Unknown"
+    assert device["hostname"] is None
+
+
+def test_43_blank_device_text_falls_back():
+    device = _device(ip="192.0.2.10", mac="AA:BB:CC:DD:EE:01", manufacturer="  ", hostname="")
+    assert device["manufacturer"] == "Unknown"
+    assert device["hostname"] is None

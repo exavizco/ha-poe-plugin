@@ -39,7 +39,7 @@ STALE_AFTER_SECONDS = 10
 _PIN_RE = re.compile(r"^[0-9a-f]{64}$")
 # Largest reply body read; the contract's biggest reply is a few KiB.
 MAX_BODY_BYTES = 1024 * 1024
-# Longest board-supplied text kept for a Board Status attribute.
+# Longest board-supplied text kept for a Board Status or port device attribute.
 MAX_BOARD_STRING_CHARS = 256
 # A Cruiser has 8 onboard ports; higher numbers are not this board's.
 MAX_REMOTE_PORTS = 8
@@ -391,6 +391,16 @@ class RemoteClient:
         await self._request("POST", f"/poe/ports/{pse}/{index}/{action}")
 
 
+def board_text(value: Any) -> str | None:
+    """Board-supplied text, trimmed and cut to MAX_BOARD_STRING_CHARS.
+
+    None for a value that is not text or is blank.
+    """
+    if isinstance(value, str) and (value := value.strip()):
+        return value[:MAX_BOARD_STRING_CHARS]
+    return None
+
+
 def map_board(board: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """GET /board -> (board_type, system_info).
 
@@ -399,9 +409,8 @@ def map_board(board: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """
     info: dict[str, Any] = {}
     for theirs, ours in _BOARD_INFO_KEYS.items():
-        value = board.get(theirs)
-        if isinstance(value, str) and (value := value.strip()):
-            info[ours] = value[:MAX_BOARD_STRING_CHARS]
+        if (value := board_text(board.get(theirs))) is not None:
+            info[ours] = value
     info["plugin_version"] = PLUGIN_VERSION
     return board.get("board_type", "unknown"), info
 
@@ -510,10 +519,10 @@ def map_ports(
         }
         if device := devices.get(interface):
             port["connected_device"] = {
-                "ip_address": device.get("ip"),
-                "mac_address": device.get("mac"),
-                "manufacturer": device.get("manufacturer", "Unknown"),
-                "hostname": device.get("hostname"),
+                "ip_address": board_text(device.get("ip")),
+                "mac_address": board_text(device.get("mac")),
+                "manufacturer": board_text(device.get("manufacturer")) or "Unknown",
+                "hostname": board_text(device.get("hostname")),
             }
         ports[number] = port
     for old in previous or []:
