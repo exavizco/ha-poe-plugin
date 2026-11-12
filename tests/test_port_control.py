@@ -272,6 +272,80 @@ async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stops", [True, False])
+async def test_cancelled_esp32_write_is_killed_before_the_caller_goes_on(tmp_path, stops):
+    """A cancelled caller (shutdown) must not leave the write running behind
+    it, where it could land after the caller's next command."""
+    import asyncio
+
+    device = tmp_path / "pse"
+    device.write_text("")
+    proc = MagicMock()
+    proc.returncode = None
+    started = asyncio.Event()
+
+    async def blocked():
+        started.set()
+        await asyncio.Event().wait()
+
+    async def exits():
+        proc.returncode = -9
+
+    proc.communicate = blocked
+    proc.wait = exits if stops else blocked
+    with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
+         patch.object(switch_module, "ESP32_KILL_WAIT", 0.05), \
+         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
+        task = asyncio.create_task(
+            ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2")
+        )
+        await started.wait()
+        task.cancel()
+        if stops:
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(HomeAssistantError, match="did not stop"):
+                await task
+    proc.kill.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_second_cancel_during_the_kill_wait_counts_as_not_stopped(tmp_path):
+    """The write was not confirmed stopped, so the caller gets the error that
+    tells it to send nothing after it (not a bare cancel)."""
+    import asyncio
+
+    device = tmp_path / "pse"
+    device.write_text("")
+    proc = MagicMock()
+    proc.returncode = None
+    started, in_wait = asyncio.Event(), asyncio.Event()
+
+    async def blocked():
+        started.set()
+        await asyncio.Event().wait()
+
+    async def waits():
+        in_wait.set()
+        await asyncio.Event().wait()
+
+    proc.communicate = blocked
+    proc.wait = waits
+    with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
+         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
+        task = asyncio.create_task(
+            ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2")
+        )
+        await started.wait()
+        task.cancel()
+        await in_wait.wait()
+        task.cancel()
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await task
+
+
+@pytest.mark.asyncio
 async def test_esp32_kill_wait_is_a_couple_of_seconds():
     assert switch_module.ESP32_KILL_WAIT == 2
 

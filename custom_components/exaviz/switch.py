@@ -219,24 +219,33 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                try:
-                    _, stderr = await asyncio.wait_for(
-                        proc.communicate(), timeout=ESP32_WRITE_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
+                async def stop_write() -> None:
+                    """Kill the write; raise if it does not stop."""
                     try:
                         proc.kill()
                     except ProcessLookupError:
                         pass  # it finished just now
                     try:
                         await asyncio.wait_for(proc.wait(), timeout=ESP32_KILL_WAIT)
-                    except asyncio.TimeoutError:
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        # (A cancel during this wait counts as not stopped.)
                         # The write may still land later, so no caller may
                         # follow it with another command (a reset's restore).
                         raise HomeAssistantError(
                             f"The write of '{command}' to {device_path} timed out "
-                            "and did not stop; the port's state is unknown"
+                            "or was cancelled and did not stop; the port's state is unknown"
                         ) from None
+
+                try:
+                    _, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=ESP32_WRITE_TIMEOUT
+                    )
+                except asyncio.CancelledError:
+                    # Do not leave the write running behind the caller.
+                    await stop_write()
+                    raise
+                except asyncio.TimeoutError:
+                    await stop_write()
                     if proc.returncode == 0:
                         # It finished just before the kill.
                         _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
