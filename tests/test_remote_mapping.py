@@ -541,3 +541,17 @@ def test_43_unusable_readings_are_per_board(caplog):
         "Board 192.0.2.7",
         "Board 192.0.2.8",
     ]
+
+
+def test_renewed_fingerprint_is_stored_in_the_entry():
+    from unittest.mock import MagicMock
+
+    from custom_components.exaviz.const import CONF_FINGERPRINT
+
+    coordinator = object.__new__(ExavizDataUpdateCoordinator)
+    coordinator.hass = MagicMock()
+    coordinator.entry = MagicMock(data={CONF_FINGERPRINT: "a" * 64, "host": "h"})
+    coordinator._store_renewed_fingerprint("b" * 64)
+    coordinator.hass.config_entries.async_update_entry.assert_called_once_with(
+        coordinator.entry, data={CONF_FINGERPRINT: "b" * 64, "host": "h"}
+    )
