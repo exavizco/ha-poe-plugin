@@ -29,12 +29,12 @@ class TestMacVendorLookup:
     
     def test_ubiquiti_mac(self):
         """Test Ubiquiti MAC address detection."""
-        assert get_mac_vendor("00:1D:0F:11:22:33") == "Ubiquiti Networks"
+        assert get_mac_vendor("00:27:22:11:22:33") == "Ubiquiti Networks"
         assert get_mac_vendor("24:5A:4C:12:34:56") == "Ubiquiti Networks"
 
     def test_axis_camera_mac(self):
         """Test Axis camera MAC address detection."""
-        assert get_mac_vendor("00:04:20:11:22:33") == "Axis Communications (Camera)"
+        assert get_mac_vendor("00:40:8C:11:22:33") == "Axis Communications (Camera)"
         assert get_mac_vendor("AC:CC:8E:44:55:66") == "Axis Communications (Camera)"
 
     def test_raspberry_pi_mac(self):
@@ -49,7 +49,7 @@ class TestMacVendorLookup:
 
     def test_cisco_mac(self):
         """Test Cisco MAC address detection."""
-        assert get_mac_vendor("00:14:6C:AA:BB:CC") == "Cisco Systems"
+        assert get_mac_vendor("00:22:90:AA:BB:CC") == "Cisco Systems"
         assert get_mac_vendor("00:18:B9:11:22:33") == "Cisco Systems"
 
     def test_unknown_mac(self):
@@ -64,12 +64,44 @@ class TestMacVendorLookup:
         assert get_mac_vendor("") == "Unknown"
         assert get_mac_vendor(None) == "Unknown"
 
-    def test_partial_oui_match_is_labelled(self):
-        """An unlisted OUI sharing its first two bytes with a listed one."""
-        # 00:13:99 is not listed; 00:13:E2 (GeoVision) is the only 00:13 entry.
-        assert get_mac_vendor("00:13:99:01:02:03") == "GeoVision (Camera) (partial match)"
-        # The first listed entry with the prefix wins (00:1D:0F before 00:1D:70).
-        assert get_mac_vendor("00:1d:aa:01:02:03") == "Ubiquiti Networks (partial match)"
+    def test_unlisted_oui_is_unknown_even_with_a_shared_prefix(self):
+        """An OUI is three bytes; two shared bytes say nothing about the vendor.
+
+        The 00:1B prefix holds Intel (00:1B:21), Apple (00:1B:63) and Bosch
+        Access Systems (00:1B:86); the old two-byte fallback named every
+        unlisted 00:1B:xx device a Bosch camera.
+        """
+        assert get_mac_vendor("00:13:99:01:02:03") == "Unknown"
+        assert get_mac_vendor("00:1b:aa:01:02:03") == "Unknown"
+        # Listed OUIs under that shared prefix still resolve exactly.
+        assert get_mac_vendor("00:1B:21:01:02:03") == "Intel Corporate"
+        assert get_mac_vendor("00:1b:63:01:02:03") == "Apple"
+
+    @pytest.mark.parametrize(
+        ("mac", "vendor"),
+        [
+            # Registered owner per the IEEE registry (Wireshark manuf, nmap,
+            # arp-scan agree); the table named another company before.
+            ("00:1D:0F:01:02:03", "TP-Link Technologies"),
+            ("00:25:90:01:02:03", "Super Micro Computer"),
+            ("00:0D:B9:01:02:03", "PC Engines"),
+            ("00:1C:B3:01:02:03", "Apple"),
+            ("00:14:6C:01:02:03", "Netgear"),
+            ("00:10:17:01:02:03", "Bosch Access Systems"),
+            ("00:1B:86:01:02:03", "Bosch Access Systems"),
+            # Owned by companies the table does not track: no guess.
+            ("00:04:20:01:02:03", "Unknown"),
+            ("00:09:57:01:02:03", "Unknown"),
+            ("00:D0:3E:01:02:03", "Unknown"),
+            ("00:D0:41:01:02:03", "Unknown"),
+            ("00:1C:44:01:02:03", "Unknown"),
+            # 00:50:C2 is a shared IEEE block split among thousands of
+            # companies; three bytes cannot name the vendor.
+            ("00:50:C2:01:02:03", "Unknown"),
+        ],
+    )
+    def test_oui_names_the_registered_owner(self, mac, vendor):
+        assert get_mac_vendor(mac) == vendor
 
     def test_vmware_oui(self):
         assert get_mac_vendor("00:50:56:AA:BB:CC") == "VMware Virtual"
@@ -189,35 +221,34 @@ class TestIntegrationScenarios:
     """Integration tests for real-world scenarios."""
 
     @pytest.mark.asyncio
-    async def test_ubiquiti_device_full_flow(self):
-        """Test complete flow for Ubiquiti device."""
+    async def test_geovision_camera_full_flow(self):
+        """Test complete flow for a GeoVision camera."""
         device_info = {
             "ip_address": "198.51.100.197",
             "mac_address": "00:13:e2:1f:bc:b9",
         }
 
         with patch("socket.getnameinfo") as mock_getnameinfo:
-            mock_getnameinfo.return_value = ("unifi-ap.local", "0")
+            mock_getnameinfo.return_value = ("geovision-camera.local", "0")
             
             enriched = await enrich_device_info(device_info)
             
             assert enriched["manufacturer"] == "GeoVision (Camera)"  # Correct OUI for 00:13:e2
-            assert enriched["hostname"] == "unifi-ap.local"
+            assert enriched["hostname"] == "geovision-camera.local"
 
     @pytest.mark.asyncio
-    async def test_axis_camera_full_flow(self):
-        """Test complete flow for Axis camera."""
+    async def test_vcs_camera_full_flow(self):
+        """Test complete flow for a VCS camera (the OUI Bosch cameras use)."""
         device_info = {
             "ip_address": "198.51.100.109",
             "mac_address": "00:07:5f:85:18:17",
         }
 
         with patch("socket.getnameinfo") as mock_getnameinfo:
-            mock_getnameinfo.return_value = ("axis-camera-1.local", "0")
+            mock_getnameinfo.return_value = ("vcs-camera-1.local", "0")
             
             enriched = await enrich_device_info(device_info)
             
-            # Note: MAC 00:07:5f is VCS Video Communication Systems (Camera)
-            assert "Camera" in enriched["manufacturer"]  # OUI database lookup works
-            assert enriched["hostname"] == "axis-camera-1.local"
+            assert enriched["manufacturer"] == "VCS Video Communication Systems (Camera)"
+            assert enriched["hostname"] == "vcs-camera-1.local"
 
