@@ -233,7 +233,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                         # follow it with another command (a reset's restore).
                         raise HomeAssistantError(
                             f"The write of '{command}' to {device_path} timed out "
-                            "and did not stop; the port's state is unknown"
+                            "or was cancelled and did not stop; the port's state is unknown"
                         ) from None
 
                 try:

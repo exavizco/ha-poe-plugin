@@ -166,11 +166,17 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             return await ExavizPoEPortSwitch._send_esp32_command(command)
         except asyncio.CancelledError:
             try:
-                await ExavizPoEPortSwitch._send_esp32_command(command)
+                resent = await ExavizPoEPortSwitch._send_esp32_command(command)
             except HomeAssistantError as err:
                 _LOGGER.error(
                     "Could not turn port poe%d back on: %s", self._port_number, err
                 )
+            else:
+                if not resent:
+                    _LOGGER.error(
+                        "Could not turn port poe%d back on: the write failed",
+                        self._port_number,
+                    )
             raise
 
     async def _power_cycle_onboard_port(self) -> None:
@@ -192,8 +198,10 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
                 f"disable-port {pse_num} {pse_port}"
             )
         except asyncio.CancelledError:
-            # Shutdown cancelled the cycle itself with the write in flight; it
-            # may still land, so turn the port back on before stopping.
+            # Shutdown cancelled the cycle itself with the write in flight. The
+            # write is stopped by now but may have landed, so turn the port
+            # back on before stopping. (A write that will not stop raises
+            # HomeAssistantError instead, and nothing follows it.)
             await self._send_enable_port(pse_num, pse_port)
             raise
         if not disabled:

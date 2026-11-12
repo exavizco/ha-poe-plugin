@@ -341,9 +341,9 @@ async def test_cycle_cancelled_while_the_write_will_not_stop_sends_nothing_after
     assert calls == ["disable-port 1 0"]
 
 
-@pytest.mark.parametrize("resend_stops", [True, False])
+@pytest.mark.parametrize("resend_result", ["ok", "raises", "false"])
 @pytest.mark.asyncio
-async def test_cancel_during_the_restore_write_resends_it(resend_stops, caplog):
+async def test_cancel_during_the_restore_write_resends_it(resend_result, caplog):
     """Shutdown cancels once. If that lands on the restore write itself (the
     write is killed), the restore is sent again; the cancel stays the outcome
     even when the second write will not stop (it is logged)."""
@@ -356,9 +356,9 @@ async def test_cancel_during_the_restore_write_resends_it(resend_stops, caplog):
         if command.startswith("enable-port") and calls.count(command) == 1:
             in_restore.set()
             await asyncio.Event().wait()  # cancelled here
-        if command.startswith("enable-port") and not resend_stops:
+        if command.startswith("enable-port") and resend_result == "raises":
             raise HomeAssistantError("did not stop")
-        return True
+        return resend_result != "false"
 
     async def link(interface: str, action: str) -> bool:
         return True
@@ -375,7 +375,7 @@ async def test_cancel_during_the_restore_write_resends_it(resend_stops, caplog):
         with pytest.raises(asyncio.CancelledError):
             await cycle
     assert calls == ["disable-port 1 0", "enable-port 1 0", "enable-port 1 0"]
-    assert ("Could not turn port poe0 back on" in caplog.text) is (not resend_stops)
+    assert ("Could not turn port poe0 back on" in caplog.text) is (resend_result != "ok")
 
 
 @pytest.mark.asyncio
