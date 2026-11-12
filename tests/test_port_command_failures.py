@@ -378,6 +378,40 @@ async def test_cancel_during_the_restore_write_resends_it(resend_result, caplog)
     assert ("Could not turn port poe0 back on" in caplog.text) is (resend_result != "ok")
 
 
+@pytest.mark.parametrize("cancel_at", ["disable-port", "settle"])
+@pytest.mark.asyncio
+async def test_cycle_cancelled_then_a_failed_turn_on_is_logged(cancel_at, caplog):
+    """Shutdown cancels the cycle; if the turn-on that follows fails (a plain
+    False, not another cancel), say so: the port may be left off."""
+    button = _button()
+    reached = asyncio.Event()
+
+    async def send(command: str) -> bool:
+        if command.startswith("disable-port"):
+            if cancel_at == "disable-port":
+                reached.set()
+                await asyncio.Event().wait()
+            return True
+        return False  # enable-port fails
+
+    async def link(interface: str, action: str) -> bool:
+        return True
+
+    async def settle(delay):
+        reached.set()
+        await asyncio.Event().wait()
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
+         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+        cycle = asyncio.create_task(button._power_cycle_onboard_port())
+        await reached.wait()
+        cycle.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cycle
+    assert "Could not turn port poe0 back on" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_cycle_cancelled_during_the_settle_leaves_the_link_up_too():
     button = _button()

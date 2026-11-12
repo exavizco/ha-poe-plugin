@@ -163,7 +163,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         """
         command = f"enable-port {pse_num} {pse_port}"
         try:
-            return await ExavizPoEPortSwitch._send_esp32_command(command)
+            sent = await ExavizPoEPortSwitch._send_esp32_command(command)
         except asyncio.CancelledError:
             try:
                 resent = await ExavizPoEPortSwitch._send_esp32_command(command)
@@ -178,6 +178,12 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
                         self._port_number,
                     )
             raise
+        if not sent:
+            _LOGGER.error(
+                "Could not turn port poe%d back on: the write failed",
+                self._port_number,
+            )
+        return sent
 
     async def _power_cycle_onboard_port(self) -> None:
         """disable-port → link down → settle → link up → enable-port.
