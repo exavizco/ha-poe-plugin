@@ -445,3 +445,50 @@ def test_43_a_huge_integer_temperature_means_no_temperature():
 def test_43_a_port_name_with_a_huge_number_drops_only_that_port(name):
     ports = _ports([dict(GOOD_PORT, name=name, index=2), GOOD_PORT])
     assert sorted(ports) == [0]
+
+
+# --- #43: a measurement of the wrong type counts as missing -------------------
+
+BAD_MEASUREMENTS = [
+    pytest.param(value, id=name)
+    for name, value in [
+        ("text", "x"), ("null", None), ("list", [1]), ("dict", {"a": 1}), ("bool", True),
+        ("nan", float("nan")), ("inf", float("inf")), ("huge-int", 10**400),
+    ]
+]
+
+
+@pytest.mark.parametrize("bad", BAD_MEASUREMENTS)
+@pytest.mark.parametrize(
+    ("wire", "key", "default"),
+    [
+        ("power_w", "power_consumption_watts", 0.0),
+        ("voltage_v", "voltage_volts", 0.0),
+        ("current_ma", "current_milliamps", 0),
+    ],
+)
+def test_43_a_poe_measurement_of_the_wrong_type_counts_as_missing(wire, key, default, bad):
+    port = _ports([dict(GOOD_PORT, **{wire: bad})])[0]
+    assert port[key] == default
+    assert type(port[key]) is type(default)
+
+
+@pytest.mark.parametrize("bad", BAD_MEASUREMENTS)
+@pytest.mark.parametrize("key", ["speed_mbps", "rx_bytes", "tx_bytes"])
+def test_43_a_link_measurement_of_the_wrong_type_counts_as_missing(key, bad):
+    link = {"name": "poe0", "speed_mbps": 1000, "stats": {"rx_bytes": 7, "tx_bytes": 9}}
+    if key == "speed_mbps":
+        link[key] = bad
+    else:
+        link["stats"][key] = bad
+    port = _ports([GOOD_PORT], [link])[0]
+    assert port[key] == 0
+
+
+def test_43_good_measurements_pass_through_unchanged():
+    wire = dict(GOOD_PORT, power_w=4.5, voltage_v=52, current_ma=94)
+    link = {"name": "poe0", "speed_mbps": 1000, "stats": {"rx_bytes": 7, "tx_bytes": 9}}
+    port = _ports([wire], [link])[0]
+    assert (port["power_consumption_watts"], port["voltage_volts"]) == (4.5, 52)
+    assert port["current_milliamps"] == 94 and type(port["voltage_volts"]) is int
+    assert (port["speed_mbps"], port["rx_bytes"], port["tx_bytes"]) == (1000, 7, 9)
