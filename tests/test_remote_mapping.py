@@ -168,6 +168,25 @@ def test_t17_board_to_system_info():
     assert "management_version" not in info
 
 
+def test_t17b_board_strings_are_capped_and_typed():
+    """A board string longer than the cap is cut; a non-string value is left out."""
+    cap = 256  # the documented limit; a change here is a visible change
+
+    body = case("board_authed")["body"]
+    body["os_version"] = "x" * (cap + 5000)
+    body["kernel_version"] = "  6.18.34  "
+    body["netplan_version"] = {"nested": "y" * 100_000}
+    body["poe_controller"] = ["a"] * 1000
+    body["serial"] = "S" * cap  # exactly the cap: kept whole
+    info = map_board(body)[1]
+    assert info["os_version"] == "x" * cap
+    assert info["kernel_version"] == "6.18.34"
+    assert "netplan_version" not in info
+    assert "poe_controller" not in info
+    assert info["board_serial"] == "S" * cap
+    assert info["management_version"] == "1.0.8+test"
+
+
 def test_t18_health():
     assert map_health({"cpu_temp_c": 52.3}) == 52.3
     assert map_health({"cpu_temp_c": 52}) == 52
