@@ -311,9 +311,11 @@ def test_43_a_device_entry_that_is_not_a_dict_drops_only_that_device():
     body["connected_devices"] = {
         "poe0": "not a dict",
         "poe1": ["x"],
+        "poe3": {},
         "poe2": {"ip": "192.0.2.12", "mac": "AA:BB:CC:DD:EE:02"},
     }
     ports = by_port(map_ports(body, switch(), DATE, None))
     assert "connected_device" not in ports[0]
     assert "connected_device" not in ports[1]
+    assert "connected_device" not in ports[3]
     assert ports[2]["connected_device"]["ip_address"] == "192.0.2.12"
