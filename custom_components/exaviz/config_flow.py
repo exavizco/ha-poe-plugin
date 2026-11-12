@@ -460,7 +460,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason=reason)
         serial = self._board["serial"]
         return self.async_create_entry(
-            title=self._board.get("board_name") or f"Exaviz Cruiser {serial}",
+            title=remote.board_text(self._board.get("board_name")) or f"Exaviz Cruiser {serial}",
             data={
                 CONF_CONNECTION: CONNECTION_REMOTE,
                 CONF_HOST: self._host,

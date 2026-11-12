@@ -200,6 +200,39 @@ async def test_t22_title_falls_back_to_serial(hass, board):
     assert result["title"] == f"Exaviz Cruiser {SERIAL}"
 
 
+async def test_43_long_board_name_is_trimmed_and_capped_in_the_title(hass, board):
+    named = case("board")
+    named["body"]["board_name"] = "  " + "N" * 500_000
+    board.reply("GET", "/board", named)
+    result = await to_pair(hass, board)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["title"] == "N" * 256
+
+
+async def test_43_blank_board_name_falls_back_to_serial(hass, board):
+    named = case("board")
+    named["body"]["board_name"] = "   "
+    board.reply("GET", "/board", named)
+    result = await to_pair(hass, board)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["title"] == f"Exaviz Cruiser {SERIAL}"
+
+
+async def test_43_overlong_serial_is_refused_at_setup(hass, board):
+    bad = case("board")
+    bad["body"]["serial"] = "S" * 5000
+    board.reply("GET", "/board", bad)
+    result = await start_remote(hass, board.host, board.port)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "remote"
+    assert result["errors"] == {"base": "board_unreachable"}
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
 async def test_t22a_pair_serial_mismatch_creates_nothing(hass, board):
     other = case("pair_201")
     other["body"]["serial"] = "CRU-OTHER-0002"
