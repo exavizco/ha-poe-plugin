@@ -197,23 +197,50 @@ async def test_cm_model_lite_no_wifi(coordinator, root):
     }
 
 
-async def test_cm_model_unreadable_meminfo_and_emmc_size(coordinator, root):
-    """No /proc/meminfo: smallest tier. Bad eMMC size: treated as Lite."""
+async def test_cm_model_unreadable_meminfo_omits_ram_and_model(coordinator, root):
+    """No /proc/meminfo: RAM is unknown, so RAM and the part number are left out."""
+    put(root, "/sys/block/mmcblk0boot0/")
+    put(root, "/sys/block/mmcblk0/size", EMMC_32GB_SECTORS)
+    result = await coordinator._detect_cm_model("4")
+    assert "total_ram_gb" not in result
+    assert "cm_model" not in result
+    assert result["emmc_storage"] == "32 GB"
+    assert result["has_wifi"] == "No"
+
+
+async def test_cm_model_meminfo_without_memtotal_omits_ram(coordinator, root):
+    put(root, "/proc/meminfo", "MemFree:  1000 kB\n")
+    result = await coordinator._detect_cm_model("4")
+    assert "total_ram_gb" not in result
+    assert "cm_model" not in result
+
+
+async def test_cm_model_unreadable_emmc_size_omits_storage_and_model(coordinator, root):
+    """An eMMC is present but its size is unreadable: not the same as no eMMC."""
+    put(root, "/proc/meminfo", MEMINFO_2GB)
     put(root, "/sys/block/mmcblk0boot0/")
     put(root, "/sys/block/mmcblk0/size", "not-a-number\n")
     result = await coordinator._detect_cm_model("4")
-    assert result["total_ram_gb"] == "1 GB"
-    assert result["emmc_storage"] == "None (Lite)"
+    assert result["total_ram_gb"] == "2 GB"
+    assert "emmc_storage" not in result
+    assert "cm_model" not in result
 
 
-async def test_cm_model_clamps_to_largest_tiers(coordinator, root):
-    """Above the top RAM tier clamps to 16 GB; eMMC above 256 GB is not a tier."""
+async def test_cm_model_clamps_ram_to_largest_tier(coordinator, root):
+    """Above the top RAM tier clamps to 16 GB."""
     put(root, "/proc/meminfo", "MemTotal:       33554432 kB\n")  # 32 GiB
+    result = await coordinator._detect_cm_model("5")
+    assert result["total_ram_gb"] == "16 GB"
+
+
+async def test_cm_model_emmc_above_top_tier_is_unknown(coordinator, root):
+    """eMMC above 256 GB is not a tier: unknown, not Lite."""
+    put(root, "/proc/meminfo", MEMINFO_8GB)
     put(root, "/sys/block/mmcblk0boot0/")
     put(root, "/sys/block/mmcblk0/size", str(600 * 1024**3 // 512))
     result = await coordinator._detect_cm_model("5")
-    assert result["total_ram_gb"] == "16 GB"
-    assert result["emmc_storage"] == "None (Lite)"
+    assert "emmc_storage" not in result
+    assert "cm_model" not in result
 
 
 # ---------------------------------------------------------------------------
