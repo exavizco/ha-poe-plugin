@@ -427,6 +427,20 @@ def map_total_ports(board: dict[str, Any]) -> int | None:
     return total if type(total) is int and total > 0 else None
 
 
+def _measurement(value: Any, default: Any) -> Any:
+    """value if it is a finite number, else default.
+
+    A bool is not a number, and an integer too large for a float is not finite.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            if math.isfinite(value):
+                return value
+        except OverflowError:
+            pass
+    return default
+
+
 def map_health(health: Any) -> float | None:
     """GET /system/health -> board temperature in degrees C, or None.
 
@@ -434,16 +448,7 @@ def map_health(health: Any) -> float | None:
     bool is not one; an integer too large for a float is not one either),
     counts as missing.
     """
-    if not isinstance(health, dict):
-        return None
-    temp = health.get("cpu_temp_c")
-    if isinstance(temp, (int, float)) and not isinstance(temp, bool):
-        try:
-            if math.isfinite(temp):
-                return temp
-        except OverflowError:
-            pass
-    return None
+    return _measurement(health.get("cpu_temp_c"), None) if isinstance(health, dict) else None
 
 
 def map_zigbee(body: Any) -> str | None:
@@ -505,8 +510,8 @@ def map_ports(
     A reply that is not a dict, a port list that is not a list, entries that
     are not dicts, a port name that is not text, link stats that are not a dict
     and an unreadable updated_at are treated as missing: only that port or
-    value drops out, the rest of the poll is kept. Measurements (power, speed,
-    byte counts) of the wrong type are not handled here and still fail the poll.
+    value drops out, the rest of the poll is kept. A measurement (power, voltage,
+    current, speed, byte count) that is not a finite number counts as 0.
     """
     links = {
         p["name"]: p for p in _entries(switch_body) if isinstance(p.get("name"), str)
@@ -547,16 +552,16 @@ def map_ports(
             "index": index,
             "enabled": state != "disabled",
             "status": "power on" if state == "delivering" else state,
-            "power_consumption_watts": wire.get("power_w", 0.0),
+            "power_consumption_watts": _measurement(wire.get("power_w"), 0.0),
             "allocated_power_watts": get_allocated_power_watts(poe_class),
             "power_mocked": False,
             "poe_class": poe_class,
-            "voltage_volts": wire.get("voltage_v", 0.0),
-            "current_milliamps": wire.get("current_ma", 0),
+            "voltage_volts": _measurement(wire.get("voltage_v"), 0.0),
+            "current_milliamps": _measurement(wire.get("current_ma"), 0),
             "link_state": link.get("oper_state", "unknown"),
-            "speed_mbps": link.get("speed_mbps", 0),
-            "rx_bytes": stats.get("rx_bytes", 0),
-            "tx_bytes": stats.get("tx_bytes", 0),
+            "speed_mbps": _measurement(link.get("speed_mbps"), 0),
+            "rx_bytes": _measurement(stats.get("rx_bytes"), 0),
+            "tx_bytes": _measurement(stats.get("tx_bytes"), 0),
             "poe_system": "onboard",
             "stale": _is_stale(wire.get("updated_at"), server_date),
         }

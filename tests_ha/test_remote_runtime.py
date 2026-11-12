@@ -442,12 +442,14 @@ async def test_advance_helper_runs_interval_polls(hass, board, freezer):
 
 
 async def test_unreadable_port_data_marks_the_poll_failed(hass, board, caplog):
-    """A malformed reply is a failed poll, not a traceback every interval."""
+    """A reply the mapper cannot read is a failed poll, not a traceback every
+    interval. (The mapper now degrades every wrong-typed value it knows of, so
+    this makes it raise to test the coordinator's guard.)"""
     entry = await setup_remote(hass, board)
-    reply = case("poe_ports")
-    reply["body"]["ports"][0]["power_w"] = "lots"
-    board.reply("GET", "/poe/ports", reply)
-    await poll(hass, entry)
+    with patch(
+        "custom_components.exaviz.remote.map_ports", side_effect=TypeError("unreadable")
+    ):
+        await poll(hass, entry)
     coordinator = entry.runtime_data
     assert not coordinator.last_update_success
     assert hass.states.get("switch.onboard_port0").state == "unavailable"

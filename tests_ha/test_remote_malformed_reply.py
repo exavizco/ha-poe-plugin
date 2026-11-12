@@ -32,3 +32,16 @@ async def test_health_reply_that_is_not_a_dict_leaves_ports_working(hass, board)
     await setup_remote(hass, board)
 
     assert state(hass, "switch.onboard_port0").state in ("on", "off")
+
+
+async def test_wrong_type_measurements_leave_ports_working(hass, board):
+    poe = case("poe_ports")
+    poe["body"]["ports"][0].update(power_w="x", voltage_v=[1], current_ma={"a": 1})
+    switch = case("switch_ports")
+    switch["body"]["ports"][0].update(speed_mbps="fast", stats={"rx_bytes": "x", "tx_bytes": None})
+    board.reply("GET", "/poe/ports", poe)
+    board.reply("GET", "/switch/ports", switch)
+    await setup_remote(hass, board)
+
+    assert state(hass, "switch.onboard_port0").state in ("on", "off")
+    assert state(hass, "switch.onboard_port1").state in ("on", "off")
