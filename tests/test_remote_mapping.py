@@ -173,13 +173,13 @@ def test_t17b_board_strings_are_capped_and_typed():
     cap = 256  # the documented limit; a change here is a visible change
 
     body = case("board_authed")["body"]
-    body["os_version"] = "x" * (cap + 5000)
+    body["os_version"] = "A" + "x" * (cap + 5000)
     body["kernel_version"] = "  6.18.34  "
     body["netplan_version"] = {"nested": "y" * 100_000}
     body["poe_controller"] = ["a"] * 1000
     body["serial"] = "S" * cap  # exactly the cap: kept whole
     info = map_board(body)[1]
-    assert info["os_version"] == "x" * cap
+    assert info["os_version"] == "A" + "x" * (cap - 1)  # the start is kept
     assert info["kernel_version"] == "6.18.34"
     assert "netplan_version" not in info
     assert "poe_controller" not in info
