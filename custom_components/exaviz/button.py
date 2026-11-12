@@ -154,6 +154,25 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             )
         self.hass.async_create_task(self.coordinator.async_request_refresh())
 
+    async def _send_enable_port(self, pse_num: int, pse_port: int) -> bool:
+        """Send enable-port; if shutdown cancels the write, send it once more.
+
+        The write is killed when its caller is cancelled, and the runner
+        cancels only once, so the second write goes through. A second write
+        that will not stop is logged and the cancel stays the outcome.
+        """
+        command = f"enable-port {pse_num} {pse_port}"
+        try:
+            return await ExavizPoEPortSwitch._send_esp32_command(command)
+        except asyncio.CancelledError:
+            try:
+                await ExavizPoEPortSwitch._send_esp32_command(command)
+            except HomeAssistantError as err:
+                _LOGGER.error(
+                    "Could not turn port poe%d back on: %s", self._port_number, err
+                )
+            raise
+
     async def _power_cycle_onboard_port(self) -> None:
         """disable-port → link down → settle → link up → enable-port.
 
@@ -175,20 +194,12 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         except asyncio.CancelledError:
             # Shutdown cancelled the cycle itself with the write in flight; it
             # may still land, so turn the port back on before stopping.
-            try:
-                await ExavizPoEPortSwitch._send_esp32_command(
-                    f"enable-port {pse_num} {pse_port}"
-                )
-            except HomeAssistantError as err:
-                # Keep the cancel as the outcome; the write did not stop.
-                _LOGGER.error("Could not turn port %s back on: %s", interface, err)
+            await self._send_enable_port(pse_num, pse_port)
             raise
         if not disabled:
             # A timed-out write may still have landed, so turn the port back
             # on to be sure; on a port that stayed on this changes nothing.
-            await ExavizPoEPortSwitch._send_esp32_command(
-                f"enable-port {pse_num} {pse_port}"
-            )
+            await self._send_enable_port(pse_num, pse_port)
             raise HomeAssistantError(
                 f"The PoE controller did not disable port {interface}"
             )
@@ -200,9 +211,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             await asyncio.sleep(3)
             link_up = await ExavizPoEPortSwitch._run_ip_link(interface, "up")
         finally:
-            restored = await ExavizPoEPortSwitch._send_esp32_command(
-                f"enable-port {pse_num} {pse_port}"
-            )
+            restored = await self._send_enable_port(pse_num, pse_port)
         if not restored:
             raise HomeAssistantError(
                 f"The PoE controller did not turn port {interface} back on after the reset"

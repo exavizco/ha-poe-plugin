@@ -227,7 +227,8 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                         pass  # it finished just now
                     try:
                         await asyncio.wait_for(proc.wait(), timeout=ESP32_KILL_WAIT)
-                    except asyncio.TimeoutError:
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        # (A second cancel counts as not stopped.)
                         # The write may still land later, so no caller may
                         # follow it with another command (a reset's restore).
                         raise HomeAssistantError(
