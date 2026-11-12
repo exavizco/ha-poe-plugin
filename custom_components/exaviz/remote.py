@@ -51,8 +51,8 @@ _MAX_WARNED_PORT_NAMES = 32
 # unit) is a reading too; anything else means no radio state to show.
 ZIGBEE_RADIO_STATES = ("on", "off", "starting", "failed")
 _ZIGBEE_READINGS = frozenset({*ZIGBEE_RADIO_STATES, "unknown"})
-_POE_NAME_RE = re.compile(r"^poe(\d+)$")
-_NEUTRAL_NAME_RE = re.compile(r"^pse(\d+)-(\d+)$")
+_POE_NAME_RE = re.compile(r"^poe(\d{1,9})$")
+_NEUTRAL_NAME_RE = re.compile(r"^pse(\d{1,9})-(\d{1,9})$")
 # Cruiser wiring: PSE 1 feeds poe0-3, PSE 0 feeds poe4-7.
 _CRUISER_PSE_OFFSET = {1: 0, 0: 4}
 
@@ -427,14 +427,22 @@ def map_total_ports(board: dict[str, Any]) -> int | None:
     return total if type(total) is int and total > 0 else None
 
 
-def map_health(health: dict[str, Any]) -> float | None:
+def map_health(health: Any) -> float | None:
     """GET /system/health -> board temperature in degrees C, or None.
 
-    A value that is not a finite number (a bool is not one) counts as missing.
+    A reply that is not a dict, or a value that is not a finite number (a
+    bool is not one; an integer too large for a float is not one either),
+    counts as missing.
     """
+    if not isinstance(health, dict):
+        return None
     temp = health.get("cpu_temp_c")
-    if isinstance(temp, (int, float)) and not isinstance(temp, bool) and math.isfinite(temp):
-        return temp
+    if isinstance(temp, (int, float)) and not isinstance(temp, bool):
+        try:
+            if math.isfinite(temp):
+                return temp
+        except OverflowError:
+            pass
     return None
 
 
@@ -462,11 +470,25 @@ def _port_number(name: str) -> int | None:
     return None
 
 
-def _is_stale(updated_at: str | None, server_date: datetime | None) -> bool:
-    if server_date is None or not updated_at:
+def _is_stale(updated_at: Any, server_date: datetime | None) -> bool:
+    """True when the port's reading is older than the board's own clock allows.
+
+    A missing, unreadable or timezone-less timestamp (or board Date) cannot be
+    compared, so the port counts as fresh.
+    """
+    if server_date is None or not isinstance(updated_at, str) or not updated_at:
         return False
-    updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-    return (server_date - updated).total_seconds() > STALE_AFTER_SECONDS
+    try:
+        updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        return (server_date - updated).total_seconds() > STALE_AFTER_SECONDS
+    except (TypeError, ValueError):
+        return False
+
+
+def _entries(body: Any) -> list[dict[str, Any]]:
+    """The dict entries of a reply's "ports" list; anything else is no entries."""
+    ports = body.get("ports") if isinstance(body, dict) else None
+    return [p for p in ports if isinstance(p, dict)] if isinstance(ports, list) else []
 
 
 def map_ports(
@@ -479,15 +501,23 @@ def map_ports(
 
     A port seen before but missing now (startup window, or one controller not
     parsed yet) keeps its last values and is marked stale.
+
+    A reply that is not a dict, a port list that is not a list, entries that
+    are not dicts, a port name that is not text, link stats that are not a dict
+    and an unreadable updated_at are treated as missing: only that port or
+    value drops out, the rest of the poll is kept. Measurements (power, speed,
+    byte counts) of the wrong type are not handled here and still fail the poll.
     """
-    links = {p.get("name"): p for p in switch_body.get("ports", [])}
-    devices = poe_body.get("connected_devices")
+    links = {
+        p["name"]: p for p in _entries(switch_body) if isinstance(p.get("name"), str)
+    }
+    devices = poe_body.get("connected_devices") if isinstance(poe_body, dict) else None
     if not isinstance(devices, dict):
         devices = {}
     ports: dict[int, dict[str, Any]] = {}
-    for wire in poe_body.get("ports", []):
-        name = wire.get("name", "")
-        number = _port_number(name)
+    for wire in _entries(poe_body):
+        name = wire.get("name")
+        number = _port_number(name) if isinstance(name, str) else None
         pse, index = wire.get("pse"), wire.get("index")
         # pse and index go into the control URL, so they must be plain ints.
         if (
@@ -496,13 +526,18 @@ def map_ports(
             or type(pse) is not int
             or type(index) is not int
         ):
-            if name not in _WARNED_PORT_NAMES and len(_WARNED_PORT_NAMES) < _MAX_WARNED_PORT_NAMES:
-                _WARNED_PORT_NAMES.add(name)
-                _LOGGER.warning("Skipping board port %r: unknown name or address", name)
+            # A name that is not text is logged by its type: it may be unhashable
+            # or very large.
+            shown = name if isinstance(name, str) else f"<{type(name).__name__}>"
+            if shown not in _WARNED_PORT_NAMES and len(_WARNED_PORT_NAMES) < _MAX_WARNED_PORT_NAMES:
+                _WARNED_PORT_NAMES.add(shown)
+                _LOGGER.warning("Skipping board port %r: unknown name or address", shown)
             continue
         interface = f"poe{number}"
         link = links.get(name) or links.get(interface) or {}
-        stats = link.get("stats", {})
+        stats = link.get("stats")
+        if not isinstance(stats, dict):
+            stats = {}
         poe_class = str(wire.get("class", "?"))
         state = wire.get("state", "unknown")
         port: dict[str, Any] = {

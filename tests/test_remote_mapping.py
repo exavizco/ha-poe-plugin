@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from unittest.mock import patch
 
 import pytest
@@ -320,3 +321,127 @@ def test_43_a_device_entry_that_is_not_a_dict_drops_only_that_device():
     assert "connected_device" not in ports[1]
     assert "connected_device" not in ports[3]
     assert ports[2]["connected_device"]["ip_address"] == "192.0.2.12"
+
+
+# --- #43 round 8: a malformed reply degrades, it does not raise ---------------
+
+GOOD_PORT = {"name": "poe0", "pse": 0, "index": 0, "state": "delivering"}
+
+
+def _ports(poe_ports, switch_ports=None, date=DATE, previous=None):
+    return by_port(
+        map_ports(
+            {"ports": poe_ports},
+            {"ports": [] if switch_ports is None else switch_ports},
+            date,
+            previous,
+        )
+    )
+
+
+@pytest.mark.parametrize("entry", [1, None, "poe1", ["poe1"], 2.5])
+def test_43_a_port_entry_that_is_not_a_dict_drops_only_that_port(entry):
+    ports = _ports([entry, GOOD_PORT, dict(GOOD_PORT, name="poe1", index=1)])
+    assert sorted(ports) == [0, 1]
+
+
+@pytest.mark.parametrize("name", [None, 5, ["poe1"], {"a": 1}, True])
+def test_43_a_port_name_that_is_not_text_drops_only_that_port(name):
+    ports = _ports([dict(GOOD_PORT, name=name, index=3), GOOD_PORT])
+    assert sorted(ports) == [0]
+
+
+@pytest.mark.parametrize("ports_value", [None, "poe0", 7, {"poe0": GOOD_PORT}])
+def test_43_a_ports_field_that_is_not_a_list_means_no_ports(ports_value):
+    kept = [{**by_port(map_ports(poe(), switch(), DATE, None))[0]}]
+    assert map_ports({"ports": ports_value}, switch(), DATE, None) == []
+    # With a good poll behind it the old port stays, marked stale.
+    again = map_ports({"ports": ports_value}, switch(), DATE, kept)
+    assert [(p["port"], p["stale"]) for p in again] == [(0, True)]
+
+
+@pytest.mark.parametrize("body", [None, [], [GOOD_PORT], "text", 7])
+def test_43_a_poe_reply_that_is_not_a_dict_means_no_ports(body):
+    assert map_ports(body, switch(), DATE, None) == []
+
+
+@pytest.mark.parametrize("body", [None, [], [{"name": "poe0"}], "text", 7])
+def test_43_a_switch_reply_that_is_not_a_dict_means_no_link_data(body):
+    port = map_ports({"ports": [GOOD_PORT]}, body, DATE, None)[0]
+    assert port["link_state"] == "unknown"
+    assert port["rx_bytes"] == 0
+
+
+@pytest.mark.parametrize("switch_ports", [None, "x", 3, {"name": "poe0"}])
+def test_43_a_switch_ports_field_that_is_not_a_list_means_no_link_data(switch_ports):
+    port = _ports([GOOD_PORT], switch_ports)[0]
+    assert port["link_state"] == "unknown"
+
+
+def test_43_a_switch_entry_that_is_not_a_dict_or_has_no_text_name_is_skipped():
+    link = {"name": "poe0", "oper_state": "up", "speed_mbps": 1000}
+    bad = [7, None, ["poe0"], {"name": ["poe0"], "oper_state": "down"}, {"name": None}]
+    port = _ports([GOOD_PORT], bad + [link])[0]
+    assert port["link_state"] == "up"
+    assert port["speed_mbps"] == 1000
+
+
+@pytest.mark.parametrize("stats", [None, [], "x", 7, [1, 2]])
+def test_43_link_stats_that_are_not_a_dict_count_as_zero(stats):
+    link = {"name": "poe0", "oper_state": "up", "stats": stats}
+    port = _ports([GOOD_PORT], [link])[0]
+    assert port["link_state"] == "up"
+    assert (port["rx_bytes"], port["tx_bytes"]) == (0, 0)
+
+
+@pytest.mark.parametrize(
+    "updated_at",
+    [
+        "not a date",
+        "",
+        5,
+        ["2026-11-10T19:00:00Z"],
+        {"t": 1},
+        "2026-11-10T19:00:00",  # no timezone: cannot be compared with the board's Date
+    ],
+)
+def test_43_a_bad_updated_at_means_not_stale_and_keeps_the_port(updated_at):
+    ports = _ports([dict(GOOD_PORT, updated_at=updated_at)])
+    assert ports[0]["stale"] is False
+
+
+def test_43_a_good_updated_at_still_marks_stale():
+    old = (UPDATED - dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    assert _ports([dict(GOOD_PORT, updated_at=old)])[0]["stale"] is True
+
+
+def test_43_a_naive_board_date_means_not_stale():
+    naive = dt.datetime(2026, 11, 10, 19, 31, 0)
+    old = (UPDATED - dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    assert _ports([dict(GOOD_PORT, updated_at=old)], date=naive)[0]["stale"] is False
+
+
+@pytest.mark.parametrize("body", [None, [], [1], "text", 7])
+def test_43_a_health_reply_that_is_not_a_dict_means_no_temperature(body):
+    assert map_health(body) is None
+
+
+def test_43_a_port_name_that_is_not_text_is_logged_by_type_once(caplog, monkeypatch):
+    monkeypatch.setattr(remote, "_WARNED_PORT_NAMES", set())
+    huge = ["x" * 100_000]
+    with caplog.at_level("WARNING"):
+        for _ in range(2):
+            _ports([dict(GOOD_PORT, name=huge), dict(GOOD_PORT, name=huge)])
+    messages = [r.getMessage() for r in caplog.records]
+    assert sum("<list>" in m for m in messages) == 1
+    assert all(len(m) < 200 for m in messages)
+
+
+def test_43_a_huge_integer_temperature_means_no_temperature():
+    assert map_health(json.loads('{"cpu_temp_c": 1' + "0" * 400 + "}")) is None
+
+
+@pytest.mark.parametrize("name", ["poe" + "1" * 5000, "pse" + "1" * 5000 + "-0"])
+def test_43_a_port_name_with_a_huge_number_drops_only_that_port(name):
+    ports = _ports([dict(GOOD_PORT, name=name, index=2), GOOD_PORT])
+    assert sorted(ports) == [0]
