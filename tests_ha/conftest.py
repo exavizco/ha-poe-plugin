@@ -6,6 +6,7 @@ Harness pins: requirements-current.txt (current HA) and requirements-floor.txt
 """
 
 import asyncio
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -26,13 +27,19 @@ def pycares_shutdown_thread() -> None:
     """Start pycares' shutdown thread before any test snapshots its threads.
 
     pycares 4.9+ destroys each resolver channel on one daemon thread that it
-    starts the first time a channel is closed or collected and never stops. The 2024.12 harness fails whichever
-    test starts it as a lingering thread; newer harnesses allow it by name.
+    starts the first time a channel is closed or collected and never stops.
+    The 2024.12 harness fails whichever test starts it as a lingering thread;
+    newer harnesses allow it by name.
     Destroying one channel here puts the thread in every test's "before" set.
     """
     import pycares
 
     pycares.Channel().close()
+    if tuple(int(n) for n in pycares.__version__.split(".")[:2]) >= (4, 9):
+        # If a release stops starting it here, fail now, not in a later test.
+        assert any(
+            "_run_safe_shutdown_loop" in t.name for t in threading.enumerate()
+        ), "pycares did not start its shutdown thread"
 
 
 @pytest.fixture(autouse=True)
