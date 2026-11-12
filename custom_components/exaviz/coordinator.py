@@ -723,16 +723,17 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             emmc  = 000 (Lite), 008, 016, 032, 064 (GB)
 
         Returns dict with:
-          cm_model:      "CM4102000"
-          total_ram_gb:  "2 GB"
           has_wifi:      "Yes" / "No"
-          emmc_storage:  "None (Lite)" / "32 GB"
+          total_ram_gb:  "2 GB"            (left out when unreadable)
+          emmc_storage:  "None (Lite)" / "32 GB"  (left out when unreadable)
+          cm_model:      "CM4102000"       (left out unless RAM and eMMC known)
         """
         result: dict[str, str] = {}
         if not cm_gen:
             return result
 
         # --- RAM ---
+        # A value that cannot be read is left out, never guessed.
         mem_total_kb = 0
         try:
             meminfo = Path("/proc/meminfo")
@@ -741,21 +742,19 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 if line.startswith("MemTotal:"):
                     mem_total_kb = int(line.split()[1])
                     break
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
             pass
 
-        # MemTotal is less than physical RAM (kernel/GPU reservation).
-        # Round up to nearest standard tier.
-        mem_total_gb = mem_total_kb / (1024 * 1024)  # KB → GB
-        ram_gb = 1
-        for tier in self._RAM_TIERS_GB:
-            if mem_total_gb <= tier:
-                ram_gb = tier
-                break
-        else:
-            ram_gb = self._RAM_TIERS_GB[-1]
-
-        result["total_ram_gb"] = f"{ram_gb} GB"
+        ram_gb: int | None = None
+        if mem_total_kb > 0:
+            # MemTotal is less than physical RAM (kernel/GPU reservation).
+            # Round up to nearest standard tier.
+            mem_total_gb = mem_total_kb / (1024 * 1024)  # KB → GB
+            ram_gb = next(
+                (tier for tier in self._RAM_TIERS_GB if mem_total_gb <= tier),
+                self._RAM_TIERS_GB[-1],
+            )
+            result["total_ram_gb"] = f"{ram_gb} GB"
 
         # --- WiFi ---
         wlan_path = Path("/sys/class/net/wlan0")
@@ -763,16 +762,21 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         result["has_wifi"] = "Yes" if has_wifi else "No"
 
         # --- eMMC ---
-        # eMMC devices have boot partitions; SD cards do not.
-        emmc_gb = 0
+        # eMMC devices have boot partitions; SD cards do not. No boot
+        # partition is a Lite module (0 GB); a present eMMC whose size cannot
+        # be read or is not a standard size is unknown.
+        emmc_gb: int | None = 0
         emmc_boot = Path("/sys/block/mmcblk0boot0")
         has_emmc = await asyncio.to_thread(emmc_boot.exists)
 
         if has_emmc:
+            emmc_gb = None
             try:
                 size_path = Path("/sys/block/mmcblk0/size")
                 raw = await asyncio.to_thread(size_path.read_text)
                 sectors = int(raw.strip())
+                if sectors <= 0:
+                    raise ValueError("empty size")
                 emmc_bytes = sectors * 512
                 # Round to nearest standard eMMC size (8, 16, 32, 64, 128 GB)
                 raw_gb = emmc_bytes / (1024 ** 3)
@@ -781,18 +785,16 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                         emmc_gb = std
                         break
             except (OSError, ValueError):
-                emmc_gb = 0
+                pass
 
-        if emmc_gb > 0:
-            result["emmc_storage"] = f"{emmc_gb} GB"
-        else:
-            result["emmc_storage"] = "None (Lite)"
+        if emmc_gb is not None:
+            result["emmc_storage"] = f"{emmc_gb} GB" if emmc_gb else "None (Lite)"
 
         # --- Construct model number ---
-        wifi_digit = 1 if has_wifi else 0
-        emmc_str = f"{emmc_gb:03d}"
-        model = f"CM{cm_gen}{wifi_digit}{ram_gb:02d}{emmc_str}"
-        result["cm_model"] = model
+        # Needs both RAM and eMMC; with either unknown there is no part number.
+        if ram_gb is not None and emmc_gb is not None:
+            wifi_digit = 1 if has_wifi else 0
+            result["cm_model"] = f"CM{cm_gen}{wifi_digit}{ram_gb:02d}{emmc_gb:03d}"
 
         return result
 
