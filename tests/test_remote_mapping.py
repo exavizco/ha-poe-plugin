@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from unittest.mock import patch
 
 import pytest
@@ -434,3 +435,13 @@ def test_43_a_port_name_that_is_not_text_is_logged_by_type_once(caplog, monkeypa
     messages = [r.getMessage() for r in caplog.records]
     assert sum("<list>" in m for m in messages) == 1
     assert all(len(m) < 200 for m in messages)
+
+
+def test_43_a_huge_integer_temperature_means_no_temperature():
+    assert map_health(json.loads('{"cpu_temp_c": 1' + "0" * 400 + "}")) is None
+
+
+@pytest.mark.parametrize("name", ["poe" + "1" * 5000, "pse" + "1" * 5000 + "-0"])
+def test_43_a_port_name_with_a_huge_number_drops_only_that_port(name):
+    ports = _ports([dict(GOOD_PORT, name=name, index=2), GOOD_PORT])
+    assert sorted(ports) == [0]

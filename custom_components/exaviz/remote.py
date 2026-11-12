@@ -51,8 +51,8 @@ _MAX_WARNED_PORT_NAMES = 32
 # unit) is a reading too; anything else means no radio state to show.
 ZIGBEE_RADIO_STATES = ("on", "off", "starting", "failed")
 _ZIGBEE_READINGS = frozenset({*ZIGBEE_RADIO_STATES, "unknown"})
-_POE_NAME_RE = re.compile(r"^poe(\d+)$")
-_NEUTRAL_NAME_RE = re.compile(r"^pse(\d+)-(\d+)$")
+_POE_NAME_RE = re.compile(r"^poe(\d{1,9})$")
+_NEUTRAL_NAME_RE = re.compile(r"^pse(\d{1,9})-(\d{1,9})$")
 # Cruiser wiring: PSE 1 feeds poe0-3, PSE 0 feeds poe4-7.
 _CRUISER_PSE_OFFSET = {1: 0, 0: 4}
 
@@ -431,13 +431,18 @@ def map_health(health: Any) -> float | None:
     """GET /system/health -> board temperature in degrees C, or None.
 
     A reply that is not a dict, or a value that is not a finite number (a
-    bool is not one), counts as missing.
+    bool is not one; an integer too large for a float is not one either),
+    counts as missing.
     """
     if not isinstance(health, dict):
         return None
     temp = health.get("cpu_temp_c")
-    if isinstance(temp, (int, float)) and not isinstance(temp, bool) and math.isfinite(temp):
-        return temp
+    if isinstance(temp, (int, float)) and not isinstance(temp, bool):
+        try:
+            if math.isfinite(temp):
+                return temp
+        except OverflowError:
+            pass
     return None
 
 
