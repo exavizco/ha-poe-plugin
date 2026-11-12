@@ -723,10 +723,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             emmc  = 000 (Lite), 008, 016, 032, 064 (GB)
 
         Returns dict with:
-          cm_model:      "CM4102000"
-          total_ram_gb:  "2 GB"
           has_wifi:      "Yes" / "No"
-          emmc_storage:  "None (Lite)" / "32 GB"
+          total_ram_gb:  "2 GB"            (left out when unreadable)
+          emmc_storage:  "None (Lite)" / "32 GB"  (left out when unreadable)
+          cm_model:      "CM4102000"       (left out unless RAM and eMMC known)
         """
         result: dict[str, str] = {}
         if not cm_gen:
@@ -742,7 +742,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 if line.startswith("MemTotal:"):
                     mem_total_kb = int(line.split()[1])
                     break
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
             pass
 
         ram_gb: int | None = None
@@ -775,6 +775,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
                 size_path = Path("/sys/block/mmcblk0/size")
                 raw = await asyncio.to_thread(size_path.read_text)
                 sectors = int(raw.strip())
+                if sectors <= 0:
+                    raise ValueError("empty size")
                 emmc_bytes = sectors * 512
                 # Round to nearest standard eMMC size (8, 16, 32, 64, 128 GB)
                 raw_gb = emmc_bytes / (1024 ** 3)

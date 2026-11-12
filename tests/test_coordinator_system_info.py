@@ -226,6 +226,24 @@ async def test_cm_model_unreadable_emmc_size_omits_storage_and_model(coordinator
     assert "cm_model" not in result
 
 
+async def test_cm_model_memtotal_line_without_a_number_omits_ram(coordinator, root):
+    """A malformed MemTotal line is unreadable RAM, not an error for the rest."""
+    put(root, "/proc/meminfo", "MemTotal:\n")
+    result = await coordinator._detect_cm_model("4")
+    assert "total_ram_gb" not in result
+    assert "cm_model" not in result
+
+
+async def test_cm_model_zero_size_emmc_is_unknown(coordinator, root):
+    """A size of 0 sectors is a bad read, not a small eMMC."""
+    put(root, "/proc/meminfo", MEMINFO_2GB)
+    put(root, "/sys/block/mmcblk0boot0/")
+    put(root, "/sys/block/mmcblk0/size", "0\n")
+    result = await coordinator._detect_cm_model("4")
+    assert "emmc_storage" not in result
+    assert "cm_model" not in result
+
+
 async def test_cm_model_clamps_ram_to_largest_tier(coordinator, root):
     """Above the top RAM tier clamps to 16 GB."""
     put(root, "/proc/meminfo", "MemTotal:       33554432 kB\n")  # 32 GiB
