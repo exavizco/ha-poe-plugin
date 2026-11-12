@@ -387,7 +387,9 @@ async def test_board_without_serial_is_a_protocol_error(board, session):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("serial", ["", "S" * 257, "S" * 500_000])
+@pytest.mark.parametrize(
+    "serial", ["", "   ", "\n", " " * 256, "S" * 257, "S" * 500_000, 12345, ["S"]]
+)
 async def test_43_board_serial_blank_or_too_long_is_a_protocol_error(board, session, serial):
     body = case("board")["body"]
     body["serial"] = serial

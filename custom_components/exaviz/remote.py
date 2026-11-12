@@ -338,8 +338,12 @@ class RemoteClient:
     async def get_board(self) -> dict[str, Any]:
         board = (await self._request("GET", "/board"))[0]
         serial = board.get("serial") if isinstance(board, dict) else None
-        # The serial becomes the entry's unique id, so it is refused, not cut.
-        if not isinstance(serial, str) or not 0 < len(serial) <= MAX_BOARD_STRING_CHARS:
+        # The serial becomes the entry's unique id, so it is refused, not cut. Blank counts as missing.
+        if (
+            not isinstance(serial, str)
+            or not serial.strip()
+            or len(serial) > MAX_BOARD_STRING_CHARS
+        ):
             raise ProtocolError("GET /board: no usable serial")
         return board
 
