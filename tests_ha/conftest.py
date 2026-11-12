@@ -21,6 +21,20 @@ def pytest_addoption(parser):
     )
 
 
+@pytest.fixture(autouse=True, scope="session")
+def pycares_shutdown_thread() -> None:
+    """Start pycares' shutdown thread before any test snapshots its threads.
+
+    pycares 4.9+ destroys each resolver channel on one daemon thread that it
+    starts the first time a channel is closed or collected and never stops. The 2024.12 harness fails whichever
+    test starts it as a lingering thread; newer harnesses allow it by name.
+    Destroying one channel here puts the thread in every test's "before" set.
+    """
+    import pycares
+
+    pycares.Channel().close()
+
+
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Let HA load custom_components/exaviz."""
