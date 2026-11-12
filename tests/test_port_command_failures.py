@@ -311,7 +311,54 @@ async def test_cycle_task_cancelled_at_shutdown_still_turns_the_port_on(cancel_a
         cycle.cancel()
         with pytest.raises(asyncio.CancelledError):
             await cycle
-    assert calls[-1].startswith("enable-port")
+    assert calls[-1] == "enable-port 1 0"
+
+
+@pytest.mark.asyncio
+async def test_cycle_cancelled_while_the_write_will_not_stop_sends_nothing_after_it(caplog):
+    """An unstoppable disable write may still land, so no enable-port follows
+    it; the task still ends as cancelled and the failure is not hidden."""
+    button = _button()
+    calls: list[str] = []
+    reached = asyncio.Event()
+
+    async def send(command: str) -> bool:
+        calls.append(command)
+        if command.startswith("disable-port"):
+            reached.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                raise HomeAssistantError("did not stop") from None
+        raise HomeAssistantError("did not stop")
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send):
+        cycle = asyncio.create_task(button._power_cycle_onboard_port())
+        await reached.wait()
+        cycle.cancel()
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await cycle
+    assert calls == ["disable-port 1 0"]
+
+
+@pytest.mark.asyncio
+async def test_cycle_cancel_stays_a_cancel_when_the_restore_write_will_not_stop(caplog):
+    button = _button()
+    reached = asyncio.Event()
+
+    async def send(command: str) -> bool:
+        if command.startswith("disable-port"):
+            reached.set()
+            await asyncio.Event().wait()
+        raise HomeAssistantError("did not stop")
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send):
+        cycle = asyncio.create_task(button._power_cycle_onboard_port())
+        await reached.wait()
+        cycle.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cycle
+    assert "Could not turn port poe0 back on" in caplog.text
 
 
 @pytest.mark.asyncio

@@ -219,11 +219,8 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                try:
-                    _, stderr = await asyncio.wait_for(
-                        proc.communicate(), timeout=ESP32_WRITE_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
+                async def stop_write() -> None:
+                    """Kill the write; raise if it does not stop."""
                     try:
                         proc.kill()
                     except ProcessLookupError:
@@ -237,6 +234,17 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
                             f"The write of '{command}' to {device_path} timed out "
                             "and did not stop; the port's state is unknown"
                         ) from None
+
+                try:
+                    _, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=ESP32_WRITE_TIMEOUT
+                    )
+                except asyncio.CancelledError:
+                    # Do not leave the write running behind the caller.
+                    await stop_write()
+                    raise
+                except asyncio.TimeoutError:
+                    await stop_write()
                     if proc.returncode == 0:
                         # It finished just before the kill.
                         _LOGGER.info("Sent ESP32 command: %s → %s", command, device_path)
