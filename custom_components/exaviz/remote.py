@@ -39,7 +39,7 @@ STALE_AFTER_SECONDS = 10
 _PIN_RE = re.compile(r"^[0-9a-f]{64}$")
 # Largest reply body read; the contract's biggest reply is a few KiB.
 MAX_BODY_BYTES = 1024 * 1024
-# Longest board-supplied text kept for a Board Status attribute.
+# Longest board-supplied text kept for a Board Status or port device attribute.
 MAX_BOARD_STRING_CHARS = 256
 # A Cruiser has 8 onboard ports; higher numbers are not this board's.
 MAX_REMOTE_PORTS = 8

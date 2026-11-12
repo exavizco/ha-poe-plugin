@@ -284,8 +284,9 @@ def test_43_device_text_is_trimmed_and_capped():
 
 def test_43_device_text_that_is_not_text_falls_back():
     device = _device(
-        ip="192.0.2.10", mac={"x": 1}, manufacturer=["y" * 100_000], hostname=12345
+        ip=["z"], mac={"x": 1}, manufacturer=["y" * 100_000], hostname=12345
     )
+    assert device["ip_address"] is None
     assert device["mac_address"] is None
     assert device["manufacturer"] == "Unknown"
     assert device["hostname"] is None
