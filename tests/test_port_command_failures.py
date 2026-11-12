@@ -278,6 +278,42 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at, restore_ok, c
     assert failed is not restore_ok
 
 
+@pytest.mark.parametrize("cancel_at", ["disable-port", "settle"])
+@pytest.mark.asyncio
+async def test_cycle_task_cancelled_at_shutdown_still_turns_the_port_on(cancel_at):
+    """At final shutdown the runner cancels the cycle task itself (the shield
+    only protects it from a cancelled press). The port must not stay off."""
+    button = _button()
+    button.hass = MagicMock()
+    calls: list[str] = []
+    reached = asyncio.Event()
+
+    async def send(command: str) -> bool:
+        calls.append(command)
+        if command.startswith(cancel_at):
+            reached.set()
+            await asyncio.Event().wait()  # blocked until cancelled
+        return True
+
+    async def link(interface: str, action: str) -> bool:
+        calls.append(f"link {action}")
+        return True
+
+    async def settle(delay):
+        reached.set()
+        await asyncio.Event().wait()
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
+         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+        cycle = asyncio.create_task(button._power_cycle_onboard_port())
+        await reached.wait()
+        cycle.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cycle
+    assert calls[-1].startswith("enable-port")
+
+
 @pytest.mark.asyncio
 async def test_onboard_reset_succeeds_quietly():
     button = _button()

@@ -168,9 +168,18 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             self._port_number
         )
 
-        if not await ExavizPoEPortSwitch._send_esp32_command(
-            f"disable-port {pse_num} {pse_port}"
-        ):
+        try:
+            disabled = await ExavizPoEPortSwitch._send_esp32_command(
+                f"disable-port {pse_num} {pse_port}"
+            )
+        except asyncio.CancelledError:
+            # Shutdown cancelled the cycle itself with the write in flight; it
+            # may still land, so turn the port back on before stopping.
+            await ExavizPoEPortSwitch._send_esp32_command(
+                f"enable-port {pse_num} {pse_port}"
+            )
+            raise
+        if not disabled:
             # A timed-out write may still have landed, so turn the port back
             # on to be sure; on a port that stayed on this changes nothing.
             await ExavizPoEPortSwitch._send_esp32_command(
