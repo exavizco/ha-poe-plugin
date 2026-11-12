@@ -303,7 +303,8 @@ def test_43_connected_devices_that_is_not_a_dict_means_no_devices(devices):
     body = poe()
     body["connected_devices"] = devices
     ports = by_port(map_ports(body, switch(), DATE, None))
-    assert ports and all("connected_device" not in p for p in ports.values())
+    assert ports.keys() == by_port(map_ports(poe(), switch(), DATE, None)).keys()
+    assert all("connected_device" not in p for p in ports.values())
 
 
 def test_43_a_device_entry_that_is_not_a_dict_drops_only_that_device():
