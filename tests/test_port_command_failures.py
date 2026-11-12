@@ -379,6 +379,35 @@ async def test_cancel_during_the_restore_write_resends_it(resend_stops, caplog):
 
 
 @pytest.mark.asyncio
+async def test_cycle_cancelled_during_the_settle_leaves_the_link_up_too():
+    button = _button()
+    calls: list[str] = []
+    in_settle = asyncio.Event()
+
+    async def send(command: str) -> bool:
+        calls.append(command)
+        return True
+
+    async def link(interface: str, action: str) -> bool:
+        calls.append(f"link {action}")
+        return True
+
+    async def settle(delay):
+        in_settle.set()
+        await asyncio.Event().wait()
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
+         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+        cycle = asyncio.create_task(button._power_cycle_onboard_port())
+        await in_settle.wait()
+        cycle.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cycle
+    assert calls == ["disable-port 1 0", "link down", "link up", "enable-port 1 0"]
+
+
+@pytest.mark.asyncio
 async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path):
     """Same as above through the real _send_esp32_command and a real kill: the
     device must end up having received enable-port."""
@@ -388,6 +417,7 @@ async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path
     device.write_text("")
     button = _button()
     written: list[str] = []
+    killed: list[str] = []
     in_restore = asyncio.Event()
     n_enable = 0
 
@@ -409,7 +439,7 @@ async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path
             self.returncode = -9
 
         def kill(self):
-            pass
+            killed.append(self.command)
 
     async def exec_(*args, **kwargs):
         nonlocal n_enable
@@ -434,6 +464,7 @@ async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path
         with pytest.raises(asyncio.CancelledError):
             await cycle
     assert written == ["disable-port 1 0", "enable-port 1 0"]
+    assert killed == ["enable-port 1 0"]  # the cancelled restore write was killed
 
 
 @pytest.mark.asyncio

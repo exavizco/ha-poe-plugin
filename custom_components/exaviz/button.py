@@ -210,6 +210,11 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             _LOGGER.info("Port %s power cut for reset, waiting 3 seconds...", interface)
             await asyncio.sleep(3)
             link_up = await ExavizPoEPortSwitch._run_ip_link(interface, "up")
+        except asyncio.CancelledError:
+            # Shutdown cancelled the wait; leave the link up, not just the
+            # power on (the switch reads a downed link as "off").
+            await ExavizPoEPortSwitch._run_ip_link(interface, "up")
+            raise
         finally:
             restored = await self._send_enable_port(pse_num, pse_port)
         if not restored:
