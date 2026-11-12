@@ -323,12 +323,17 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_setup_remote(self) -> None:
         """Build the HTTPS client. No request is made until the first poll."""
         data = self.entry.data
-        # CA mode pins the confirmed key, so a renewed certificate with the
-        # same key keeps working; pin mode pins the confirmed certificate.
+        # Both modes survive a re-issued certificate that keeps the key. CA
+        # mode pins the key; pin mode pins the certificate and also accepts
+        # the confirmed key, then stores the new fingerprint.
         trust = (
             {"spki_pin": data[CONF_SPKI]}
             if data[CONF_TRUST_MODE] == TRUST_CA
-            else {"pin": data[CONF_FINGERPRINT]}
+            else {
+                "pin": data[CONF_FINGERPRINT],
+                "key_pin": data[CONF_SPKI],
+                "on_renewed": self._store_renewed_fingerprint,
+            }
         )
         self.remote = remote.RemoteClient(
             async_get_clientsession(self.hass),
@@ -338,6 +343,12 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.board_type = BoardType(data[CONF_BOARD_TYPE])
         self.entry.async_on_unload(self._async_cancel_settle_refresh)
+
+    def _store_renewed_fingerprint(self, fingerprint: str) -> None:
+        """Keep the pairing across a SAN-only re-issue (entry reloads once)."""
+        self.hass.config_entries.async_update_entry(
+            self.entry, data={**self.entry.data, CONF_FINGERPRINT: fingerprint}
+        )
 
     @property
     def can_control(self) -> bool:
