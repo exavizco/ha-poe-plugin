@@ -62,7 +62,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             entity_suffix="reset",
             entity_name_suffix="Reset",
         )
-        self._cycle: asyncio.Task | None = None
+        self._cycles: set[asyncio.Task] = set()
 
     async def async_added_to_hass(self) -> None:
         """Hold Home Assistant's stop until a running reset is finished."""
@@ -72,13 +72,14 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         )
 
     async def _async_finish_cycle(self, _event: Event) -> None:
-        """Wait for a running power cycle, so the port is not left off.
+        """Wait for running power cycles, so the port is not left off.
 
         Home Assistant waits for this listener while it stops, but not for
-        a task that was already running when the stop began.
+        a task that was already running when the stop began. There can be
+        more than one: a cancelled press frees the button for another.
         """
-        if self._cycle is not None and not self._cycle.done():
-            await asyncio.wait([self._cycle])
+        if self._cycles:
+            await asyncio.wait(self._cycles)
 
     @property
     def available(self) -> bool:
@@ -160,11 +161,13 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         refreshes the state once it is done.
         """
         # A config entry task: unloading the entry waits for it.
-        cycle = self._cycle = self.coordinator.config_entry.async_create_task(
+        cycle = self.coordinator.config_entry.async_create_task(
             self.hass,
             self._power_cycle_onboard_port(),
             f"reset PoE port {self._poe_set}:{self._port_number}",
         )
+        self._cycles.add(cycle)
+        cycle.add_done_callback(self._cycles.discard)
         try:
             await asyncio.shield(cycle)
         except asyncio.CancelledError:

@@ -9,7 +9,9 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import patch
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -57,8 +59,13 @@ async def _setup(hass, hardware: SlowLinkHardware) -> MockConfigEntry:
 
 def _patched(hardware: SlowLinkHardware):
     stack, _reader = patch_local_board()
+
+    async def send(command: str) -> bool:
+        # Looked up per call, so a test can swap hardware.send.
+        return await hardware.send(command)
+
     stack.enter_context(
-        patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=hardware.send)
+        patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send)
     )
     stack.enter_context(
         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=hardware.link)
@@ -121,3 +128,42 @@ async def test_unload_waits_for_a_running_reset(hass, caplog):
         assert hardware.calls == FULL_RESET
         assert "Successfully reset PoE port poe1" in caplog.text
         await press
+
+
+async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
+    """A cancelled press frees the button, so a second reset of the same
+    port can start and end while the first still has the power off."""
+    hardware = SlowLinkHardware()
+    with _patched(hardware):
+        await _setup(hass, hardware)
+        first = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+        first.cancel()
+        await asyncio.sleep(0)
+
+        # The second reset fails at once: the controller does not take the
+        # power cut. It ends while the first is still waiting.
+        real_send = hardware.send
+
+        async def refuse_disable(command: str) -> bool:
+            if command.startswith("disable-port"):
+                hardware.calls.append(command)
+                return False
+            return await real_send(command)
+
+        hardware.send = refuse_disable
+        with pytest.raises(HomeAssistantError, match="did not disable port poe1"):
+            await hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"},
+                blocking=True,
+            )
+        assert "Successfully reset PoE port poe1" not in caplog.text
+
+        await hass.async_stop()
+
+        assert "Successfully reset PoE port poe1" in caplog.text
+        assert "still running after final writes" not in caplog.text
