@@ -923,3 +923,46 @@ async def test_ca_mode_new_key_needs_the_fingerprint_even_when_ca_valid(
     )
     assert entry.data == before
     assert pair_calls(board) == []
+
+
+async def test_reauth_same_key_new_leaf_skips_the_console_compare(hass, board):
+    """R8: a re-issued leaf with the confirmed key, same host and port."""
+    entry = remote_entry(board, fingerprint="0" * 64)
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "repair"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["fingerprint"] == board.cert.sha256
+
+
+async def test_reconfigure_same_address_same_key_new_leaf_needs_no_compare(hass, board):
+    entry = remote_entry(board, fingerprint="0" * 64)
+    entry.add_to_hass(hass)
+    result = await _reconfigure(hass, entry, board)
+    assert result["reason"] == "reconfigure_successful"
+
+
+async def test_reconfigure_new_address_same_key_new_leaf_still_compares(hass, board):
+    """R8: a moved address always shows the console fingerprint."""
+    entry = remote_entry(board, port=1, fingerprint="0" * 64)
+    entry.add_to_hass(hass)
+    result = await _reconfigure(hass, entry, board)
+    assert result["step_id"] == "fingerprint"
+
+
+@pytest.mark.parametrize("spki", [None, "zz", "A" * 64])
+async def test_reauth_unusable_stored_key_hash_is_a_new_certificate(hass, board, spki):
+    data = remote_data(board, fingerprint="0" * 64)
+    if spki is None:
+        del data["spki"]
+    else:
+        data["spki"] = spki
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=data, unique_id="CRU-TEST-0001", entry_id="remote_entry"
+    )
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "fingerprint"

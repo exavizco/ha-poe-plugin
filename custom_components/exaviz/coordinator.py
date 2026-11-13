@@ -326,15 +326,14 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         # Both modes survive a re-issued certificate that keeps the key. CA
         # mode pins the key; pin mode pins the certificate and also accepts
         # the confirmed key, then stores the new fingerprint.
-        trust = (
-            {"spki_pin": data[CONF_SPKI]}
-            if data[CONF_TRUST_MODE] == TRUST_CA
-            else {
-                "pin": data[CONF_FINGERPRINT],
-                "key_pin": data[CONF_SPKI],
-                "on_renewed": self._store_renewed_fingerprint,
-            }
-        )
+        if data[CONF_TRUST_MODE] == TRUST_CA:
+            trust: dict[str, Any] = {"spki_pin": data[CONF_SPKI]}
+        else:
+            trust = {"pin": data[CONF_FINGERPRINT]}
+            # A missing or malformed stored key hash leaves the plain leaf pin.
+            if remote.is_pin(data.get(CONF_SPKI)):
+                trust["key_pin"] = data[CONF_SPKI]
+                trust["on_renewed"] = self._store_renewed_fingerprint
         self.remote = remote.RemoteClient(
             async_get_clientsession(self.hass),
             remote.board_url(data[CONF_HOST], data[CONF_PORT]),

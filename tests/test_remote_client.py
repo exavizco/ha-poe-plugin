@@ -401,10 +401,47 @@ def test_unparseable_leaf_is_a_mismatch_in_pin_mode():
                 "peername": ("127.0.0.1", 443),
             }[name]
 
-    called: list[str] = []
+    pin = remote._CertOrKeyPin(b"\x00" * 32, b"\x01" * 32)
     with pytest.raises(aiohttp.ServerFingerprintMismatch):
-        remote._CertOrKeyPin(b"\x00" * 32, b"\x01" * 32, called.append).check(Transport())
-    assert called == []
+        pin.check(Transport())
+    assert pin.renewed is None
+
+
+def test_leaf_that_raises_anything_while_parsing_is_a_mismatch(monkeypatch):
+    def boom(der):
+        raise RuntimeError("unsupported key type")
+
+    monkeypatch.setattr(remote, "spki_of", boom)
+
+    class Transport:
+        def get_extra_info(self, name):
+            return {
+                "ssl_object": type("S", (), {"getpeercert": lambda self, binary_form: b"x"})(),
+                "peername": ("127.0.0.1", 443),
+            }[name]
+
+    with pytest.raises(aiohttp.ServerFingerprintMismatch):
+        remote._CertOrKeyPin(b"\x00" * 32, b"\x01" * 32).check(Transport())
+
+
+@pytest.mark.asyncio
+async def test_renewed_fingerprint_is_stored_after_the_request_returns(board, session):
+    """R7: the callback never runs inside the handshake."""
+    first = board.cert
+    await board.restart(make_cert(key=first.key))
+    seen: list[tuple[str, int]] = []
+    c = RemoteClient(
+        session,
+        board.url,
+        pin=first.sha256,
+        key_pin=first.spki_sha256,
+        on_renewed=lambda fp: seen.append((fp, len(board.requests))),
+        token=TOKEN,
+    )
+    await c.get_board()
+    assert seen == [(board.cert.sha256, 1)]
+    await c.get_board()
+    assert len(seen) == 1
 
 
 # --- Release review findings (1.4.0) ---------------------------------------------
