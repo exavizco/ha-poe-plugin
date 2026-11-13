@@ -507,3 +507,91 @@ async def test_pin_mode_without_a_usable_key_hash_keeps_the_leaf_pin(hass, board
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
+
+
+# --- #979: pin mode and a re-issued certificate with the same key -----------
+
+
+async def test_t979_21_same_key_reissue_at_runtime_keeps_the_pairing(hass, board):
+    """A SAN-only re-issue while running: stored once, one reload, no reauth.
+
+    The stored fingerprint is the leaf the board now serves, so a plain leaf
+    pin (what v1.4.1 builds from the entry, T-979-26) connects to it too.
+    """
+    from custom_components.exaviz import remote
+
+    entry = await setup_remote(hass, board)
+    first = board.cert
+    await board.restart(make_cert(key=first.key))
+    reissued = board.cert
+    assert reissued.sha256 != first.sha256
+    counts, patcher = _count_lifecycle()
+    with patcher:
+        await poll(hass, entry)
+        await hass.async_block_till_done()
+        assert entry.data["fingerprint"] == reissued.sha256
+        assert entry.data["spki"] == first.spki_sha256
+        assert entry.state is ConfigEntryState.LOADED
+        assert reauth_flows(hass) == []
+        assert counts == {"setup": 1, "unload": 1}
+        # The reloaded client pins the new leaf: no second store or reload.
+        await poll(hass, entry)
+        await hass.async_block_till_done()
+        assert counts == {"setup": 1, "unload": 1}
+    assert state(hass, "switch.onboard_port0").state == "on"
+
+    rolled_back = remote.RemoteClient(
+        entry.runtime_data.remote._session,
+        remote.board_url(entry.data["host"], entry.data["port"]),
+        pin=entry.data["fingerprint"],
+        token=entry.data["token"],
+    )
+    assert (await rolled_back.get_board())["serial"] == SERIAL
+
+
+async def test_t979_21_same_key_reissue_before_startup_loads(hass, board):
+    """The board re-issued while HA was down: setup loads and stores it."""
+    first = board.cert
+    await board.restart(make_cert(key=first.key))
+    entry = await setup_remote(
+        hass, board, fingerprint=first.sha256, spki=first.spki_sha256
+    )
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.data["fingerprint"] == board.cert.sha256
+    assert reauth_flows(hass) == []
+
+
+@pytest.mark.parametrize("spki", [None, "zz"])
+async def test_t979_25_no_usable_key_hash_reissue_goes_to_reauth(hass, board, spki):
+    """P3: without a usable stored key hash a re-issued leaf is a mismatch:
+    nothing is sent to it, the fingerprint is kept, and reauth starts."""
+    data = remote_data(board)
+    if spki is None:
+        del data["spki"]
+    else:
+        data["spki"] = spki
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=data, unique_id=SERIAL, entry_id="remote_entry"
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    paired = entry.data["fingerprint"]
+    await board.restart(make_cert(key=board.cert.key))
+    board.requests.clear()
+    await poll(hass, entry)
+    assert board.requests == []
+    assert entry.data["fingerprint"] == paired
+    assert len(reauth_flows(hass)) == 1
+
+
+async def test_t979_22_new_key_after_reissue_support_still_reauths(hass, board):
+    """A new key (Regenerate) fails before any HTTP byte and stores nothing."""
+    entry = await setup_remote(hass, board)
+    paired = entry.data["fingerprint"]
+    await board.restart(make_cert())
+    board.requests.clear()
+    await poll(hass, entry)
+    assert board.requests == []
+    assert entry.data["fingerprint"] == paired
+    assert len(reauth_flows(hass)) == 1
