@@ -165,7 +165,7 @@ def _patch_button(esp32: dict[str, bool], link_rc: dict[str, int]):
     return calls, (
         patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send),
         patch("asyncio.create_subprocess_exec", side_effect=exec_),
-        patch("asyncio.sleep", AsyncMock()),
+        patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0),
     )
 
 

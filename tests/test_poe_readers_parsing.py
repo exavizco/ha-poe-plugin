@@ -911,7 +911,8 @@ class TestArpScanErrors:
     async def test_cache_expires_after_ttl(self):
         scan = AsyncMock(return_value={})
         with patch.object(poe_readers, "_do_arp_scan", scan), \
-             patch.object(poe_readers.time, "monotonic", side_effect=[100.0, 110.0, 200.0, 200.0]):
+             patch.object(poe_readers, "time", MagicMock(monotonic=MagicMock(
+                 side_effect=[100.0, 110.0, 200.0, 200.0]))):
             await _run_arp_scan("br0")  # sweep, stamped t=100
             await _run_arp_scan("br0")  # t=110: 10 s old, served from cache
             assert scan.await_count == 1
