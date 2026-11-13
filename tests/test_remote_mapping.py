@@ -513,7 +513,9 @@ def test_renewed_fingerprint_is_stored_only_for_the_same_pairing(
 
     coordinator = object.__new__(ExavizDataUpdateCoordinator)
     coordinator.hass = MagicMock()
-    entry = MagicMock(data={CONF_FINGERPRINT: "a" * 64, CONF_SPKI: stored_key})
+    entry = MagicMock(
+        data={CONF_FINGERPRINT: "a" * 64, CONF_SPKI: stored_key, "host": "h"}
+    )
     coordinator.entry = entry
     coordinator.hass.config_entries.async_get_entry.return_value = (
         entry if exists else None
@@ -522,7 +524,8 @@ def test_renewed_fingerprint_is_stored_only_for_the_same_pairing(
     update = coordinator.hass.config_entries.async_update_entry
     if written:
         update.assert_called_once_with(
-            entry, data={CONF_FINGERPRINT: "b" * 64, CONF_SPKI: stored_key}
+            entry,
+            data={CONF_FINGERPRINT: "b" * 64, CONF_SPKI: stored_key, "host": "h"},
         )
     else:
         update.assert_not_called()

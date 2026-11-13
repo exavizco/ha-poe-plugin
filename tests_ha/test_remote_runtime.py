@@ -595,3 +595,18 @@ async def test_t979_22_new_key_after_reissue_support_still_reauths(hass, board):
     assert board.requests == []
     assert entry.data["fingerprint"] == paired
     assert len(reauth_flows(hass)) == 1
+
+
+async def test_t979_late_renewal_from_an_old_pairing_writes_nothing(hass, board):
+    """A callback from a client built before a reauth paired another key
+    must not put the old key's leaf beside the new key hash."""
+    entry = await setup_remote(hass, board)
+    old_client = entry.runtime_data.remote
+    new_key = "e" * 64
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, "spki": new_key, "fingerprint": "d" * 64}
+    )
+    old_client._on_renewed("b" * 64)
+    assert entry.data["fingerprint"] == "d" * 64
+    assert entry.data["spki"] == new_key
+    await hass.async_block_till_done()
