@@ -177,7 +177,7 @@ async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
         assert "still running after final writes" not in caplog.text
 
 
-async def test_stop_turns_power_back_on_for_a_hung_reset(hass):
+async def test_stop_turns_power_back_on_for_a_hung_reset(hass, caplog):
     """A reset stuck in `ip link` holds the stop only for the bounded wait.
     It is then cancelled while the stop still waits, and its cancel path
     turns the power on before it tries the (also stuck) link."""
@@ -213,6 +213,7 @@ async def test_stop_turns_power_back_on_for_a_hung_reset(hass):
         # Turned on while the stop waited for the listener, not in the
         # last stage's 0.1 s.
         assert stage_at_power_on == [CoreState.stopping]
+        assert "Reset of PoE port onboard:1 is stuck" in caplog.text
 
         # The cycle is still stuck in `ip link up`, with the power on. At
         # exit the asyncio runner cancels what is left; do that here.
@@ -220,7 +221,6 @@ async def test_stop_turns_power_back_on_for_a_hung_reset(hass):
         assert len(stuck) == 1
         stuck[0].cancel()
         await asyncio.wait(stuck)
-
 
 
 class HungLinkDownHardware(SlowLinkHardware):
@@ -255,6 +255,51 @@ async def test_unload_turns_power_back_on_for_a_hung_reset(hass, caplog):
         assert hardware.calls == [
             "disable-port 1 1", "poe1 down", "enable-port 1 1", "poe1 up",
         ]
+        assert "Reset of PoE port onboard:1 is stuck" in caplog.text
         assert "did not complete in time" not in caplog.text
         with pytest.raises(asyncio.CancelledError):
             await press
+
+
+class SlowLinkDownHardware(SlowLinkHardware):
+    """Taking the link down takes longer than the stop needs to reach its
+    last stage."""
+
+    async def link(self, interface: str, action: str) -> bool:
+        result = await super().link(interface, action)
+        if action == "down":
+            await asyncio.sleep(1)
+        return result
+
+
+async def test_stop_during_an_unload_waits_for_the_reset(hass):
+    """The stop listener stays until the unload's own wait is over, so a
+    stop that starts while the unload waits still holds for the reset."""
+    hardware = SlowLinkDownHardware()
+    with _patched(hardware):
+        entry = await _setup(hass, hardware)
+        stage_at_power_on: list[CoreState] = []
+        real_send = hardware.send
+
+        async def send(command: str) -> bool:
+            if command.startswith("enable-port"):
+                stage_at_power_on.append(hass.state)
+            return await real_send(command)
+
+        hardware.send = send
+        press = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+        unload = hass.async_create_task(hass.config_entries.async_unload(entry.entry_id))
+        await asyncio.sleep(0.05)
+        assert not unload.done()
+
+        await hass.async_stop()
+
+        assert hardware.calls == FULL_RESET
+        # Not in the last stage's 0.1 s.
+        assert stage_at_power_on == [CoreState.stopping]
+        await asyncio.wait([press, unload])
