@@ -40,6 +40,8 @@ class SlowLinkHardware:
 
     async def send(self, command: str) -> bool:
         self.calls.append(command)
+        # A real write runs a subprocess, so it always yields for a while.
+        await asyncio.sleep(0.05)
         return True
 
     async def link(self, interface: str, action: str) -> bool:
