@@ -427,10 +427,39 @@ def map_total_ports(board: dict[str, Any]) -> int | None:
     return total if type(total) is int and total > 0 else None
 
 
-def _measurement(value: Any, default: Any) -> Any:
+class UnusableReadings:
+    """One board's reading fields already logged as unusable.
+
+    The coordinator makes one per config entry at setup, so each board is
+    logged on its own and a reload starts again. The field names are fixed,
+    so the set stays small.
+    """
+
+    def __init__(self, board: str) -> None:
+        self.board = board
+        self._logged: set[str] = set()
+
+    def note(self, field: str, value: Any) -> None:
+        """Log a present but unusable value once per field, by type only."""
+        if field in self._logged:
+            return
+        self._logged.add(field)
+        _LOGGER.warning(
+            "Board %s sent %s as %s, not a finite number; ignoring that reading",
+            self.board,
+            field,
+            type(value).__name__,
+        )
+
+
+def _measurement(
+    value: Any, default: Any, field: str, readings: UnusableReadings | None
+) -> Any:
     """value if it is a finite number, else default.
 
     A bool is not a number, and an integer too large for a float is not finite.
+    A missing value is silent; a present but unusable one is noted in
+    `readings` (if given).
     """
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
@@ -438,17 +467,23 @@ def _measurement(value: Any, default: Any) -> Any:
                 return value
         except OverflowError:
             pass
+    if value is not None and readings is not None:
+        readings.note(field, value)
     return default
 
 
-def map_health(health: Any) -> float | None:
+def map_health(
+    health: Any, readings: UnusableReadings | None = None
+) -> float | None:
     """GET /system/health -> board temperature in degrees C, or None.
 
     A reply that is not a dict, or a value that is not a finite number (a
     bool is not one; an integer too large for a float is not one either),
     counts as missing.
     """
-    return _measurement(health.get("cpu_temp_c"), None) if isinstance(health, dict) else None
+    if not isinstance(health, dict):
+        return None
+    return _measurement(health.get("cpu_temp_c"), None, "cpu_temp_c", readings)
 
 
 def map_zigbee(body: Any) -> str | None:
@@ -501,6 +536,7 @@ def map_ports(
     switch_body: dict[str, Any],
     server_date: datetime | None,
     previous: list[dict[str, Any]] | None,
+    readings: UnusableReadings | None = None,
 ) -> list[dict[str, Any]]:
     """GET /poe/ports + GET /switch/ports -> onboard port dicts, by port number.
 
@@ -552,16 +588,16 @@ def map_ports(
             "index": index,
             "enabled": state != "disabled",
             "status": "power on" if state == "delivering" else state,
-            "power_consumption_watts": _measurement(wire.get("power_w"), 0.0),
+            "power_consumption_watts": _measurement(wire.get("power_w"), 0.0, "power_w", readings),
             "allocated_power_watts": get_allocated_power_watts(poe_class),
             "power_mocked": False,
             "poe_class": poe_class,
-            "voltage_volts": _measurement(wire.get("voltage_v"), 0.0),
-            "current_milliamps": _measurement(wire.get("current_ma"), 0),
+            "voltage_volts": _measurement(wire.get("voltage_v"), 0.0, "voltage_v", readings),
+            "current_milliamps": _measurement(wire.get("current_ma"), 0, "current_ma", readings),
             "link_state": link.get("oper_state", "unknown"),
-            "speed_mbps": _measurement(link.get("speed_mbps"), 0),
-            "rx_bytes": _measurement(stats.get("rx_bytes"), 0),
-            "tx_bytes": _measurement(stats.get("tx_bytes"), 0),
+            "speed_mbps": _measurement(link.get("speed_mbps"), 0, "speed_mbps", readings),
+            "rx_bytes": _measurement(stats.get("rx_bytes"), 0, "rx_bytes", readings),
+            "tx_bytes": _measurement(stats.get("tx_bytes"), 0, "tx_bytes", readings),
             "poe_system": "onboard",
             "stale": _is_stale(wire.get("updated_at"), server_date),
         }
