@@ -303,6 +303,9 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             # Shutdown cancelled the wait. Power first, so a stuck `ip link`
             # cannot keep the port off; then leave the link up too (the
             # switch reads a downed link as "off").
+            # Set first: a restore write that will not stop raises, and
+            # nothing may follow it, not even the restore in `finally`.
+            restored = False
             restored = await self._send_enable_port(pse_num, pse_port)
             await ExavizPoEPortSwitch._run_ip_link(interface, "up")
             raise
