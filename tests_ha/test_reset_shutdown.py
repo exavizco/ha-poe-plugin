@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import CoreState
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -32,10 +33,10 @@ class SlowLinkHardware:
     the test cannot shorten without patching asyncio.sleep for everyone.
     """
 
-    def __init__(self, hang_link_down: bool = False) -> None:
+    def __init__(self, hang_link: bool = False) -> None:
         self.calls: list[str] = []
         self.power_off = asyncio.Event()
-        self.hang_link_down = hang_link_down
+        self.hang_link = hang_link
 
     async def send(self, command: str) -> bool:
         self.calls.append(command)
@@ -43,10 +44,11 @@ class SlowLinkHardware:
 
     async def link(self, interface: str, action: str) -> bool:
         self.calls.append(f"{interface} {action}")
+        if self.hang_link:
+            self.power_off.set()
+            await asyncio.Event().wait()
         if action == "down":
             self.power_off.set()
-            if self.hang_link_down:
-                await asyncio.Event().wait()
             await asyncio.sleep(0.3)
         return True
 
@@ -173,13 +175,23 @@ async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
         assert "still running after final writes" not in caplog.text
 
 
-async def test_stop_does_not_wait_out_a_hung_reset(hass, caplog):
-    """A reset stuck in `ip link` holds the stop only for the bounded wait;
-    the last stop stage then cancels it, which still sends enable-port."""
-    hardware = SlowLinkHardware(hang_link_down=True)
+async def test_stop_turns_power_back_on_for_a_hung_reset(hass):
+    """A reset stuck in `ip link` holds the stop only for the bounded wait.
+    It is then cancelled while the stop still waits, and its cancel path
+    turns the power on before it tries the (also stuck) link."""
+    hardware = SlowLinkHardware(hang_link=True)
     with _patched(hardware), \
          patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
         await _setup(hass, hardware)
+        stage_at_power_on: list[CoreState] = []
+        real_send = hardware.send
+
+        async def send(command: str) -> bool:
+            if command.startswith("enable-port"):
+                stage_at_power_on.append(hass.state)
+            return await real_send(command)
+
+        hardware.send = send
         press = hass.async_create_task(
             hass.services.async_call(
                 "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
@@ -193,4 +205,16 @@ async def test_stop_does_not_wait_out_a_hung_reset(hass, caplog):
 
         # Without the bound, Home Assistant waits 100 s before moving on.
         assert time.monotonic() - started < 10
-        assert hardware.calls[-1] == "enable-port 1 1"
+        assert hardware.calls == [
+            "disable-port 1 1", "poe1 down", "enable-port 1 1", "poe1 up",
+        ]
+        # Turned on while the stop waited for the listener, not in the
+        # last stage's 0.1 s.
+        assert stage_at_power_on == [CoreState.stopping]
+
+        # The cycle is still stuck in `ip link up`, with the power on. At
+        # exit the asyncio runner cancels what is left; do that here.
+        stuck = [t for t in asyncio.all_tasks() if t.get_name().startswith("reset PoE port")]
+        assert len(stuck) == 1
+        stuck[0].cancel()
+        await asyncio.wait(stuck)
