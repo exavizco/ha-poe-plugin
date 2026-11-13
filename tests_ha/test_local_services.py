@@ -6,7 +6,6 @@ checks which hardware commands an action produced.
 """
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
@@ -54,17 +53,11 @@ class Hardware:
 async def local(hass) -> AsyncIterator[tuple[MockConfigEntry, AsyncMock, Hardware]]:
     """A loaded local Cruiser entry with recorded port hardware."""
     hardware = Hardware()
-    real_sleep = asyncio.sleep
-
-    async def no_reset_wait(delay, *args, **kwargs):
-        # The reset button waits 3 s between power off and on.
-        return await real_sleep(0 if delay == 3 else delay, *args, **kwargs)
-
     stack, reader = patch_local_board()
     with stack, \
          patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=hardware.send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=hardware.link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", no_reset_wait):
+         patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0):
         entry = MockConfigEntry(
             domain=DOMAIN, data={}, unique_id="exaviz_cruiser", entry_id="local_entry"
         )

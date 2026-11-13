@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import socket
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import aiohttp
@@ -43,6 +45,17 @@ async def board():
 async def session():
     async with aiohttp.ClientSession() as s:
         yield s
+
+
+@contextmanager
+def refusing_port():
+    """A local port bound but not listening, held so no other process can
+    take it meanwhile. Linux refuses a connection to it at once; macOS
+    drops it, so callers pass a short timeout. Either way the client
+    cannot connect, which is what the tests check."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        yield sock.getsockname()[1]
 
 
 def client(session, board, **kwargs) -> RemoteClient:
@@ -152,19 +165,25 @@ async def test_t07_retry_after(board, session):
 
 @pytest.mark.asyncio
 async def test_t07_refused_and_timeout(board, session):
-    c = client(session, board)
-    await board.stop()
-    with pytest.raises(CannotConnect):
-        await c.get_board()
+    with refusing_port() as port:
+        c = RemoteClient(
+            session, f"https://127.0.0.1:{port}", pin=board.cert.sha256, timeout=1
+        )
+        with pytest.raises(CannotConnect):
+            await c.get_board()
 
     async def hang(request):
         await asyncio.sleep(1)
 
     # The route binds the handler at start, so patch before starting.
-    with patch.object(board, "_handle", hang):
-        await board.start()
-        with pytest.raises(CannotConnect):
-            await client(session, board, timeout=0.2).get_board()
+    slow = FakeBoard()
+    with patch.object(slow, "_handle", hang):
+        await slow.start()
+        try:
+            with pytest.raises(CannotConnect):
+                await client(session, slow, timeout=0.2).get_board()
+        finally:
+            await slow.stop()
 
 
 @pytest.mark.asyncio
@@ -485,11 +504,8 @@ async def test_ca_verified_leaf_unreachable_is_cannot_connect_not_unverified(tmp
     bundle.write_bytes(ca.pem)
     ctx = remote.build_ca_context(str(bundle))
 
-    fake = await FakeBoard(cert=make_cert(("127.0.0.1",), issuer=ca)).start()
-    port = fake.port
-    await fake.stop()
-    with pytest.raises(CannotConnect):
-        await remote.ca_verified_leaf("127.0.0.1", port, ctx)
+    with refusing_port() as port, pytest.raises(CannotConnect):
+        await remote.ca_verified_leaf("127.0.0.1", port, ctx, timeout=1)
 
     # Not TLS at all: an SSL error that is not a verification failure.
     async def plain_http(reader, writer):

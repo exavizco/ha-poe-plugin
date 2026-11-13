@@ -90,7 +90,7 @@ async def test_reset_button_no_esp32_reset():
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=capture), \
          patch("asyncio.create_subprocess_exec", AsyncMock(return_value=fake_proc)), \
-         patch("asyncio.sleep", AsyncMock()):
+         patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0):
         await button._reset_onboard_port()
 
     assert not any(_is_bare_reset(c) for c in commands)
@@ -112,8 +112,7 @@ async def test_enable_returns_enable_result():
             return False
         return True
 
-    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=enable_only), \
-         patch("asyncio.sleep", AsyncMock()):
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=enable_only):
         ok = await switch._esp32_enable_port()
 
     assert ok is False
