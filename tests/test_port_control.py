@@ -7,7 +7,10 @@ add-on board /proc/pse paths.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import signal
+import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -210,7 +213,6 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
     """A blocked serial device cannot hang the action (or a reset cycle), and
     the same command is not written again through the other path while the
     killed write may still be on the UART (/dev/pse links to /dev/ttyAMA3)."""
-    import asyncio
 
     first, second = tmp_path / "pse", tmp_path / "ttyAMA3"
     first.write_text("")
@@ -249,7 +251,6 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
 @pytest.mark.asyncio
 async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
     """The write may still land, so the caller must not send anything after it."""
-    import asyncio
 
     device = tmp_path / "pse"
     device.write_text("")
@@ -276,7 +277,6 @@ async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
 async def test_cancelled_esp32_write_is_killed_before_the_caller_goes_on(tmp_path, stops):
     """A cancelled caller (shutdown) must not leave the write running behind
     it, where it could land after the caller's next command."""
-    import asyncio
 
     device = tmp_path / "pse"
     device.write_text("")
@@ -314,7 +314,6 @@ async def test_cancelled_esp32_write_is_killed_before_the_caller_goes_on(tmp_pat
 async def test_second_cancel_during_the_kill_wait_counts_as_not_stopped(tmp_path):
     """The write was not confirmed stopped, so the caller gets the error that
     tells it to send nothing after it (not a bare cancel)."""
-    import asyncio
 
     device = tmp_path / "pse"
     device.write_text("")
@@ -382,6 +381,85 @@ async def test_run_ip_link_failure_logs_stderr(caplog):
          caplog.at_level(logging.ERROR, logger=switch_module.__name__):
         assert await ExavizPoEPortSwitch._run_ip_link("poe3", "up") is False
     assert "Failed to up port poe3: RTNETLINK answers: Operation not permitted" in caplog.text
+
+
+class _HungIpLink:
+    """`ip link` stand-in: a real child process that never exits by itself.
+
+    It stands where `sudo ip link set ...` would, so the test sees what the
+    port code really does to a process it gives up on.
+    """
+
+    def __init__(self, tmp_path: Path, ignore_term: bool = False) -> None:
+        self.ready = tmp_path / "ready"
+        handler = "signal.signal(signal.SIGTERM, signal.SIG_IGN); " if ignore_term else ""
+        self.argv = (
+            sys.executable, "-c",
+            f"import pathlib, signal, time; {handler}"
+            f"pathlib.Path({str(self.ready)!r}).touch(); time.sleep(60)",
+        )
+        self.procs: list = []
+
+    def patches(self):
+        real_exec = asyncio.create_subprocess_exec
+
+        async def exec_(*_argv, **kwargs):
+            proc = await real_exec(*self.argv, **kwargs)
+            self.procs.append(proc)
+            return proc
+
+        return patch("asyncio.create_subprocess_exec", exec_)
+
+    async def wait_ready(self) -> None:
+        while not self.ready.exists():
+            await asyncio.sleep(0.01)
+
+    def cleanup(self) -> None:
+        for proc in self.procs:
+            if proc.returncode is None:
+                proc.kill()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("ignore_term", "returncode"), [(False, -signal.SIGTERM), (True, -signal.SIGKILL)]
+)
+async def test_ip_link_that_hangs_is_stopped_and_fails(tmp_path, caplog, ignore_term, returncode):
+    """A hung `ip link` cannot hold a switch action or a reset (and with it
+    Home Assistant's stop). SIGTERM first, which sudo passes on to `ip`;
+    SIGKILL if that does not end it."""
+    hung = _HungIpLink(tmp_path, ignore_term)
+    try:
+        with hung.patches(), \
+             patch.object(switch_module, "IP_LINK_TIMEOUT", 2), \
+             patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.5), \
+             caplog.at_level(logging.ERROR, logger=switch_module.__name__):
+            result = await asyncio.wait_for(
+                ExavizPoEPortSwitch._run_ip_link("poe3", "up"), timeout=10
+            )
+        assert result is False
+        assert "ip link to up port poe3 timed out" in caplog.text
+        assert [p.returncode for p in hung.procs] == [returncode]
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_ip_link_whose_caller_is_cancelled_is_stopped(tmp_path):
+    """Cancelling a reset (an unload, Home Assistant's stop) does not leave
+    `ip link` running behind it, where it could still take the link down
+    after the cancel path has brought it back up."""
+    hung = _HungIpLink(tmp_path)
+    try:
+        with hung.patches():
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            await asyncio.wait_for(hung.wait_ready(), timeout=10)
+            run.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(run, timeout=10)
+        assert [p.returncode for p in hung.procs] == [-signal.SIGTERM]
+    finally:
+        hung.cleanup()
 
 
 # --- add-on board ports (/proc/pse) -------------------------------------------

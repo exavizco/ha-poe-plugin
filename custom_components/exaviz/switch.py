@@ -45,6 +45,28 @@ _PSE_DEVICE_PATHS = [Path("/dev/pse"), Path("/dev/ttyAMA3")]
 ESP32_WRITE_TIMEOUT = 5
 ESP32_KILL_WAIT = 2
 
+# Seconds `ip link set` may take. It normally returns at once; one that hangs
+# must not hold a switch action, a reset, or Home Assistant's stop.
+IP_LINK_TIMEOUT = 10
+# Seconds to wait for a stopped `ip link` after each signal.
+IP_LINK_STOP_WAIT = 2
+
+
+async def _stop_process(proc: asyncio.subprocess.Process) -> None:
+    """Stop a subprocess: SIGTERM first, which sudo passes on to its
+    command (a SIGKILL would end sudo and leave `ip` running), then SIGKILL."""
+    for send_signal in (proc.terminate, proc.kill):
+        try:
+            send_signal()
+        except ProcessLookupError:
+            return  # it ended just now
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=IP_LINK_STOP_WAIT)
+            return
+        except asyncio.TimeoutError:
+            pass
+    _LOGGER.error("Process %s did not stop after SIGKILL", proc.pid)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -170,17 +192,28 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
     @staticmethod
     async def _run_ip_link(interface: str, action: str) -> bool:
-        """Run 'ip link set' asynchronously. Returns True on success."""
+        """Run 'ip link set' asynchronously. Returns True on success.
+
+        A run that times out, or whose caller is cancelled, is stopped.
+        """
         try:
             proc = await asyncio.create_subprocess_exec(
                 *sudo_argv("ip", "link", "set", interface, action),
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await proc.communicate()
         except OSError as exc:
             _LOGGER.error("Could not run ip link to %s port %s: %s", action, interface, exc)
             return False
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=IP_LINK_TIMEOUT)
+        except asyncio.TimeoutError:
+            await _stop_process(proc)
+            _LOGGER.error("ip link to %s port %s timed out", action, interface)
+            return False
+        except asyncio.CancelledError:
+            await _stop_process(proc)
+            raise
         if proc.returncode != 0:
             _LOGGER.error(
                 "Failed to %s port %s: %s", action, interface,

@@ -27,8 +27,9 @@ RESET_POWER_OFF_SECONDS = 3
 # How long Home Assistant's stop, or an unload of the entry, waits for a
 # running reset, and then for a stuck one to turn the port back on once
 # cancelled. A healthy reset takes the power-off wait plus a few serial
-# writes (each capped at 7 s); a hung `ip link` holds the stop for at most
-# twice this, inside Home Assistant's 100 s.
+# writes (each capped at 7 s) and `ip link` runs (each capped at 14 s); a
+# stuck reset holds the stop for at most twice this, inside Home
+# Assistant's 100 s.
 RESET_STOP_WAIT_SECONDS = 30
 
 
