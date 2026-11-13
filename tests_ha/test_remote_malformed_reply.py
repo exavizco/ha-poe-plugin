@@ -60,6 +60,9 @@ async def test_wrong_type_measurements_are_logged_once_across_polls(
     poe["body"]["ports"][0].update(power_w="x")
     poe["body"]["ports"][1].update(power_w="y", current_ma=[1])
     board.reply("GET", "/poe/ports", poe)
+    health = case("health")
+    health["body"]["cpu_temp_c"] = "hot"
+    board.reply("GET", "/system/health", health)
     entry = await setup_remote(hass, board)
     await poll(hass, entry)
     await poll(hass, entry)
@@ -75,6 +78,7 @@ async def test_wrong_type_measurements_are_logged_once_across_polls(
     once = [
         (logging.WARNING, f"Board {board.host} sent power_w as str, {tail}"),
         (logging.WARNING, f"Board {board.host} sent current_ma as list, {tail}"),
+        (logging.WARNING, f"Board {board.host} sent cpu_temp_c as str, {tail}"),
     ]
     assert logged() == once
     assert state(hass, "switch.onboard_port0").state in ("on", "off")
