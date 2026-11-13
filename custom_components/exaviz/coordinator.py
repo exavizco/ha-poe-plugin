@@ -87,6 +87,8 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         self.remote: remote.RemoteClient | None = None
         self.serial_mismatch = False
         self._remote_ports: list[dict[str, Any]] = []
+        # Set for a remote board at setup: logs each unusable reading field once.
+        self._unusable_readings: remote.UnusableReadings | None = None
         self._cancel_settle_refresh: CALLBACK_TYPE | None = None
 
         # Options (set post-setup) win over the value captured at config time.
@@ -336,6 +338,7 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             token=data[CONF_TOKEN],
             **trust,
         )
+        self._unusable_readings = remote.UnusableReadings(data[CONF_HOST])
         self.board_type = BoardType(data[CONF_BOARD_TYPE])
         self.entry.async_on_unload(self._async_cancel_settle_refresh)
 
@@ -469,7 +472,11 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         """Turn one poll's replies into coordinator data."""
         _board_type, self.system_info = remote.map_board(board)
         ports = remote.map_ports(
-            poe_body, switch_body, board_date, self._remote_ports or None
+            poe_body,
+            switch_body,
+            board_date,
+            self._remote_ports or None,
+            self._unusable_readings,
         )
         # Startup window: the board has parsed no port yet. Not ready, never
         # "no PoE detected"; after a good poll the old ports stay (stale) and
@@ -495,7 +502,9 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             "total_poe_ports": self.total_poe_ports,
             "total_enabled_ports": enabled,
             "total_power_watts": round(power, 2),
-            "board_temperature_celsius": remote.map_health(health),
+            "board_temperature_celsius": remote.map_health(
+                health, self._unusable_readings
+            ),
             "zigbee_radio": remote.map_zigbee(zigbee),
             "poe": {
                 "onboard": {

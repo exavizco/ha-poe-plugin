@@ -494,25 +494,50 @@ def test_43_good_measurements_pass_through_unchanged():
     assert (port["speed_mbps"], port["rx_bytes"], port["tx_bytes"]) == (1000, 7, 9)
 
 
-def test_43_unusable_measurement_is_logged_once_per_field(caplog, monkeypatch):
+def test_43_unusable_measurement_is_logged_once_per_field(caplog):
     """A board build that sends a wrong-typed reading shows in the log once
-    per field, by type only; a missing reading or a good one is silent."""
-    monkeypatch.setattr(remote, "_WARNED_MEASUREMENTS", set())
+    per field, by type only, naming the board; a missing or good reading is
+    silent."""
+    readings = remote.UnusableReadings("192.0.2.7")
     huge = "x" * 5000
     wire = dict(GOOD_PORT, power_w=huge, voltage_v=True, current_ma=None)
-    link = {"name": "poe0", "speed_mbps": 1000, "stats": {"rx_bytes": [1]}}
+    link = {
+        "name": "poe0",
+        "speed_mbps": float("nan"),
+        "stats": {"rx_bytes": [1], "tx_bytes": 10**400},
+    }
     with caplog.at_level("WARNING", logger=remote.__name__):
         for _ in range(3):
-            port = _ports([wire], [link])[0]
-        assert remote.map_health({"cpu_temp_c": "hot"}) is None
-        assert remote.map_health({"cpu_temp_c": "hot"}) is None
-        assert remote.map_health({}) is None
+            port = remote.map_ports(
+                {"ports": [wire]}, {"ports": [link]}, DATE, None, readings
+            )[0]
+        assert remote.map_health({"cpu_temp_c": "hot"}, readings) is None
+        assert remote.map_health({"cpu_temp_c": "hot"}, readings) is None
+        assert remote.map_health({}, readings) is None
     assert port["power_consumption_watts"] == 0.0
-    messages = [r.getMessage() for r in caplog.records]
-    assert messages == [
-        "Board sent an unusable power_w (str); counting it as missing",
-        "Board sent an unusable voltage_v (bool); counting it as missing",
-        "Board sent an unusable rx_bytes (list); counting it as missing",
-        "Board sent an unusable cpu_temp_c (str); counting it as missing",
+    assert all(r.levelname == "WARNING" for r in caplog.records)
+    tail = "not a finite number; ignoring that reading"
+    assert [r.getMessage() for r in caplog.records] == [
+        f"Board 192.0.2.7 sent power_w as str, {tail}",
+        f"Board 192.0.2.7 sent voltage_v as bool, {tail}",
+        f"Board 192.0.2.7 sent speed_mbps as float, {tail}",
+        f"Board 192.0.2.7 sent rx_bytes as list, {tail}",
+        f"Board 192.0.2.7 sent tx_bytes as int, {tail}",
+        f"Board 192.0.2.7 sent cpu_temp_c as str, {tail}",
     ]
     assert huge not in caplog.text
+
+
+def test_43_unusable_readings_are_per_board(caplog):
+    """Each board (config entry) logs its own; mapping without one is silent."""
+    wire = dict(GOOD_PORT, power_w="x")
+    with caplog.at_level("WARNING", logger=remote.__name__):
+        remote.map_ports({"ports": [wire]}, {}, DATE, None)
+        for host in ("192.0.2.7", "192.0.2.8"):
+            remote.map_ports(
+                {"ports": [wire]}, {}, DATE, None, remote.UnusableReadings(host)
+            )
+    assert [r.getMessage().split(" sent")[0] for r in caplog.records] == [
+        "Board 192.0.2.7",
+        "Board 192.0.2.8",
+    ]
