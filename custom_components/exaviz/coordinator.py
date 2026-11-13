@@ -333,7 +333,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             # A missing or malformed stored key hash leaves the plain leaf pin.
             if remote.is_pin(data.get(CONF_SPKI)):
                 trust["key_pin"] = data[CONF_SPKI]
-                trust["on_renewed"] = self._store_renewed_fingerprint
+                key = data[CONF_SPKI]
+                trust["on_renewed"] = lambda fp: self._store_renewed_fingerprint(
+                    key, fp
+                )
         self.remote = remote.RemoteClient(
             async_get_clientsession(self.hass),
             remote.board_url(data[CONF_HOST], data[CONF_PORT]),
@@ -343,10 +346,18 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         self.board_type = BoardType(data[CONF_BOARD_TYPE])
         self.entry.async_on_unload(self._async_cancel_settle_refresh)
 
-    def _store_renewed_fingerprint(self, fingerprint: str) -> None:
-        """Keep the pairing across a SAN-only re-issue (entry reloads once)."""
+    def _store_renewed_fingerprint(self, key: str, fingerprint: str) -> None:
+        """Keep the pairing across a SAN-only re-issue (entry reloads once).
+
+        `key` is the key hash this client was built with. A late answer from
+        an older client (the entry was removed, or a reauth paired another
+        key) writes nothing, so an old key's leaf never sits beside a new key.
+        """
+        entry = self.hass.config_entries.async_get_entry(self.entry.entry_id)
+        if entry is None or entry.data.get(CONF_SPKI) != key:
+            return
         self.hass.config_entries.async_update_entry(
-            self.entry, data={**self.entry.data, CONF_FINGERPRINT: fingerprint}
+            entry, data={**entry.data, CONF_FINGERPRINT: fingerprint}
         )
 
     @property
