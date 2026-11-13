@@ -7,6 +7,7 @@ has the port off: the port would stay off until someone turns it on.
 from __future__ import annotations
 
 import asyncio
+import time
 from unittest.mock import patch
 
 import pytest
@@ -31,9 +32,10 @@ class SlowLinkHardware:
     the test cannot shorten without patching asyncio.sleep for everyone.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, hang_link_down: bool = False) -> None:
         self.calls: list[str] = []
         self.power_off = asyncio.Event()
+        self.hang_link_down = hang_link_down
 
     async def send(self, command: str) -> bool:
         self.calls.append(command)
@@ -43,6 +45,8 @@ class SlowLinkHardware:
         self.calls.append(f"{interface} {action}")
         if action == "down":
             self.power_off.set()
+            if self.hang_link_down:
+                await asyncio.Event().wait()
             await asyncio.sleep(0.3)
         return True
 
@@ -167,3 +171,26 @@ async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
 
         assert "Successfully reset PoE port poe1" in caplog.text
         assert "still running after final writes" not in caplog.text
+
+
+async def test_stop_does_not_wait_out_a_hung_reset(hass, caplog):
+    """A reset stuck in `ip link` holds the stop only for the bounded wait;
+    the last stop stage then cancels it, which still sends enable-port."""
+    hardware = SlowLinkHardware(hang_link_down=True)
+    with _patched(hardware), \
+         patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
+        await _setup(hass, hardware)
+        press = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+        press.cancel()
+
+        started = time.monotonic()
+        await hass.async_stop()
+
+        # Without the bound, Home Assistant waits 100 s before moving on.
+        assert time.monotonic() - started < 10
+        assert hardware.calls[-1] == "enable-port 1 1"

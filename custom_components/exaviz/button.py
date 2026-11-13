@@ -24,6 +24,11 @@ PARALLEL_UPDATES = 1
 # How long a reset keeps the port's power off.
 RESET_POWER_OFF_SECONDS = 3
 
+# How long Home Assistant's stop waits for a running reset. A healthy one
+# takes the power-off wait plus a few serial writes (each capped at 7 s);
+# a hung `ip link` must not hold the stop for Home Assistant's full 100 s.
+RESET_STOP_WAIT_SECONDS = 30
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -79,7 +84,7 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         more than one: a cancelled press frees the button for another.
         """
         if self._cycles:
-            await asyncio.wait(self._cycles)
+            await asyncio.wait(self._cycles, timeout=RESET_STOP_WAIT_SECONDS)
 
     @property
     def available(self) -> bool:
