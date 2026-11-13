@@ -945,9 +945,12 @@ async def test_reconfigure_same_address_same_key_new_leaf_needs_no_compare(hass,
     assert result["reason"] == "reconfigure_successful"
 
 
-async def test_reconfigure_new_address_same_key_new_leaf_still_compares(hass, board):
-    """R8: a moved address always shows the console fingerprint."""
-    entry = remote_entry(board, port=1, fingerprint="0" * 64)
+@pytest.mark.parametrize("moved", [{"port": 1}, {"host": "192.0.2.1"}])
+async def test_reconfigure_new_address_same_key_new_leaf_still_compares(
+    hass, board, moved
+):
+    """R8: a moved address (host or port) always shows the console fingerprint."""
+    entry = remote_entry(board, fingerprint="0" * 64, **moved)
     entry.add_to_hass(hass)
     result = await _reconfigure(hass, entry, board)
     assert result["step_id"] == "fingerprint"
