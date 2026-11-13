@@ -969,3 +969,16 @@ async def test_reauth_unusable_stored_key_hash_is_a_new_certificate(hass, board,
     entry.add_to_hass(hass)
     result = await _reauth(hass, entry)
     assert result["step_id"] == "fingerprint"
+
+
+async def test_same_address_other_key_still_compares(hass, board):
+    """R8: a well-formed stored key hash that is not the board's key, at the
+    same host and port, still needs the console compare (reauth and
+    reconfigure)."""
+    entry = remote_entry(board, fingerprint="0" * 64, spki="f" * 64)
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "fingerprint"
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    result = await _reconfigure(hass, entry, board)
+    assert result["step_id"] == "fingerprint"
