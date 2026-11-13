@@ -49,8 +49,10 @@ async def session():
 
 @contextmanager
 def refusing_port():
-    """A local port bound but not listening: connecting is refused, and
-    holding it keeps any other process from taking it meanwhile."""
+    """A local port bound but not listening, held so no other process can
+    take it meanwhile. Linux refuses a connection to it at once; macOS
+    drops it, so callers pass a short timeout. Either way the client
+    cannot connect, which is what the tests check."""
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         yield sock.getsockname()[1]
@@ -164,7 +166,9 @@ async def test_t07_retry_after(board, session):
 @pytest.mark.asyncio
 async def test_t07_refused_and_timeout(board, session):
     with refusing_port() as port:
-        c = RemoteClient(session, f"https://127.0.0.1:{port}", pin=board.cert.sha256)
+        c = RemoteClient(
+            session, f"https://127.0.0.1:{port}", pin=board.cert.sha256, timeout=1
+        )
         with pytest.raises(CannotConnect):
             await c.get_board()
 
@@ -501,7 +505,7 @@ async def test_ca_verified_leaf_unreachable_is_cannot_connect_not_unverified(tmp
     ctx = remote.build_ca_context(str(bundle))
 
     with refusing_port() as port, pytest.raises(CannotConnect):
-        await remote.ca_verified_leaf("127.0.0.1", port, ctx)
+        await remote.ca_verified_leaf("127.0.0.1", port, ctx, timeout=1)
 
     # Not TLS at all: an SSL error that is not a verification failure.
     async def plain_http(reader, writer):
