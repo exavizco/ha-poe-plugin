@@ -24,10 +24,11 @@ PARALLEL_UPDATES = 1
 # How long a reset keeps the port's power off.
 RESET_POWER_OFF_SECONDS = 3
 
-# How long Home Assistant's stop waits for a running reset, and then for a
-# stuck one to turn the port back on once cancelled. A healthy reset takes
-# the power-off wait plus a few serial writes (each capped at 7 s); a hung
-# `ip link` must not hold the stop for Home Assistant's full 100 s.
+# How long Home Assistant's stop, or an unload of the entry, waits for a
+# running reset, and then for a stuck one to turn the port back on once
+# cancelled. A healthy reset takes the power-off wait plus a few serial
+# writes (each capped at 7 s); a hung `ip link` must not hold the stop for
+# Home Assistant's full 100 s.
 RESET_STOP_WAIT_SECONDS = 30
 
 
@@ -78,19 +79,38 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         )
 
     async def _async_finish_cycle(self, _event: Event) -> None:
-        """Wait for running power cycles, so the port is not left off.
+        """Hold the stop for running power cycles.
 
         Home Assistant waits for this listener while it stops, but not for
-        a task that was already running when the stop began. There can be
-        more than one: a cancelled press frees the button for another.
-        A cycle still running after the wait is cancelled here, while the
-        stop still waits for this listener, so its cancel path has time to
-        turn the port back on.
+        a task that was already running when the stop began.
+        """
+        await self._async_finish_cycles()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Hold the entry's unload for running power cycles.
+
+        Unload waits 10 s for the entry's tasks and then leaves them
+        running, so a cycle stuck in `ip link` would keep the port off.
+        """
+        await self._async_finish_cycles()
+        await super().async_will_remove_from_hass()
+
+    async def _async_finish_cycles(self) -> None:
+        """Wait for running power cycles, so the port is not left off.
+
+        There can be more than one: a cancelled press frees the button for
+        another. A cycle still running after the wait is cancelled here,
+        while the caller still waits, so its cancel path has time to turn
+        the port back on.
         """
         if not self._cycles:
             return
         _, stuck = await asyncio.wait(self._cycles, timeout=RESET_STOP_WAIT_SECONDS)
         if stuck:
+            _LOGGER.warning(
+                "Reset of PoE port %s:%d is stuck; cancelling it to turn the port back on",
+                self._poe_set, self._port_number,
+            )
             for cycle in stuck:
                 cycle.cancel()
             await asyncio.wait(stuck, timeout=RESET_STOP_WAIT_SECONDS)

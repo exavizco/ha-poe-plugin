@@ -218,3 +218,41 @@ async def test_stop_turns_power_back_on_for_a_hung_reset(hass):
         assert len(stuck) == 1
         stuck[0].cancel()
         await asyncio.wait(stuck)
+
+
+
+class HungLinkDownHardware(SlowLinkHardware):
+    """Taking the link down never returns; bringing it up works."""
+
+    async def link(self, interface: str, action: str) -> bool:
+        self.calls.append(f"{interface} {action}")
+        if action == "down":
+            self.power_off.set()
+            await asyncio.Event().wait()
+        return True
+
+
+async def test_unload_turns_power_back_on_for_a_hung_reset(hass, caplog):
+    """Unload waits 10 s for the entry's tasks and then leaves them running.
+    A reset stuck in `ip link down` would then never send enable-port, so
+    the unload cancels it and waits for the power to come back."""
+    hardware = HungLinkDownHardware()
+    with _patched(hardware), \
+         patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
+        entry = await _setup(hass, hardware)
+        press = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+
+        assert entry.state is ConfigEntryState.NOT_LOADED
+        assert hardware.calls == [
+            "disable-port 1 1", "poe1 down", "enable-port 1 1", "poe1 up",
+        ]
+        assert "did not complete in time" not in caplog.text
+        with pytest.raises(asyncio.CancelledError):
+            await press
