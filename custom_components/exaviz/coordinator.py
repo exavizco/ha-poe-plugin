@@ -323,13 +323,20 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_setup_remote(self) -> None:
         """Build the HTTPS client. No request is made until the first poll."""
         data = self.entry.data
-        # CA mode pins the confirmed key, so a renewed certificate with the
-        # same key keeps working; pin mode pins the confirmed certificate.
-        trust = (
-            {"spki_pin": data[CONF_SPKI]}
-            if data[CONF_TRUST_MODE] == TRUST_CA
-            else {"pin": data[CONF_FINGERPRINT]}
-        )
+        # Both modes survive a re-issued certificate that keeps the key. CA
+        # mode pins the key; pin mode pins the certificate and also accepts
+        # the confirmed key, then stores the new fingerprint.
+        if data[CONF_TRUST_MODE] == TRUST_CA:
+            trust: dict[str, Any] = {"spki_pin": data[CONF_SPKI]}
+        else:
+            trust = {"pin": data[CONF_FINGERPRINT]}
+            # A missing or malformed stored key hash leaves the plain leaf pin.
+            if remote.is_pin(data.get(CONF_SPKI)):
+                trust["key_pin"] = data[CONF_SPKI]
+                key = data[CONF_SPKI]
+                trust["on_renewed"] = lambda fp: self._store_renewed_fingerprint(
+                    key, fp
+                )
         self.remote = remote.RemoteClient(
             async_get_clientsession(self.hass),
             remote.board_url(data[CONF_HOST], data[CONF_PORT]),
@@ -338,6 +345,20 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.board_type = BoardType(data[CONF_BOARD_TYPE])
         self.entry.async_on_unload(self._async_cancel_settle_refresh)
+
+    def _store_renewed_fingerprint(self, key: str, fingerprint: str) -> None:
+        """Keep the pairing across a SAN-only re-issue (entry reloads once).
+
+        `key` is the key hash this client was built with. A late answer from
+        an older client (the entry was removed, or a reauth paired another
+        key) writes nothing, so an old key's leaf never sits beside a new key.
+        """
+        entry = self.hass.config_entries.async_get_entry(self.entry.entry_id)
+        if entry is None or entry.data.get(CONF_SPKI) != key:
+            return
+        self.hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_FINGERPRINT: fingerprint}
+        )
 
     @property
     def can_control(self) -> bool:

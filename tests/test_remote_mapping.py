@@ -492,3 +492,40 @@ def test_43_good_measurements_pass_through_unchanged():
     assert (port["power_consumption_watts"], port["voltage_volts"]) == (4.5, 52)
     assert port["current_milliamps"] == 94 and type(port["voltage_volts"]) is int
     assert (port["speed_mbps"], port["rx_bytes"], port["tx_bytes"]) == (1000, 7, 9)
+
+
+@pytest.mark.parametrize(
+    ("stored_key", "exists", "written"),
+    [
+        ("k" * 64, True, True),
+        # A reauth paired another key meanwhile: the old key's leaf stays out.
+        ("n" * 64, True, False),
+        # The entry was removed while the request was in flight.
+        ("k" * 64, False, False),
+    ],
+)
+def test_renewed_fingerprint_is_stored_only_for_the_same_pairing(
+    stored_key, exists, written
+):
+    from unittest.mock import MagicMock
+
+    from custom_components.exaviz.const import CONF_FINGERPRINT, CONF_SPKI
+
+    coordinator = object.__new__(ExavizDataUpdateCoordinator)
+    coordinator.hass = MagicMock()
+    entry = MagicMock(
+        data={CONF_FINGERPRINT: "a" * 64, CONF_SPKI: stored_key, "host": "h"}
+    )
+    coordinator.entry = entry
+    coordinator.hass.config_entries.async_get_entry.return_value = (
+        entry if exists else None
+    )
+    coordinator._store_renewed_fingerprint("k" * 64, "b" * 64)
+    update = coordinator.hass.config_entries.async_update_entry
+    if written:
+        update.assert_called_once_with(
+            entry,
+            data={CONF_FINGERPRINT: "b" * 64, CONF_SPKI: stored_key, "host": "h"},
+        )
+    else:
+        update.assert_not_called()

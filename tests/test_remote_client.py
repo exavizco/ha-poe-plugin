@@ -335,6 +335,115 @@ async def test_spki_pin_accepts_same_key_and_sends_nothing_to_another(board, ses
     assert board.requests == []
 
 
+def pin_mode(session, board, first, renewed):
+    return RemoteClient(
+        session,
+        board.url,
+        pin=first.sha256,
+        key_pin=first.spki_sha256,
+        on_renewed=renewed.append,
+        token=TOKEN,
+    )
+
+
+@pytest.mark.asyncio
+async def test_pin_mode_same_leaf_does_not_report_a_renewal(board, session):
+    renewed: list[str] = []
+    c = pin_mode(session, board, board.cert, renewed)
+    assert (await c.get_board())["serial"] == "CRU-TEST-0001"
+    assert renewed == []
+
+
+@pytest.mark.asyncio
+async def test_pin_mode_same_key_new_leaf_connects_and_reports_new_fingerprint(
+    board, session
+):
+    """A SAN-only re-issue (new leaf, same key) keeps a pin-mode pairing."""
+    first = board.cert
+    await board.restart(make_cert(key=first.key))
+    assert board.cert.sha256 != first.sha256
+    renewed: list[str] = []
+    c = pin_mode(session, board, first, renewed)
+    assert (await c.get_board())["serial"] == "CRU-TEST-0001"
+    assert renewed == [board.cert.sha256]
+
+
+@pytest.mark.asyncio
+async def test_pin_mode_new_key_sends_nothing_and_reports_nothing(board, session):
+    """Regenerate on the board makes a new key: still a mismatch."""
+    first = board.cert
+    await board.restart(make_cert())
+    board.requests.clear()
+    renewed: list[str] = []
+    c = pin_mode(session, board, first, renewed)
+    with pytest.raises(CertificateChanged):
+        await c.get_board()
+    assert board.requests == []
+    assert renewed == []
+
+
+def test_key_pin_needs_pin_and_callback(board, session):
+    with pytest.raises(ValueError):
+        RemoteClient(session, board.url, spki_pin="a" * 64, key_pin="a" * 64)
+    with pytest.raises(ValueError):
+        RemoteClient(session, board.url, pin="a" * 64, key_pin="a" * 64)
+    with pytest.raises(ValueError):
+        RemoteClient(
+            session, board.url, pin="a" * 64, key_pin="Z" * 64, on_renewed=print
+        )
+
+
+def test_unparseable_leaf_is_a_mismatch_in_pin_mode():
+    class Transport:
+        def get_extra_info(self, name):
+            return {
+                "ssl_object": type("S", (), {"getpeercert": lambda self, binary_form: b"junk"})(),
+                "peername": ("127.0.0.1", 443),
+            }[name]
+
+    pin = remote._CertOrKeyPin(b"\x00" * 32, b"\x01" * 32)
+    with pytest.raises(aiohttp.ServerFingerprintMismatch):
+        pin.check(Transport())
+    assert pin.renewed is None
+
+
+def test_leaf_that_raises_anything_while_parsing_is_a_mismatch(monkeypatch):
+    def boom(der):
+        raise RuntimeError("unsupported key type")
+
+    monkeypatch.setattr(remote, "spki_of", boom)
+
+    class Transport:
+        def get_extra_info(self, name):
+            return {
+                "ssl_object": type("S", (), {"getpeercert": lambda self, binary_form: b"x"})(),
+                "peername": ("127.0.0.1", 443),
+            }[name]
+
+    with pytest.raises(aiohttp.ServerFingerprintMismatch):
+        remote._CertOrKeyPin(b"\x00" * 32, b"\x01" * 32).check(Transport())
+
+
+@pytest.mark.asyncio
+async def test_renewed_fingerprint_is_stored_after_the_request_returns(board, session):
+    """R7: the callback never runs inside the handshake."""
+    first = board.cert
+    await board.restart(make_cert(key=first.key))
+    seen: list[tuple[str, int]] = []
+    c = RemoteClient(
+        session,
+        board.url,
+        pin=first.sha256,
+        key_pin=first.spki_sha256,
+        on_renewed=lambda fp: seen.append((fp, len(board.requests))),
+        token=TOKEN,
+    )
+    await c.get_board()
+    assert seen == [(board.cert.sha256, 1)]
+    await c.get_board()
+    assert len(seen) == 1
+
+
 # --- Release review findings (1.4.0) ---------------------------------------------
 
 

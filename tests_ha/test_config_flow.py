@@ -923,3 +923,62 @@ async def test_ca_mode_new_key_needs_the_fingerprint_even_when_ca_valid(
     )
     assert entry.data == before
     assert pair_calls(board) == []
+
+
+async def test_reauth_same_key_new_leaf_skips_the_console_compare(hass, board):
+    """R8: a re-issued leaf with the confirmed key, same host and port."""
+    entry = remote_entry(board, fingerprint="0" * 64)
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "repair"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["fingerprint"] == board.cert.sha256
+
+
+async def test_reconfigure_same_address_same_key_new_leaf_needs_no_compare(hass, board):
+    entry = remote_entry(board, fingerprint="0" * 64)
+    entry.add_to_hass(hass)
+    result = await _reconfigure(hass, entry, board)
+    assert result["reason"] == "reconfigure_successful"
+
+
+@pytest.mark.parametrize("moved", [{"port": 1}, {"host": "192.0.2.1"}])
+async def test_reconfigure_new_address_same_key_new_leaf_still_compares(
+    hass, board, moved
+):
+    """R8: a moved address (host or port) always shows the console fingerprint."""
+    entry = remote_entry(board, fingerprint="0" * 64, **moved)
+    entry.add_to_hass(hass)
+    result = await _reconfigure(hass, entry, board)
+    assert result["step_id"] == "fingerprint"
+
+
+@pytest.mark.parametrize("spki", [None, "zz", "A" * 64])
+async def test_reauth_unusable_stored_key_hash_is_a_new_certificate(hass, board, spki):
+    data = remote_data(board, fingerprint="0" * 64)
+    if spki is None:
+        del data["spki"]
+    else:
+        data["spki"] = spki
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=data, unique_id="CRU-TEST-0001", entry_id="remote_entry"
+    )
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "fingerprint"
+
+
+async def test_same_address_other_key_still_compares(hass, board):
+    """R8: a well-formed stored key hash that is not the board's key, at the
+    same host and port, still needs the console compare (reauth and
+    reconfigure)."""
+    entry = remote_entry(board, fingerprint="0" * 64, spki="f" * 64)
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "fingerprint"
+    hass.config_entries.flow.async_abort(result["flow_id"])
+    result = await _reconfigure(hass, entry, board)
+    assert result["step_id"] == "fingerprint"
