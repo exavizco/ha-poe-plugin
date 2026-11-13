@@ -303,3 +303,33 @@ async def test_stop_during_an_unload_waits_for_the_reset(hass):
         # Not in the last stage's 0.1 s.
         assert stage_at_power_on == [CoreState.stopping]
         await asyncio.wait([press, unload])
+
+
+async def test_stop_during_an_unload_cancels_a_hung_reset_once(hass, caplog):
+    """The unload has already cancelled the stuck cycle, so the stop does
+    not wait for it all over again or cancel it a second time."""
+    hardware = SlowLinkHardware(hang_link=True)
+    with _patched(hardware), \
+         patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
+        entry = await _setup(hass, hardware)
+        press = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+        unload = hass.async_create_task(hass.config_entries.async_unload(entry.entry_id))
+        await asyncio.sleep(0.05)
+
+        await hass.async_stop()
+
+        assert hardware.calls == [
+            "disable-port 1 1", "poe1 down", "enable-port 1 1", "poe1 up",
+        ]
+        assert caplog.text.count("Reset of PoE port onboard:1 is stuck") == 1
+
+        # The cycle is still stuck in `ip link up`, with the power on.
+        stuck = [t for t in asyncio.all_tasks() if t.get_name().startswith("reset PoE port")]
+        assert len(stuck) == 1
+        stuck[0].cancel()
+        await asyncio.wait([*stuck, press, unload])
