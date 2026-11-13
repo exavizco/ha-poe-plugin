@@ -484,6 +484,36 @@ async def test_cycle_cancelled_during_the_settle_sends_nothing_after_a_stuck_res
 
 
 @pytest.mark.asyncio
+async def test_finish_waits_for_a_cycle_that_reports_cancelling_for_its_own_reason():
+    """A serial write that times out inside the cycle makes the cycle report
+    cancelling() for a moment. The stop must still wait for that cycle."""
+    button = _button()
+    write_done = asyncio.Event()
+
+    async def cycle_body() -> None:
+        task = asyncio.current_task()
+        task.cancel()  # what wait_for's timeout does to its own task
+        try:
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            pass  # caught inside the cycle; cancelling() stays above 0
+        await write_done.wait()
+
+    cycle = asyncio.create_task(cycle_body())
+    button._cycles.add(cycle)
+    cycle.add_done_callback(button._cycles.discard)
+    await asyncio.sleep(0)
+    assert cycle.cancelling()
+
+    finish = asyncio.create_task(button._async_finish_cycles())
+    await asyncio.sleep(0.05)
+    assert not finish.done()
+    write_done.set()
+    await finish
+    assert cycle.done() and not cycle.cancelled()
+
+
+@pytest.mark.asyncio
 async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path):
     """Same as above through the real _send_esp32_command and a real kill: the
     device must end up having received enable-port."""
