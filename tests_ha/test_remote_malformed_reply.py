@@ -45,3 +45,30 @@ async def test_wrong_type_measurements_leave_ports_working(hass, board):
 
     assert state(hass, "switch.onboard_port0").state in ("on", "off")
     assert state(hass, "switch.onboard_port1").state in ("on", "off")
+
+
+async def test_wrong_type_measurements_are_logged_once_across_polls(
+    hass, board, caplog, monkeypatch
+):
+    """A buggy board build is visible in the log, once per field, not per poll."""
+    from custom_components.exaviz import remote
+
+    from .test_remote_runtime import poll
+
+    monkeypatch.setattr(remote, "_WARNED_MEASUREMENTS", set())
+    poe = case("poe_ports")
+    poe["body"]["ports"][0].update(power_w="x")
+    poe["body"]["ports"][1].update(power_w="y", current_ma=[1])
+    board.reply("GET", "/poe/ports", poe)
+    entry = await setup_remote(hass, board)
+    await poll(hass, entry)
+    await poll(hass, entry)
+
+    warnings = [
+        r.getMessage() for r in caplog.records if "unusable" in r.getMessage()
+    ]
+    assert warnings == [
+        "Board sent an unusable power_w (str); counting it as missing",
+        "Board sent an unusable current_ma (list); counting it as missing",
+    ]
+    assert state(hass, "switch.onboard_port0").state in ("on", "off")
