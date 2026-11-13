@@ -7,7 +7,8 @@ from typing import Any
 
 from homeassistant.components.button import ButtonEntity, ButtonDeviceClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -19,6 +20,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # One port action at a time, so two cannot race on the board.
 PARALLEL_UPDATES = 1
+
+# How long a reset keeps the port's power off.
+RESET_POWER_OFF_SECONDS = 3
 
 
 async def async_setup_entry(
@@ -58,6 +62,23 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             entity_suffix="reset",
             entity_name_suffix="Reset",
         )
+        self._cycle: asyncio.Task | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Hold Home Assistant's stop until a running reset is finished."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, self._async_finish_cycle)
+        )
+
+    async def _async_finish_cycle(self, _event: Event) -> None:
+        """Wait for a running power cycle, so the port is not left off.
+
+        Home Assistant waits for this listener while it stops, but not for
+        a task that was already running when the stop began.
+        """
+        if self._cycle is not None and not self._cycle.done():
+            await asyncio.wait([self._cycle])
 
     @property
     def available(self) -> bool:
@@ -138,7 +159,12 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         awaits a cancelled press, so the cycle then logs its own failure and
         refreshes the state once it is done.
         """
-        cycle = asyncio.ensure_future(self._power_cycle_onboard_port())
+        # A config entry task: unloading the entry waits for it.
+        cycle = self._cycle = self.coordinator.config_entry.async_create_task(
+            self.hass,
+            self._power_cycle_onboard_port(),
+            f"reset PoE port {self._poe_set}:{self._port_number}",
+        )
         try:
             await asyncio.shield(cycle)
         except asyncio.CancelledError:
@@ -221,8 +247,11 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         link_up = False
         try:
             await ExavizPoEPortSwitch._run_ip_link(interface, "down")
-            _LOGGER.info("Port %s power cut for reset, waiting 3 seconds...", interface)
-            await asyncio.sleep(3)
+            _LOGGER.info(
+                "Port %s power cut for reset, waiting %d seconds...",
+                interface, RESET_POWER_OFF_SECONDS,
+            )
+            await asyncio.sleep(RESET_POWER_OFF_SECONDS)
             link_up = await ExavizPoEPortSwitch._run_ip_link(interface, "up")
         except asyncio.CancelledError:
             # Shutdown cancelled the wait; leave the link up, not just the

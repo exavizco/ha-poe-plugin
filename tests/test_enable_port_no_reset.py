@@ -5,6 +5,7 @@ chip and re-inits all ports. Fixed firmware re-arms DCE on enable-port alone.
 """
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -45,7 +46,13 @@ def _make_reset_button(port_number: int = 0) -> ExavizPoEPortResetButton:
     coordinator.async_request_refresh = AsyncMock()
     coordinator.last_update_success = True
     coordinator.board_type = None
-    return ExavizPoEPortResetButton(coordinator, "onboard", port_number, "entry")
+    # The button starts its power cycle as a config entry task.
+    coordinator.config_entry.async_create_task.side_effect = (
+        lambda _hass, coro, _name: asyncio.ensure_future(coro)
+    )
+    button = ExavizPoEPortResetButton(coordinator, "onboard", port_number, "entry")
+    button.hass = MagicMock()
+    return button
 
 
 @pytest.mark.asyncio

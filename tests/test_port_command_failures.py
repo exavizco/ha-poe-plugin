@@ -29,6 +29,10 @@ def _coordinator(poe_set: str, poe_system: str) -> MagicMock:
         }
     }
     coordinator.async_request_refresh = AsyncMock()
+    # The button starts its power cycle as a config entry task.
+    coordinator.config_entry.async_create_task.side_effect = (
+        lambda _hass, coro, _name: asyncio.ensure_future(coro)
+    )
     return coordinator
 
 
@@ -37,7 +41,9 @@ def _switch() -> ExavizPoEPortSwitch:
 
 
 def _button(poe_set: str = "onboard", poe_system: str = "onboard") -> ExavizPoEPortResetButton:
-    return ExavizPoEPortResetButton(_coordinator(poe_set, poe_system), poe_set, 0, "e")
+    button = ExavizPoEPortResetButton(_coordinator(poe_set, poe_system), poe_set, 0, "e")
+    button.hass = MagicMock()
+    return button
 
 
 def _patch_switch(esp32: dict[str, bool], link: dict[str, bool]):
