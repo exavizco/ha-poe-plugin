@@ -29,6 +29,10 @@ def _coordinator(poe_set: str, poe_system: str) -> MagicMock:
         }
     }
     coordinator.async_request_refresh = AsyncMock()
+    # The button starts its power cycle as a config entry task.
+    coordinator.config_entry.async_create_task.side_effect = (
+        lambda _hass, coro, _name: asyncio.ensure_future(coro)
+    )
     return coordinator
 
 
@@ -37,7 +41,9 @@ def _switch() -> ExavizPoEPortSwitch:
 
 
 def _button(poe_set: str = "onboard", poe_system: str = "onboard") -> ExavizPoEPortResetButton:
-    return ExavizPoEPortResetButton(_coordinator(poe_set, poe_system), poe_set, 0, "e")
+    button = ExavizPoEPortResetButton(_coordinator(poe_set, poe_system), poe_set, 0, "e")
+    button.hass = MagicMock()
+    return button
 
 
 def _patch_switch(esp32: dict[str, bool], link: dict[str, bool]):
@@ -311,7 +317,9 @@ async def test_cycle_task_cancelled_at_shutdown_still_turns_the_port_on(cancel_a
         cycle.cancel()
         with pytest.raises(asyncio.CancelledError):
             await cycle
-    assert calls[-1] == "enable-port 1 0"
+    # Power comes back first; after a cancelled settle the link follows.
+    tail = ["enable-port 1 0"] if cancel_at == "disable-port" else ["enable-port 1 0", "link up"]
+    assert calls[-len(tail):] == tail
 
 
 @pytest.mark.asyncio
@@ -413,7 +421,7 @@ async def test_cycle_cancelled_then_a_failed_turn_on_is_logged(cancel_at, caplog
 
 
 @pytest.mark.asyncio
-async def test_cycle_cancelled_during_the_settle_leaves_the_link_up_too():
+async def test_cycle_cancelled_during_the_settle_turns_power_on_then_the_link():
     button = _button()
     calls: list[str] = []
     in_settle = asyncio.Event()
@@ -438,7 +446,41 @@ async def test_cycle_cancelled_during_the_settle_leaves_the_link_up_too():
         cycle.cancel()
         with pytest.raises(asyncio.CancelledError):
             await cycle
-    assert calls == ["disable-port 1 0", "link down", "link up", "enable-port 1 0"]
+    # Power first, so a stuck `ip link` cannot keep the port off.
+    assert calls == ["disable-port 1 0", "link down", "enable-port 1 0", "link up"]
+
+
+@pytest.mark.asyncio
+async def test_cycle_cancelled_during_the_settle_sends_nothing_after_a_stuck_restore():
+    """The cancel path's restore write will not stop: it may still land, so
+    neither a second enable-port nor the link step follows it."""
+    button = _button()
+    calls: list[str] = []
+    in_settle = asyncio.Event()
+
+    async def send(command: str) -> bool:
+        calls.append(command)
+        if command.startswith("enable-port"):
+            raise HomeAssistantError("did not stop")
+        return True
+
+    async def link(interface: str, action: str) -> bool:
+        calls.append(f"link {action}")
+        return True
+
+    async def settle(delay):
+        in_settle.set()
+        await asyncio.Event().wait()
+
+    with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
+         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+        cycle = asyncio.create_task(button._power_cycle_onboard_port())
+        await in_settle.wait()
+        cycle.cancel()
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await cycle
+    assert calls == ["disable-port 1 0", "link down", "enable-port 1 0"]
 
 
 @pytest.mark.asyncio

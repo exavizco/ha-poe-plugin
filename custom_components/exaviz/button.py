@@ -7,7 +7,8 @@ from typing import Any
 
 from homeassistant.components.button import ButtonEntity, ButtonDeviceClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -19,6 +20,16 @@ _LOGGER = logging.getLogger(__name__)
 
 # One port action at a time, so two cannot race on the board.
 PARALLEL_UPDATES = 1
+
+# How long a reset keeps the port's power off.
+RESET_POWER_OFF_SECONDS = 3
+
+# How long Home Assistant's stop, or an unload of the entry, waits for a
+# running reset, and then for a stuck one to turn the port back on once
+# cancelled. A healthy reset takes the power-off wait plus a few serial
+# writes (each capped at 7 s); a hung `ip link` holds the stop for at most
+# twice this, inside Home Assistant's 100 s.
+RESET_STOP_WAIT_SECONDS = 30
 
 
 async def async_setup_entry(
@@ -58,6 +69,61 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             entity_suffix="reset",
             entity_name_suffix="Reset",
         )
+        self._cycles: set[asyncio.Task] = set()
+        # The stop and an unload can both wait; only one cancels.
+        self._finishing = asyncio.Lock()
+
+    async def async_added_to_hass(self) -> None:
+        """Hold Home Assistant's stop until a running reset is finished."""
+        await super().async_added_to_hass()
+        # Removed at the end of async_will_remove_from_hass, not with
+        # async_on_remove: a stop during an unload must still wait.
+        self._unsub_stop = self.hass.bus.async_listen(
+            EVENT_HOMEASSISTANT_STOP, self._async_finish_cycle
+        )
+
+    async def _async_finish_cycle(self, _event: Event) -> None:
+        """Hold the stop for running power cycles.
+
+        Home Assistant waits for this listener while it stops, but not for
+        a task that was already running when the stop began.
+        """
+        await self._async_finish_cycles()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Hold the entry's unload for running power cycles.
+
+        Unload waits 10 s for the entry's tasks and then leaves them
+        running, so a cycle stuck in `ip link` would keep the port off.
+        """
+        try:
+            await self._async_finish_cycles()
+        finally:
+            self._unsub_stop()
+        await super().async_will_remove_from_hass()
+
+    async def _async_finish_cycles(self) -> None:
+        """Wait for running power cycles, so the port is not left off.
+
+        There can be more than one: a cancelled press frees the button for
+        another. A cycle still running after the wait is cancelled here,
+        while the caller still waits, so its cancel path has time to turn
+        the port back on.
+        """
+        async with self._finishing:
+            # A cycle already cancelled had its waits from the other caller.
+            cycles = {cycle for cycle in self._cycles if not cycle.cancelling()}
+            if not cycles:
+                return
+            _, stuck = await asyncio.wait(cycles, timeout=RESET_STOP_WAIT_SECONDS)
+            if stuck:
+                _LOGGER.warning(
+                    "Reset of PoE port %s:%d is stuck; cancelling it to turn the port back on",
+                    self._poe_set, self._port_number,
+                )
+                for cycle in stuck:
+                    cycle.cancel()
+                await asyncio.wait(stuck, timeout=RESET_STOP_WAIT_SECONDS)
 
     @property
     def available(self) -> bool:
@@ -138,7 +204,14 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         awaits a cancelled press, so the cycle then logs its own failure and
         refreshes the state once it is done.
         """
-        cycle = asyncio.ensure_future(self._power_cycle_onboard_port())
+        # A config entry task: unloading the entry waits for it.
+        cycle = self.coordinator.config_entry.async_create_task(
+            self.hass,
+            self._power_cycle_onboard_port(),
+            f"reset PoE port {self._poe_set}:{self._port_number}",
+        )
+        self._cycles.add(cycle)
+        cycle.add_done_callback(self._cycles.discard)
         try:
             await asyncio.shield(cycle)
         except asyncio.CancelledError:
@@ -219,18 +292,28 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
             )
 
         link_up = False
+        restored: bool | None = None
         try:
             await ExavizPoEPortSwitch._run_ip_link(interface, "down")
-            _LOGGER.info("Port %s power cut for reset, waiting 3 seconds...", interface)
-            await asyncio.sleep(3)
+            _LOGGER.info(
+                "Port %s power cut for reset, waiting %d seconds...",
+                interface, RESET_POWER_OFF_SECONDS,
+            )
+            await asyncio.sleep(RESET_POWER_OFF_SECONDS)
             link_up = await ExavizPoEPortSwitch._run_ip_link(interface, "up")
         except asyncio.CancelledError:
-            # Shutdown cancelled the wait; leave the link up, not just the
-            # power on (the switch reads a downed link as "off").
+            # Shutdown cancelled the wait. Power first, so a stuck `ip link`
+            # cannot keep the port off; then leave the link up too (the
+            # switch reads a downed link as "off").
+            # Set first: a restore write that will not stop raises, and
+            # nothing may follow it, not even the restore in `finally`.
+            restored = False
+            restored = await self._send_enable_port(pse_num, pse_port)
             await ExavizPoEPortSwitch._run_ip_link(interface, "up")
             raise
         finally:
-            restored = await self._send_enable_port(pse_num, pse_port)
+            if restored is None:
+                restored = await self._send_enable_port(pse_num, pse_port)
         if not restored:
             raise HomeAssistantError(
                 f"The PoE controller did not turn port {interface} back on after the reset"
