@@ -13,12 +13,15 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.exaviz.const import DOMAIN
 from tests.fake_board import case, make_cert
 
-from .remote_helpers import TOKEN, remote_entry
+from .remote_helpers import SERIAL, TOKEN, remote_data, remote_entry
 
 LOCAL_ROOTS = ("/proc", "/sys", "/dev", "/boot", "/etc")
 PORT_ENTITIES = (
@@ -518,3 +521,20 @@ async def test_saved_option_interval_wins_over_the_pairing_interval(hass, board)
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.update_interval == timedelta(seconds=45)
+
+
+@pytest.mark.parametrize("spki", [None, "zz"])
+async def test_pin_mode_without_a_usable_key_hash_keeps_the_leaf_pin(hass, board, spki):
+    """P3: a hand-edited entry loads with the plain leaf pin, never unpinned."""
+    data = remote_data(board)
+    if spki is None:
+        del data["spki"]
+    else:
+        data["spki"] = spki
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=data, unique_id=SERIAL, entry_id="remote_entry"
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED

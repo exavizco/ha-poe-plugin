@@ -417,9 +417,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return TRUST_CA if await self._ca_verifies_confirmed_leaf() else TRUST_PIN
 
     async def _same_certificate(self, data: dict[str, Any]) -> bool:
-        """Pin: same leaf. CA: same key, and it verifies for this host."""
+        """Pin: same leaf, or same key at the same address. CA: same key, and it verifies."""
         if data[CONF_TRUST_MODE] != TRUST_CA:
-            return remote.fingerprint_of(self._der) == data[CONF_FINGERPRINT]
+            if remote.fingerprint_of(self._der) == data[CONF_FINGERPRINT]:
+                return True
+            # A re-issued leaf with the confirmed key needs no console compare,
+            # but only where the user already paired: a new address still does.
+            if (self._host, self._port) != (data[CONF_HOST], data[CONF_PORT]):
+                return False
+            try:
+                return remote.spki_of(self._der) == data.get(CONF_SPKI)
+            except Exception:  # a leaf that cannot be read is a new certificate
+                return False
         # CA mode checks the host name on every connection, so an unchanged
         # leaf is not enough when the address changed.
         if remote.spki_of(self._der) != data[CONF_SPKI]:
