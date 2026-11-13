@@ -111,11 +111,9 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         the port back on.
         """
         async with self._finishing:
-            # A cycle already cancelled had its waits from the other caller.
-            cycles = {cycle for cycle in self._cycles if not cycle.cancelling()}
-            if not cycles:
+            if not self._cycles:
                 return
-            _, stuck = await asyncio.wait(cycles, timeout=RESET_STOP_WAIT_SECONDS)
+            _, stuck = await asyncio.wait(self._cycles, timeout=RESET_STOP_WAIT_SECONDS)
             if stuck:
                 _LOGGER.warning(
                     "Reset of PoE port %s:%d is stuck; cancelling it to turn the port back on",
@@ -123,6 +121,10 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
                 )
                 for cycle in stuck:
                     cycle.cancel()
+                # Had its waits: the other caller (stop or unload) skips it.
+                # Not `cycle.cancelling()`, which a timed-out serial write
+                # inside the cycle also sets for a moment.
+                self._cycles -= stuck
                 await asyncio.wait(stuck, timeout=RESET_STOP_WAIT_SECONDS)
 
     @property
