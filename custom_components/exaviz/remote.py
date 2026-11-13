@@ -47,6 +47,9 @@ MAX_REMOTE_PORTS = 8
 # capped so a board sending new names cannot grow it without bound.
 _WARNED_PORT_NAMES: set[str] = set()
 _MAX_WARNED_PORT_NAMES = 32
+# Measurement fields already warned about for an unusable value, so a board
+# build that sends one shows in the log once per field, not on every poll.
+_WARNED_MEASUREMENTS: set[str] = set()
 # GET /zigbee states the sensor shows. "unknown" (the board could not read the
 # unit) is a reading too; anything else means no radio state to show.
 ZIGBEE_RADIO_STATES = ("on", "off", "starting", "failed")
@@ -427,10 +430,12 @@ def map_total_ports(board: dict[str, Any]) -> int | None:
     return total if type(total) is int and total > 0 else None
 
 
-def _measurement(value: Any, default: Any) -> Any:
+def _measurement(value: Any, default: Any, field: str) -> Any:
     """value if it is a finite number, else default.
 
     A bool is not a number, and an integer too large for a float is not finite.
+    A missing value is silent; a value that is present but unusable is logged
+    once per field (by its type, since the value may be huge).
     """
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
@@ -438,6 +443,13 @@ def _measurement(value: Any, default: Any) -> Any:
                 return value
         except OverflowError:
             pass
+    if value is not None and field not in _WARNED_MEASUREMENTS:
+        _WARNED_MEASUREMENTS.add(field)
+        _LOGGER.warning(
+            "Board sent an unusable %s (%s); counting it as missing",
+            field,
+            type(value).__name__,
+        )
     return default
 
 
@@ -448,7 +460,9 @@ def map_health(health: Any) -> float | None:
     bool is not one; an integer too large for a float is not one either),
     counts as missing.
     """
-    return _measurement(health.get("cpu_temp_c"), None) if isinstance(health, dict) else None
+    if not isinstance(health, dict):
+        return None
+    return _measurement(health.get("cpu_temp_c"), None, "cpu_temp_c")
 
 
 def map_zigbee(body: Any) -> str | None:
@@ -552,16 +566,16 @@ def map_ports(
             "index": index,
             "enabled": state != "disabled",
             "status": "power on" if state == "delivering" else state,
-            "power_consumption_watts": _measurement(wire.get("power_w"), 0.0),
+            "power_consumption_watts": _measurement(wire.get("power_w"), 0.0, "power_w"),
             "allocated_power_watts": get_allocated_power_watts(poe_class),
             "power_mocked": False,
             "poe_class": poe_class,
-            "voltage_volts": _measurement(wire.get("voltage_v"), 0.0),
-            "current_milliamps": _measurement(wire.get("current_ma"), 0),
+            "voltage_volts": _measurement(wire.get("voltage_v"), 0.0, "voltage_v"),
+            "current_milliamps": _measurement(wire.get("current_ma"), 0, "current_ma"),
             "link_state": link.get("oper_state", "unknown"),
-            "speed_mbps": _measurement(link.get("speed_mbps"), 0),
-            "rx_bytes": _measurement(stats.get("rx_bytes"), 0),
-            "tx_bytes": _measurement(stats.get("tx_bytes"), 0),
+            "speed_mbps": _measurement(link.get("speed_mbps"), 0, "speed_mbps"),
+            "rx_bytes": _measurement(stats.get("rx_bytes"), 0, "rx_bytes"),
+            "tx_bytes": _measurement(stats.get("tx_bytes"), 0, "tx_bytes"),
             "poe_system": "onboard",
             "stale": _is_stale(wire.get("updated_at"), server_date),
         }

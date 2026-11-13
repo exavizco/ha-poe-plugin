@@ -492,3 +492,27 @@ def test_43_good_measurements_pass_through_unchanged():
     assert (port["power_consumption_watts"], port["voltage_volts"]) == (4.5, 52)
     assert port["current_milliamps"] == 94 and type(port["voltage_volts"]) is int
     assert (port["speed_mbps"], port["rx_bytes"], port["tx_bytes"]) == (1000, 7, 9)
+
+
+def test_43_unusable_measurement_is_logged_once_per_field(caplog, monkeypatch):
+    """A board build that sends a wrong-typed reading shows in the log once
+    per field, by type only; a missing reading or a good one is silent."""
+    monkeypatch.setattr(remote, "_WARNED_MEASUREMENTS", set())
+    huge = "x" * 5000
+    wire = dict(GOOD_PORT, power_w=huge, voltage_v=True, current_ma=None)
+    link = {"name": "poe0", "speed_mbps": 1000, "stats": {"rx_bytes": [1]}}
+    with caplog.at_level("WARNING", logger=remote.__name__):
+        for _ in range(3):
+            port = _ports([wire], [link])[0]
+        assert remote.map_health({"cpu_temp_c": "hot"}) is None
+        assert remote.map_health({"cpu_temp_c": "hot"}) is None
+        assert remote.map_health({}) is None
+    assert port["power_consumption_watts"] == 0.0
+    messages = [r.getMessage() for r in caplog.records]
+    assert messages == [
+        "Board sent an unusable power_w (str); counting it as missing",
+        "Board sent an unusable voltage_v (bool); counting it as missing",
+        "Board sent an unusable rx_bytes (list); counting it as missing",
+        "Board sent an unusable cpu_temp_c (str); counting it as missing",
+    ]
+    assert huge not in caplog.text
