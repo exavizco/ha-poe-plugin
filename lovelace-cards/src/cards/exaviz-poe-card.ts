@@ -1,5 +1,5 @@
 import { LitElement, html, css, TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../types/homeassistant';
 
 // Extend window interface for custom card registration
@@ -23,7 +23,6 @@ interface ExavizPoECardConfig {
   show_summary?: boolean;
 }
 
-@customElement('exaviz-poe-card')
 export class ExavizPoECard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @property() public config!: ExavizPoECardConfig;
@@ -1541,13 +1540,18 @@ Right-click to reset"
   }
 }
 
-// Register the card
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'exaviz-poe-card',
-  name: 'Exaviz PoE Management Card',
-  description: 'Comprehensive PoE port management with visual status indicators and detailed controls'
-});
+// Register the card once. This file can load twice in one page (a resource
+// with an old ?v= query still listed next to the new one), and defining the
+// same element name again throws.
+if (!customElements.get('exaviz-poe-card')) {
+  customElements.define('exaviz-poe-card', ExavizPoECard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: 'exaviz-poe-card',
+    name: 'Exaviz PoE Management Card',
+    description: 'Comprehensive PoE port management with visual status indicators and detailed controls'
+  });
+}
 
 console.info(
   '%c  EXAVIZ-POE-CARD  %c  v2.0.0  ',
