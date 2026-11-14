@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .coordinator import ExavizDataUpdateCoordinator
-from .switch import ExavizPoEPortSwitch
+from .switch import ExavizPoEPortSwitch, _ip_link_stuck
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -277,6 +277,12 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
             self._port_number
         )
+        if _ip_link_stuck(interface):
+            # Its `ip link` steps would be refused: do not blip the power.
+            raise HomeAssistantError(
+                f"An earlier ip link on port {interface} has not ended; "
+                "the port was not reset"
+            )
 
         try:
             disabled = await ExavizPoEPortSwitch._send_esp32_command(
