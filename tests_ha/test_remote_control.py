@@ -301,9 +301,9 @@ async def test_t44_control_401_starts_reauth(hass, board):
     assert len(reauth_flows(hass)) == 1
 
 
-async def test_t44_control_refused_raises(hass, board):
+async def test_t44_control_refused_raises(hass, board, short_remote_timeout):
     entry = await setup_remote(hass, board)
-    await board.stop()
+    await board.stop_holding_port()
     coordinator = entry.runtime_data
     with pytest.raises(HomeAssistantError, match="did not answer"):
         await coordinator.async_port_action(0, "disable")

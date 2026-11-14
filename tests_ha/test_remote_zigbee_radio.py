@@ -90,10 +90,10 @@ async def test_older_board_without_the_route(hass, board):
     assert state(hass, RADIO).state == "on"
 
 
-async def test_board_not_answering_then_back(hass, board):
+async def test_board_not_answering_then_back(hass, board, short_remote_timeout):
     entry = await setup_remote(hass, board)
     port = board.port
-    await board.stop()
+    await board.stop_holding_port()
     await poll(hass, entry)
     assert state(hass, RADIO).state == "unavailable"
     board.port = port
