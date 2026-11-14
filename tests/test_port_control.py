@@ -804,7 +804,8 @@ async def test_second_cancel_while_a_refused_signal_is_resent_counts_as_not_stop
     sudo.kill = lambda: killed.append(True)
     with patch.object(switch_module, "IP_LINK_STOP_WAIT", 5):
         stop = asyncio.ensure_future(switch_module._stop_ip_link(sudo, under_sudo))
-        await asyncio.sleep(0.12)  # a few refused sends in
+        # Two refused sends in, so the stop is waiting to send again.
+        await asyncio.wait_for(_until(lambda: sudo.signals >= 2), timeout=10)
         stop.cancel()
         cancelled = asyncio.get_running_loop().time()
         assert await asyncio.wait_for(stop, timeout=10) is False
