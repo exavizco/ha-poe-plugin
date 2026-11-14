@@ -640,3 +640,45 @@ async def test_start_cancelled_with_its_caller_at_loop_shutdown_reports_not_stop
             assert hung.started == []
     finally:
         hung.cleanup()
+
+
+def _fake_proc(root: Path, processes: dict[int, list[str]]) -> Path:
+    for pid, argv in processes.items():
+        (root / str(pid)).mkdir(parents=True)
+        (root / str(pid) / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+    (root / "self").mkdir()  # not a process number
+    return root
+
+
+@pytest.mark.asyncio
+async def test_ip_link_left_running_by_an_earlier_run_blocks_the_port(tmp_path):
+    """Under sudo a stuck `ip link` outlives a Home Assistant restart, and
+    the new process has no record of it: /proc still shows it, so no other
+    `ip link` runs on that port (others still do)."""
+    proc = _fake_proc(tmp_path / "proc", {
+        41: ["sudo", "ip", "link", "set", "poe3", "down"],
+        42: ["/usr/sbin/ip", "link", "set", "poe3", "down"],
+        43: ["ip", "link", "set", "poe4", "down"],  # another port
+    })
+    hung = HungIpLink(tmp_path, sudo=True, hang=())
+    try:
+        with hung.patches(), patch.object(switch_module, "_PROC", proc):
+            with pytest.raises(HomeAssistantError, match="has not ended"):
+                await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
+            assert await ExavizPoEPortSwitch._run_ip_link("poe31", "up") is True
+        assert [action for action, _ in hung.started] == ["up"]
+    finally:
+        hung.cleanup()
+
+
+def test_proc_scan_ignores_sudo_and_other_commands(tmp_path):
+    proc = _fake_proc(tmp_path / "proc", {
+        41: ["sudo", "ip", "link", "set", "poe3", "down"],  # sudo's own entry
+        44: ["ip", "neigh", "show", "dev", "poe3"],
+        45: ["vip", "link", "set", "poe3", "down"],
+        46: ["ip", "link", "set", "poe31", "down"],  # another port
+    })
+    with patch.object(switch_module, "_PROC", proc):
+        assert not switch_module._ip_link_in_proc("poe3")
+    with patch.object(switch_module, "_PROC", tmp_path / "missing"):
+        assert not switch_module._ip_link_in_proc("poe3")

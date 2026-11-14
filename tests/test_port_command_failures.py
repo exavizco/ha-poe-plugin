@@ -882,3 +882,17 @@ async def test_no_ip_link_starts_on_the_port_while_a_reset_cuts_its_power(tmp_pa
             with contextlib.suppress(asyncio.CancelledError, HomeAssistantError):
                 await asyncio.wait_for(cycle, timeout=10)
         assert hung.started[0] == ("up", False)
+
+
+@pytest.mark.asyncio
+async def test_reset_leaves_the_power_alone_while_an_earlier_runs_ip_link_is_alive(tmp_path):
+    import custom_components.exaviz.switch as switch_module
+
+    proc = tmp_path / "proc" / "42"
+    proc.mkdir(parents=True)
+    (proc / "cmdline").write_bytes(b"ip\0link\0set\0poe0\0down\0")
+    with _reset_with_hung_link(tmp_path, ignore_term=False) as (button, hung, sent), \
+         patch.object(switch_module, "_PROC", tmp_path / "proc"):
+        with pytest.raises(HomeAssistantError, match="was not reset"):
+            await button._power_cycle_onboard_port()
+        assert sent == [] and hung.started == []

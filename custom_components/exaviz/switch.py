@@ -71,6 +71,43 @@ def _ip_link_lock(interface: str) -> asyncio.Lock:
     return locks.setdefault(interface, asyncio.Lock())
 
 
+# Where running processes are listed (Linux).
+_PROC = Path("/proc")
+
+
+def _ip_link_in_proc(interface: str) -> bool:
+    """True if an `ip link set <interface> ...` is running.
+
+    Called with the interface's lock held and nothing of ours recorded as
+    running, so it finds one left by an earlier Home Assistant run: under
+    sudo, a stuck one outlives the process that started it.
+    """
+    try:
+        entries = list(_PROC.iterdir())
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue  # it ended meanwhile
+        if (
+            argv[0].rsplit(b"/", 1)[-1] == b"ip"
+            and argv[1:4] == [b"link", b"set", interface.encode()]
+        ):
+            return True
+    return False
+
+
+async def _ip_link_blocked(interface: str) -> bool:
+    """True while an `ip link` on the interface may still change the link."""
+    return _ip_link_stuck(interface) or await asyncio.to_thread(
+        _ip_link_in_proc, interface
+    )
+
+
 def _ip_link_stuck(interface: str) -> bool:
     """True while an `ip link` on the interface that did not stop runs."""
     stuck = _stuck_ip_link.get(interface)
@@ -286,7 +323,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     @staticmethod
     async def _run_ip_link_alone(interface: str, action: str) -> bool:
         """_run_ip_link, with the interface's lock held."""
-        if _ip_link_stuck(interface):
+        if await _ip_link_blocked(interface):
             raise HomeAssistantError(
                 f"An earlier ip link on port {interface} has not ended; "
                 "the link's state is unknown, so nothing more is run on it"
