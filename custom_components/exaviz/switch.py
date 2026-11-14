@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import weakref
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +46,142 @@ _PSE_DEVICE_PATHS = [Path("/dev/pse"), Path("/dev/ttyAMA3")]
 # the action (or leave a reset cycle half done).
 ESP32_WRITE_TIMEOUT = 5
 ESP32_KILL_WAIT = 2
+
+# Seconds `ip link set` may take. It normally returns at once; one that hangs
+# must not hold a switch action, a reset, or Home Assistant's stop.
+IP_LINK_TIMEOUT = 10
+# Seconds to wait for a stopped `ip link` after each signal.
+IP_LINK_STOP_WAIT = 2
+
+# Per interface, the start of an `ip link` that did not stop when told to.
+# It may still change the link, so no other `ip link` runs on that interface
+# until it has ended: a stuck `down` must not land after a later `up`.
+_stuck_ip_link: dict[str, asyncio.Future] = {}
+# Per event loop and interface: one `ip link` at a time, held through its
+# stop, so a run that is still being stopped is recorded before the next
+# one checks. (A lock belongs to one loop; tests run many.)
+_ip_link_locks: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[str, asyncio.Lock]
+] = weakref.WeakKeyDictionary()
+
+
+def _ip_link_lock(interface: str) -> asyncio.Lock:
+    """The interface's turn for `ip link` runs (and a reset's power cut)."""
+    locks = _ip_link_locks.setdefault(asyncio.get_running_loop(), {})
+    return locks.setdefault(interface, asyncio.Lock())
+
+
+# Where running processes are listed (Linux).
+_PROC = Path("/proc")
+
+
+def _ip_link_in_proc(interface: str) -> bool:
+    """True if an `ip link set <interface> ...` is running.
+
+    Called with the interface's lock held and nothing of ours recorded as
+    running, so it finds one left by an earlier Home Assistant run: under
+    sudo, a stuck one outlives the process that started it.
+    """
+    try:
+        entries = list(_PROC.iterdir())
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue  # it ended meanwhile
+        if (
+            argv[0].rsplit(b"/", 1)[-1] == b"ip"
+            and argv[1:4] == [b"link", b"set", interface.encode()]
+        ):
+            return True
+    return False
+
+
+async def _ip_link_blocked(interface: str) -> bool:
+    """True while an `ip link` on the interface may still change the link."""
+    return _ip_link_stuck(interface) or await asyncio.to_thread(
+        _ip_link_in_proc, interface
+    )
+
+
+def _ip_link_stuck(interface: str) -> bool:
+    """True while an `ip link` on the interface that did not stop runs."""
+    stuck = _stuck_ip_link.get(interface)
+    if stuck is None:
+        return False
+    if _ip_link_running(stuck):
+        return True
+    _stuck_ip_link.pop(interface, None)
+    return False
+
+
+def _ip_link_running(spawn: asyncio.Future) -> bool:
+    """True until a recorded `ip link` has ended (or failed to start).
+
+    A start that was itself cancelled (the loop shutting down) may have left
+    `ip` running with sudo SIGKILLed, so it counts as running for good.
+    """
+    if not spawn.done() or spawn.cancelled():
+        return True
+    if spawn.exception() is not None:
+        return False
+    return spawn.result().returncode is None
+
+
+def _stop_when_started(under_sudo: bool, spawn: asyncio.Future) -> None:
+    """Stop an `ip link` started after its caller was cancelled: SIGTERM,
+    and run without sudo, SIGKILL if it still runs after the stop wait."""
+    if spawn.cancelled() or spawn.exception() is not None:
+        return
+    proc = spawn.result()
+    try:
+        proc.terminate()
+    except ProcessLookupError:
+        return  # it ended already
+    if not under_sudo:
+        asyncio.get_running_loop().call_later(IP_LINK_STOP_WAIT, _kill_if_running, proc)
+
+
+def _kill_if_running(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is None:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+
+
+async def _stop_ip_link(proc: asyncio.subprocess.Process, under_sudo: bool) -> bool:
+    """Stop an `ip link` that timed out or whose caller was cancelled.
+
+    Returns True once it has ended. SIGTERM first, which sudo passes on to
+    `ip`. Run without sudo (Home Assistant as root), `ip` then gets SIGKILL.
+    Under sudo it does not: a SIGKILL would end only sudo and leave `ip`,
+    a root process this one cannot signal, running unseen, while sudo stays
+    until `ip` ends. A second cancel while waiting counts as not ended.
+    """
+    signals = (proc.terminate,) if under_sudo else (proc.terminate, proc.kill)
+    for send_signal in signals:
+        try:
+            send_signal()
+        except ProcessLookupError:
+            return True  # it ended just now
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=IP_LINK_STOP_WAIT)
+            return True
+        except asyncio.TimeoutError:
+            pass
+        except asyncio.CancelledError:
+            if not under_sudo:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+            return False
+    return False
 
 
 async def async_setup_entry(
@@ -170,17 +308,76 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
 
     @staticmethod
     async def _run_ip_link(interface: str, action: str) -> bool:
-        """Run 'ip link set' asynchronously. Returns True on success."""
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *sudo_argv("ip", "link", "set", interface, action),
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.PIPE,
+        """Run 'ip link set' asynchronously. Returns True on success.
+
+        A run that times out, or whose caller is cancelled, is stopped. One
+        that does not stop may still change the link later, so it raises
+        HomeAssistantError and the caller must not run `ip link` after it.
+        It also raises while an earlier one on the same interface is still
+        running that way, whoever started it. Runs on one interface take
+        turns, so the next waits until the one before has been stopped.
+        """
+        async with _ip_link_lock(interface):
+            return await ExavizPoEPortSwitch._run_ip_link_alone(interface, action)
+
+    @staticmethod
+    async def _run_ip_link_alone(interface: str, action: str) -> bool:
+        """_run_ip_link, with the interface's lock held."""
+        if await _ip_link_blocked(interface):
+            raise HomeAssistantError(
+                f"An earlier ip link on port {interface} has not ended; "
+                "the link's state is unknown, so nothing more is run on it"
             )
-            _, stderr = await proc.communicate()
+        argv = sudo_argv("ip", "link", "set", interface, action)
+        spawn = asyncio.ensure_future(asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        ))
+        cancelled = False
+        try:
+            # Shielded: a start cancelled half way is SIGKILLed by asyncio,
+            # which under sudo ends only sudo and leaves `ip` running.
+            proc = await asyncio.shield(spawn)
         except OSError as exc:
             _LOGGER.error("Could not run ip link to %s port %s: %s", action, interface, exc)
             return False
+        except asyncio.CancelledError:
+            if not spawn.done() or spawn.cancelled() or spawn.exception() is not None:
+                # Not known to have stopped: let it start, then ask it to stop.
+                spawn.add_done_callback(partial(_stop_when_started, argv[0] == "sudo"))
+                _stuck_ip_link[interface] = spawn
+                raise HomeAssistantError(
+                    f"ip link to {action} port {interface} was cancelled while it "
+                    "started and did not stop; the link's state is unknown"
+                ) from None
+            proc, cancelled = spawn.result(), True  # it had just started
+
+        async def stop() -> None:
+            if not await _stop_ip_link(proc, under_sudo=argv[0] == "sudo"):
+                _stuck_ip_link[interface] = spawn
+                _LOGGER.warning(
+                    "ip link to %s port %s (pid %s) did not stop", action, interface, proc.pid
+                )
+                raise HomeAssistantError(
+                    f"ip link to {action} port {interface} timed out or was cancelled "
+                    "and did not stop; the link's state is unknown"
+                )
+
+        if cancelled:
+            await stop()
+            raise asyncio.CancelledError
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=IP_LINK_TIMEOUT)
+        except asyncio.TimeoutError:
+            await stop()
+            if proc.returncode == 0:
+                return True  # it finished just before the stop
+            _LOGGER.error("ip link to %s port %s timed out", action, interface)
+            return False
+        except asyncio.CancelledError:
+            await stop()
+            raise
         if proc.returncode != 0:
             _LOGGER.error(
                 "Failed to %s port %s: %s", action, interface,
@@ -311,7 +508,15 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
             else:
                 # Bring up network interface, then restore PoE power (even if
                 # the link step failed, power is what the user asked for)
-                link_up = await self._run_ip_link(interface, "up")
+                try:
+                    link_up = await self._run_ip_link(interface, "up")
+                except HomeAssistantError:
+                    # The link step is stuck, but the serial port is not.
+                    if not await self._esp32_enable_port():
+                        _LOGGER.error(
+                            "The PoE controller did not enable port %s either", interface
+                        )
+                    raise
                 if not await self._esp32_enable_port():
                     raise HomeAssistantError(
                         f"The PoE controller did not enable port {interface}"

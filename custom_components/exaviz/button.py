@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .coordinator import ExavizDataUpdateCoordinator
-from .switch import ExavizPoEPortSwitch
+from .switch import ExavizPoEPortSwitch, _ip_link_blocked, _ip_link_lock
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,8 +27,11 @@ RESET_POWER_OFF_SECONDS = 3
 # How long Home Assistant's stop, or an unload of the entry, waits for a
 # running reset, and then for a stuck one to turn the port back on once
 # cancelled. A healthy reset takes the power-off wait plus a few serial
-# writes (each capped at 7 s); a hung `ip link` holds the stop for at most
-# twice this, inside Home Assistant's 100 s.
+# writes (each capped at 7 s) and `ip link` runs, which normally return at
+# once. A reset whose `ip link` steps hang (each capped at 14 s, plus a
+# wait for the port's turn) can outlast the first wait; it is then
+# cancelled, and its cancel path turns the power on before any `ip link`.
+# The stop is held for at most twice this, inside Home Assistant's 100 s.
 RESET_STOP_WAIT_SECONDS = 30
 
 
@@ -266,25 +269,36 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         Bare chip 'reset' is forbidden (mass re-power of siblings). Once
         disable-port has returned, enable-port is always sent. A disable-port
         write that cannot be stopped raises at once and nothing follows it,
-        since it may still land. Raises HomeAssistantError when the port does
-        not end up powered with its link up.
+        since it may still land. An `ip link` that cannot be stopped raises
+        the same way: enable-port still follows (the serial port is not
+        involved), but no other `ip link`, so a stuck `down` cannot land
+        after the `up`. Raises HomeAssistantError when the port does not end
+        up powered with its link up.
         """
         interface = f"poe{self._port_number}"
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(
             self._port_number
         )
-
-        try:
-            disabled = await ExavizPoEPortSwitch._send_esp32_command(
-                f"disable-port {pse_num} {pse_port}"
-            )
-        except asyncio.CancelledError:
-            # Shutdown cancelled the cycle itself with the write in flight. The
-            # write is stopped by now but may have landed, so turn the port
-            # back on before stopping. (A write that will not stop raises
-            # HomeAssistantError instead, and nothing follows it.)
-            await self._send_enable_port(pse_num, pse_port)
-            raise
+        # With the port's `ip link` turn held, so an `ip link` still being
+        # stopped is recorded before the check.
+        async with _ip_link_lock(interface):
+            if await _ip_link_blocked(interface):
+                # Its `ip link` steps would be refused: do not blip the power.
+                raise HomeAssistantError(
+                    f"An earlier ip link on port {interface} has not ended; "
+                    "the port was not reset"
+                )
+            try:
+                disabled = await ExavizPoEPortSwitch._send_esp32_command(
+                    f"disable-port {pse_num} {pse_port}"
+                )
+            except asyncio.CancelledError:
+                # Shutdown cancelled the cycle itself with the write in flight.
+                # The write is stopped by now but may have landed, so turn the
+                # port back on before stopping. (A write that will not stop
+                # raises HomeAssistantError instead, and nothing follows it.)
+                await self._send_enable_port(pse_num, pse_port)
+                raise
         if not disabled:
             # A timed-out write may still have landed, so turn the port back
             # on to be sure; on a port that stayed on this changes nothing.

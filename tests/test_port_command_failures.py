@@ -6,7 +6,9 @@ logged and ignored, so the UI showed the action as done.
 from __future__ import annotations
 
 import asyncio
-
+import contextlib
+import signal
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,6 +16,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
+from tests.hung_ip_link import HungIpLink
 
 
 
@@ -613,3 +616,283 @@ async def test_pressing_an_addon_reset_directly_is_refused():
          pytest.raises(HomeAssistantError, match="not supported on add-on board port"):
         await button.async_press()
     assert sent == []
+
+
+# --- a reset whose `ip link` hangs, with real processes -----------------------
+
+
+@contextmanager
+def _reset_with_hung_link(tmp_path, *, ignore_term: bool):
+    """A button whose reset runs the real `_run_ip_link` under the stand-in
+    sudo; `ip link down` hangs, `up` returns at once."""
+    import custom_components.exaviz.switch as switch_module
+
+    hung = HungIpLink(tmp_path, sudo=True, ignore_term=ignore_term, hang=("down",))
+    sent: list[str] = []
+
+    async def send(command: str) -> bool:
+        sent.append(command)
+        return True
+
+    try:
+        with hung.patches(), \
+             patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+             patch.object(switch_module, "IP_LINK_TIMEOUT", 2), \
+             patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.5), \
+             patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0):
+            yield _button(), hung, sent
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel", [False, True], ids=["timed-out", "cancelled"])
+async def test_reset_runs_no_link_up_while_a_hung_link_down_still_runs(tmp_path, cancel):
+    """`ip link down` hangs and will not stop (sudo cannot pass SIGKILL on).
+    The reset turns the power back on but starts no `ip link up`, which the
+    stuck `down` could land after."""
+    with _reset_with_hung_link(tmp_path, ignore_term=True) as (button, hung, sent):
+        cycle = asyncio.ensure_future(button._power_cycle_onboard_port())
+        if cancel:
+            await _within(lambda: hung.ip_pids)
+            cycle.cancel()
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(cycle, timeout=10)
+        assert sent == ["disable-port 1 0", "enable-port 1 0"]
+        assert [action for action, _ in hung.started] == ["down"]
+        assert hung.ip_alive() == [True]
+
+
+@pytest.mark.asyncio
+async def test_reset_cancelled_in_a_hung_link_down_brings_the_link_up_after_it_ends(
+    tmp_path,
+):
+    """When SIGTERM (through sudo) does end the stuck `down`, the cancel path
+    turns the power on and then runs `ip link up`, after the `down` ended."""
+    with _reset_with_hung_link(tmp_path, ignore_term=False) as (button, hung, sent):
+        cycle = asyncio.ensure_future(button._power_cycle_onboard_port())
+        await _within(lambda: hung.ip_pids)
+        cycle.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(cycle, timeout=10)
+        assert sent == ["disable-port 1 0", "enable-port 1 0"]
+        assert hung.started == [("down", False), ("up", False)]
+
+
+@pytest.mark.asyncio
+async def test_turn_on_with_a_stuck_link_up_still_restores_power(tmp_path):
+    """Power is what the user asked for: a stuck `ip link up` does not keep
+    the serial enable-port from going out."""
+    import custom_components.exaviz.switch as switch_module
+
+    hung = HungIpLink(tmp_path, sudo=True, ignore_term=True, hang=("up",))
+    switch = _switch()
+    sent: list[str] = []
+
+    async def send(command: str) -> bool:
+        sent.append(command)
+        return True
+
+    try:
+        with hung.patches(), \
+             patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
+             patch.object(switch_module, "IP_LINK_TIMEOUT", 1), \
+             patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.5):
+            with pytest.raises(HomeAssistantError, match="did not stop"):
+                await asyncio.wait_for(switch.async_turn_on(), timeout=10)
+        assert sent == ["enable-port 1 0"]
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_no_ip_link_runs_on_a_port_while_an_earlier_one_is_stuck(tmp_path):
+    """A reset's `ip link down` will not stop. Turning the port on afterwards
+    restores power but starts no `ip link up` until that `down` has ended,
+    since the `down` could land after it. Once it ends, the link step runs."""
+    with _reset_with_hung_link(tmp_path, ignore_term=True) as (button, hung, sent):
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(button._power_cycle_onboard_port(), timeout=10)
+        switch = _switch()
+        with pytest.raises(HomeAssistantError, match="has not ended"):
+            await switch.async_turn_on()
+        assert [action for action, _ in hung.started] == ["down"]
+        assert sent == ["disable-port 1 0", "enable-port 1 0", "enable-port 1 0"]
+
+        hung.cleanup()  # the stuck `down` ends
+        await asyncio.wait_for(_until_ended(hung.procs[0]), timeout=10)
+        await switch.async_turn_on()
+        assert hung.started[-1] == ("up", False)
+
+
+async def _until_ended(proc) -> None:
+    while proc.returncode is None:
+        await asyncio.sleep(0.01)
+
+
+async def _within(condition, timeout: float = 10) -> None:
+    async def until() -> None:
+        while not condition():
+            await asyncio.sleep(0.01)
+
+    await asyncio.wait_for(until(), timeout)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ignore_term", [False, True], ids=["ends-on-sigterm", "ignores-sigterm"])
+async def test_reset_cancelled_while_ip_link_down_starts_runs_no_link_up(tmp_path, ignore_term):
+    """Cancelled half way through starting `sudo ip link down`, asyncio would
+    SIGKILL sudo and leave `ip` running. The start is let finish and the run
+    is asked to stop; until it has ended no other `ip link` runs."""
+    with _reset_with_hung_link(tmp_path, ignore_term=ignore_term) as (button, hung, sent):
+        hung.gate = asyncio.Event()
+        cycle = asyncio.ensure_future(button._power_cycle_onboard_port())
+        await _within(lambda: sent == ["disable-port 1 0"])
+        await asyncio.sleep(0.05)  # the start now waits on the gate
+        cycle.cancel()
+        with pytest.raises(HomeAssistantError, match="cancelled while it started"):
+            await asyncio.wait_for(cycle, timeout=10)
+        assert sent == ["disable-port 1 0", "enable-port 1 0"]
+        hung.gate.set()
+        await _within(lambda: hung.ip_pids)
+        switch = _switch()
+        if ignore_term:
+            await asyncio.sleep(0.8)  # past the stop wait (0.5 s)
+            assert hung.ip_alive() == [True]
+            assert hung.procs[0].returncode is None  # sudo was not killed
+            with pytest.raises(HomeAssistantError, match="has not ended"):
+                await switch.async_turn_on()
+            assert [action for action, _ in hung.started] == ["down"]
+        else:
+            # Asked to stop once started; then the port's link can be used.
+            await asyncio.wait_for(_until_ended(hung.procs[0]), timeout=10)
+            assert hung.procs[0].returncode == -signal.SIGTERM
+            await switch.async_turn_on()
+            assert hung.started[-1] == ("up", False)
+
+
+@pytest.mark.asyncio
+async def test_ip_link_started_while_another_is_being_stopped_waits_then_refuses(tmp_path):
+    """The reset button and the switch are separate platforms, so a turn-on
+    can start while a reset's stuck `down` is still being stopped. It waits
+    its turn, then sees the stuck `down` and runs no `up`."""
+    with _reset_with_hung_link(tmp_path, ignore_term=True) as (button, hung, sent):
+        cycle = asyncio.ensure_future(button._power_cycle_onboard_port())
+        await _within(lambda: hung.ip_pids)
+        turn_on = asyncio.ensure_future(_switch().async_turn_on())
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(cycle, timeout=10)
+        with pytest.raises(HomeAssistantError, match="has not ended"):
+            await asyncio.wait_for(turn_on, timeout=10)
+        assert [action for action, _ in hung.started] == ["down"]
+
+
+@pytest.mark.asyncio
+async def test_reset_with_a_stuck_ip_link_leaves_the_power_alone(tmp_path):
+    """Its link steps would be refused, so a second reset does not cut the
+    power for a moment and turn it straight back on."""
+    with _reset_with_hung_link(tmp_path, ignore_term=True) as (button, hung, sent):
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(button._power_cycle_onboard_port(), timeout=10)
+        before = list(sent)
+        with pytest.raises(HomeAssistantError, match="was not reset"):
+            await button._power_cycle_onboard_port()
+        assert sent == before
+
+
+@pytest.mark.asyncio
+async def test_turn_on_with_a_stuck_link_up_logs_a_failed_power_restore(tmp_path, caplog):
+    import custom_components.exaviz.switch as switch_module
+
+    hung = HungIpLink(tmp_path, sudo=True, ignore_term=True, hang=("up",))
+    try:
+        with hung.patches(), \
+             patch.object(ExavizPoEPortSwitch, "_send_esp32_command", AsyncMock(return_value=False)), \
+             patch.object(switch_module, "IP_LINK_TIMEOUT", 1), \
+             patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.5):
+            with pytest.raises(HomeAssistantError, match="did not stop"):
+                await asyncio.wait_for(_switch().async_turn_on(), timeout=10)
+        assert "The PoE controller did not enable port poe0 either" in caplog.text
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_ip_link_cancelled_while_starting_as_root_gets_sigkill(tmp_path):
+    """Run as root, a run that ignores SIGTERM is killed after the stop wait,
+    as one cancelled after it started would be."""
+    import custom_components.exaviz.switch as switch_module
+
+    hung = HungIpLink(tmp_path, sudo=False, ignore_term=True)
+    try:
+        with hung.patches(), patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.5):
+            hung.gate = asyncio.Event()
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            await asyncio.sleep(0.05)  # the start now waits on the gate
+            run.cancel()
+            with pytest.raises(HomeAssistantError, match="cancelled while it started"):
+                await asyncio.wait_for(run, timeout=10)
+            hung.gate.set()
+            await _within(lambda: hung.procs)
+            await asyncio.wait_for(_until_ended(hung.procs[0]), timeout=10)
+        assert hung.procs[0].returncode == -signal.SIGKILL
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_reset_waits_for_a_stuck_ip_link_being_stopped_before_cutting_power(tmp_path):
+    """A second reset of the port (the first one's press was cancelled)
+    starts while the first one's `ip link down` is still being stopped. It
+    waits its turn, sees the stuck run, and sends nothing."""
+    with _reset_with_hung_link(tmp_path, ignore_term=True) as (button, hung, sent):
+        first = asyncio.ensure_future(button._power_cycle_onboard_port())
+        await _within(lambda: hung.ip_pids)
+        second = asyncio.ensure_future(_button()._power_cycle_onboard_port())
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(first, timeout=10)
+        with pytest.raises(HomeAssistantError, match="was not reset"):
+            await asyncio.wait_for(second, timeout=10)
+        assert sent == ["disable-port 1 0", "enable-port 1 0"]
+
+
+@pytest.mark.asyncio
+async def test_no_ip_link_starts_on_the_port_while_a_reset_cuts_its_power(tmp_path):
+    """The reset checks for a stuck run and cuts the power in one turn, so
+    no run can start (and get stuck) between the check and the cut."""
+    with _reset_with_hung_link(tmp_path, ignore_term=False) as (button, hung, sent):
+        cutting, release = asyncio.Event(), asyncio.Event()
+
+        async def send(command: str) -> bool:
+            sent.append(command)
+            if command.startswith("disable-port"):
+                cutting.set()
+                await release.wait()
+            return True
+
+        with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send):
+            cycle = asyncio.ensure_future(button._power_cycle_onboard_port())
+            await asyncio.wait_for(cutting.wait(), timeout=10)
+            other = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe0", "up"))
+            await asyncio.sleep(0.2)
+            assert hung.started == []  # waiting for the reset's turn
+            release.set()
+            await asyncio.wait_for(other, timeout=10)
+            cycle.cancel()
+            with contextlib.suppress(asyncio.CancelledError, HomeAssistantError):
+                await asyncio.wait_for(cycle, timeout=10)
+        assert hung.started[0] == ("up", False)
+
+
+@pytest.mark.asyncio
+async def test_reset_leaves_the_power_alone_while_an_earlier_runs_ip_link_is_alive(tmp_path):
+    import custom_components.exaviz.switch as switch_module
+
+    proc = tmp_path / "proc" / "42"
+    proc.mkdir(parents=True)
+    (proc / "cmdline").write_bytes(b"ip\0link\0set\0poe0\0down\0")
+    with _reset_with_hung_link(tmp_path, ignore_term=False) as (button, hung, sent), \
+         patch.object(switch_module, "_PROC", tmp_path / "proc"):
+        with pytest.raises(HomeAssistantError, match="was not reset"):
+            await button._power_cycle_onboard_port()
+        assert sent == [] and hung.started == []

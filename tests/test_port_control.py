@@ -7,7 +7,9 @@ add-on board /proc/pse paths.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import signal
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,6 +21,7 @@ from custom_components.exaviz.board_detector import BoardType
 from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
 from custom_components.exaviz.utils import sudo_argv
+from tests.hung_ip_link import HungIpLink
 
 
 def _coordinator(data: dict | None, *, can_control: bool = True) -> MagicMock:
@@ -210,7 +213,6 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
     """A blocked serial device cannot hang the action (or a reset cycle), and
     the same command is not written again through the other path while the
     killed write may still be on the UART (/dev/pse links to /dev/ttyAMA3)."""
-    import asyncio
 
     first, second = tmp_path / "pse", tmp_path / "ttyAMA3"
     first.write_text("")
@@ -249,7 +251,6 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
 @pytest.mark.asyncio
 async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
     """The write may still land, so the caller must not send anything after it."""
-    import asyncio
 
     device = tmp_path / "pse"
     device.write_text("")
@@ -276,7 +277,6 @@ async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
 async def test_cancelled_esp32_write_is_killed_before_the_caller_goes_on(tmp_path, stops):
     """A cancelled caller (shutdown) must not leave the write running behind
     it, where it could land after the caller's next command."""
-    import asyncio
 
     device = tmp_path / "pse"
     device.write_text("")
@@ -314,7 +314,6 @@ async def test_cancelled_esp32_write_is_killed_before_the_caller_goes_on(tmp_pat
 async def test_second_cancel_during_the_kill_wait_counts_as_not_stopped(tmp_path):
     """The write was not confirmed stopped, so the caller gets the error that
     tells it to send nothing after it (not a bare cancel)."""
-    import asyncio
 
     device = tmp_path / "pse"
     device.write_text("")
@@ -382,6 +381,163 @@ async def test_run_ip_link_failure_logs_stderr(caplog):
          caplog.at_level(logging.ERROR, logger=switch_module.__name__):
         assert await ExavizPoEPortSwitch._run_ip_link("poe3", "up") is False
     assert "Failed to up port poe3: RTNETLINK answers: Operation not permitted" in caplog.text
+
+
+def _fast_stop():
+    return (
+        patch.object(switch_module, "IP_LINK_TIMEOUT", 2),
+        patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.5),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("ignore_term", "returncode"), [(False, -signal.SIGTERM), (True, -signal.SIGKILL)]
+)
+async def test_ip_link_that_hangs_as_root_is_stopped_and_fails(
+    tmp_path, caplog, ignore_term, returncode
+):
+    """A hung `ip link` cannot hold a switch action or a reset (and with it
+    Home Assistant's stop). Run as root, SIGTERM first, then SIGKILL."""
+    hung = HungIpLink(tmp_path, sudo=False, ignore_term=ignore_term)
+    timeout, stop_wait = _fast_stop()
+    try:
+        with hung.patches(), timeout, stop_wait, \
+             caplog.at_level(logging.ERROR, logger=switch_module.__name__):
+            result = await asyncio.wait_for(
+                ExavizPoEPortSwitch._run_ip_link("poe3", "up"), timeout=10
+            )
+        assert result is False
+        assert "ip link to up port poe3 timed out" in caplog.text
+        assert [p.returncode for p in hung.procs] == [returncode]
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_ip_link_that_hangs_under_sudo_gets_sigterm_through_sudo(tmp_path, caplog):
+    hung = HungIpLink(tmp_path, sudo=True)
+    timeout, stop_wait = _fast_stop()
+    try:
+        with hung.patches(), timeout, stop_wait, \
+             caplog.at_level(logging.ERROR, logger=switch_module.__name__):
+            result = await asyncio.wait_for(
+                ExavizPoEPortSwitch._run_ip_link("poe3", "up"), timeout=10
+            )
+        assert result is False
+        assert "ip link to up port poe3 timed out" in caplog.text
+        assert [p.returncode for p in hung.procs] == [-signal.SIGTERM]
+        assert hung.ip_alive() == [False]
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_ip_link_that_finishes_as_it_is_stopped_counts_as_done(tmp_path):
+    """It ended with status 0 just as the timeout stopped it: the link did
+    change, so the caller must not report that it did not."""
+    hung = HungIpLink(tmp_path, sudo=True, term="exit0")
+    timeout, stop_wait = _fast_stop()
+    try:
+        with hung.patches(), timeout, stop_wait:
+            assert await asyncio.wait_for(
+                ExavizPoEPortSwitch._run_ip_link("poe3", "down"), timeout=10
+            ) is True
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_ip_link_under_sudo_that_ignores_sigterm_is_reported_not_stopped(
+    tmp_path, caplog
+):
+    """A SIGKILL would end only sudo and leave `ip` (root) free to change the
+    link later, unseen. So sudo is not killed, and the caller hears that
+    `ip` did not stop, which tells it to run no other `ip link` after it."""
+    hung = HungIpLink(tmp_path, sudo=True, ignore_term=True)
+    timeout, stop_wait = _fast_stop()
+    try:
+        with hung.patches(), timeout, stop_wait, \
+             caplog.at_level(logging.WARNING, logger=switch_module.__name__):
+            with pytest.raises(HomeAssistantError, match="did not stop"):
+                await asyncio.wait_for(
+                    ExavizPoEPortSwitch._run_ip_link("poe3", "down"), timeout=10
+                )
+        assert "ip link to down port poe3 (pid" in caplog.text
+        assert [p.returncode for p in hung.procs] == [None]  # sudo still waits for it
+        assert hung.ip_alive() == [True]
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sudo", [False, True])
+async def test_ip_link_whose_caller_is_cancelled_is_stopped(tmp_path, sudo):
+    """Cancelling a reset (an unload, Home Assistant's stop) does not leave
+    `ip link` running behind it, where it could still take the link down
+    after the cancel path has brought it back up."""
+    hung = HungIpLink(tmp_path, sudo=sudo)
+    try:
+        with hung.patches():
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            await asyncio.wait_for(_until(lambda: hung.ip_pids), timeout=10)
+            run.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(run, timeout=10)
+        assert [p.returncode for p in hung.procs] == [-signal.SIGTERM]
+        assert hung.ip_alive() == [False]
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sudo", [False, True])
+async def test_second_cancel_while_ip_link_is_stopped_counts_as_not_stopped(tmp_path, sudo):
+    """Shutdown cancels twice: the stop wait is cut short, so `ip` may still
+    be running and the caller must not follow it with another `ip link`.
+    Run as root, it gets SIGKILL on the way out."""
+    hung = HungIpLink(tmp_path, sudo=sudo, ignore_term=True)
+    try:
+        with hung.patches():
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            await asyncio.wait_for(_until(lambda: hung.ip_pids), timeout=10)
+            run.cancel()
+            await asyncio.sleep(0.1)  # now in the stop wait (2 s)
+            assert not run.done()
+            run.cancel()
+            with pytest.raises(HomeAssistantError, match="did not stop"):
+                await asyncio.wait_for(run, timeout=10)
+        if sudo:
+            await asyncio.sleep(0.3)  # a kill would have been seen by now
+            assert hung.ip_alive() == [True]
+            assert hung.procs[0].returncode is None  # sudo was not killed
+        else:
+            await asyncio.wait_for(hung.procs[0].wait(), timeout=10)
+            assert hung.procs[0].returncode == -signal.SIGKILL
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_cancel_just_as_ip_link_has_started_stops_it_and_cancels(tmp_path):
+    """The start finished but the caller had not resumed: the process is
+    known, so it is stopped like any cancelled run, and the cancel stands."""
+    hung = HungIpLink(tmp_path, sudo=True)
+    try:
+        with hung.patches():
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            hung.on_started = run.cancel
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(run, timeout=10)
+        assert [p.returncode for p in hung.procs] == [-signal.SIGTERM]
+        assert hung.ip_alive() == [False]
+    finally:
+        hung.cleanup()
+
+
+async def _until(condition) -> None:
+    while not condition():
+        await asyncio.sleep(0.01)
 
 
 # --- add-on board ports (/proc/pse) -------------------------------------------
@@ -458,3 +614,71 @@ def test_pse_number_without_coordinator_data():
 def test_onboard_control_path_detection(poe_set, data, onboard):
     switch = ExavizPoEPortSwitch(_coordinator(data), poe_set, 0, "e")
     assert switch._is_onboard_poe_system() is onboard
+
+
+@pytest.mark.asyncio
+async def test_start_cancelled_with_its_caller_at_loop_shutdown_reports_not_stopped(tmp_path):
+    """Loop shutdown cancels every task, the start included. The caller
+    still reports that the run was not known to stop (not a bare cancel)."""
+    hung = HungIpLink(tmp_path, sudo=True)
+    try:
+        with hung.patches():
+            hung.gate = asyncio.Event()
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            await asyncio.sleep(0.05)  # the start now waits on the gate
+            others = asyncio.all_tasks() - {run, asyncio.current_task()}
+            (start,) = [t for t in others if "exec_" in repr(t.get_coro())]
+            start.cancel()
+            run.cancel()
+            with pytest.raises(HomeAssistantError, match="cancelled while it started"):
+                await asyncio.wait_for(run, timeout=10)
+            # The start may have left `ip` running unseen, so no later
+            # `ip link` runs on the port.
+            hung.gate.set()
+            with pytest.raises(HomeAssistantError, match="has not ended"):
+                await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
+            assert hung.started == []
+    finally:
+        hung.cleanup()
+
+
+def _fake_proc(root: Path, processes: dict[int, list[str]]) -> Path:
+    for pid, argv in processes.items():
+        (root / str(pid)).mkdir(parents=True)
+        (root / str(pid) / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+    (root / "self").mkdir()  # not a process number
+    return root
+
+
+@pytest.mark.asyncio
+async def test_ip_link_left_running_by_an_earlier_run_blocks_the_port(tmp_path):
+    """Under sudo a stuck `ip link` outlives a Home Assistant restart, and
+    the new process has no record of it: /proc still shows it, so no other
+    `ip link` runs on that port (others still do)."""
+    proc = _fake_proc(tmp_path / "proc", {
+        41: ["sudo", "ip", "link", "set", "poe3", "down"],
+        42: ["/usr/sbin/ip", "link", "set", "poe3", "down"],
+        43: ["ip", "link", "set", "poe4", "down"],  # another port
+    })
+    hung = HungIpLink(tmp_path, sudo=True, hang=())
+    try:
+        with hung.patches(), patch.object(switch_module, "_PROC", proc):
+            with pytest.raises(HomeAssistantError, match="has not ended"):
+                await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
+            assert await ExavizPoEPortSwitch._run_ip_link("poe31", "up") is True
+        assert [action for action, _ in hung.started] == ["up"]
+    finally:
+        hung.cleanup()
+
+
+def test_proc_scan_ignores_sudo_and_other_commands(tmp_path):
+    proc = _fake_proc(tmp_path / "proc", {
+        41: ["sudo", "ip", "link", "set", "poe3", "down"],  # sudo's own entry
+        44: ["ip", "neigh", "show", "dev", "poe3"],
+        45: ["vip", "link", "set", "poe3", "down"],
+        46: ["ip", "link", "set", "poe31", "down"],  # another port
+    })
+    with patch.object(switch_module, "_PROC", proc):
+        assert not switch_module._ip_link_in_proc("poe3")
+    with patch.object(switch_module, "_PROC", tmp_path / "missing"):
+        assert not switch_module._ip_link_in_proc("poe3")

@@ -13,6 +13,9 @@ import pytest
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
+# Session-wide: no test may run `sudo ip link` and friends here.
+from tests.host_guard import no_host_commands, no_host_commands_in_test  # noqa: F401,E402
+
 
 def pytest_addoption(parser):
     parser.addoption(

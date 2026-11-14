@@ -7,6 +7,7 @@ has the port off: the port would stay off until someone turns it on.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from unittest.mock import patch
 
@@ -65,7 +66,18 @@ async def _setup(hass, hardware: SlowLinkHardware) -> MockConfigEntry:
     return entry
 
 
-def _patched(hardware: SlowLinkHardware):
+def _reset_cycles() -> list[asyncio.Task]:
+    return [t for t in asyncio.all_tasks() if t.get_name().startswith("reset PoE port")]
+
+
+@contextlib.asynccontextmanager
+async def _patched(hardware: SlowLinkHardware, stop_wait: float | None = None):
+    """Fake port hardware; on exit, end any reset cycle still running.
+
+    A cycle that outlives the patches would run the real `sudo ip link` on
+    this machine, so leftovers are cancelled (twice if the cancel path hangs
+    too) while the fake hardware is still in place.
+    """
     stack, _reader = patch_local_board()
 
     async def send(command: str) -> bool:
@@ -83,12 +95,26 @@ def _patched(hardware: SlowLinkHardware):
     stack.enter_context(
         patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0)
     )
-    return stack
+    if stop_wait is not None:
+        stack.enter_context(
+            patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", stop_wait)
+        )
+    with stack:
+        try:
+            yield
+        finally:
+            for _ in range(2):
+                if not (left := _reset_cycles()):
+                    break
+                for cycle in left:
+                    cycle.cancel()
+                await asyncio.wait(left, timeout=2)
+            assert not _reset_cycles(), "a reset cycle would not stop"
 
 
 async def test_stop_waits_for_a_reset_started_by_a_script(hass, caplog):
     hardware = SlowLinkHardware()
-    with _patched(hardware):
+    async with _patched(hardware):
         await _setup(hass, hardware)
         assert await async_setup_component(
             hass,
@@ -121,7 +147,7 @@ async def test_stop_waits_for_a_reset_started_by_a_script(hass, caplog):
 
 async def test_unload_waits_for_a_running_reset(hass, caplog):
     hardware = SlowLinkHardware()
-    with _patched(hardware):
+    async with _patched(hardware):
         entry = await _setup(hass, hardware)
         press = hass.async_create_task(
             hass.services.async_call(
@@ -142,7 +168,7 @@ async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
     """A cancelled press frees the button, so a second reset of the same
     port can start and end while the first still has the power off."""
     hardware = SlowLinkHardware()
-    with _patched(hardware):
+    async with _patched(hardware):
         await _setup(hass, hardware)
         first = hass.async_create_task(
             hass.services.async_call(
@@ -182,8 +208,7 @@ async def test_stop_turns_power_back_on_for_a_hung_reset(hass, caplog):
     It is then cancelled while the stop still waits, and its cancel path
     turns the power on before it tries the (also stuck) link."""
     hardware = SlowLinkHardware(hang_link=True)
-    with _patched(hardware), \
-         patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
+    async with _patched(hardware, stop_wait=0.2):
         await _setup(hass, hardware)
         stage_at_power_on: list[CoreState] = []
         real_send = hardware.send
@@ -217,7 +242,7 @@ async def test_stop_turns_power_back_on_for_a_hung_reset(hass, caplog):
 
         # The cycle is still stuck in `ip link up`, with the power on. At
         # exit the asyncio runner cancels what is left; do that here.
-        stuck = [t for t in asyncio.all_tasks() if t.get_name().startswith("reset PoE port")]
+        stuck = _reset_cycles()
         assert len(stuck) == 1
         stuck[0].cancel()
         await asyncio.wait(stuck)
@@ -239,8 +264,7 @@ async def test_unload_turns_power_back_on_for_a_hung_reset(hass, caplog):
     A reset stuck in `ip link down` would then never send enable-port, so
     the unload cancels it and waits for the power to come back."""
     hardware = HungLinkDownHardware()
-    with _patched(hardware), \
-         patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
+    async with _patched(hardware, stop_wait=0.2):
         entry = await _setup(hass, hardware)
         press = hass.async_create_task(
             hass.services.async_call(
@@ -276,7 +300,7 @@ async def test_stop_during_an_unload_waits_for_the_reset(hass):
     """The stop listener stays until the unload's own wait is over, so a
     stop that starts while the unload waits still holds for the reset."""
     hardware = SlowLinkDownHardware()
-    with _patched(hardware):
+    async with _patched(hardware):
         entry = await _setup(hass, hardware)
         stage_at_power_on: list[CoreState] = []
         real_send = hardware.send
@@ -309,8 +333,7 @@ async def test_stop_during_an_unload_cancels_a_hung_reset_once(hass, caplog):
     """The unload has already cancelled the stuck cycle, so the stop does
     not wait for it all over again or cancel it a second time."""
     hardware = SlowLinkHardware(hang_link=True)
-    with _patched(hardware), \
-         patch("custom_components.exaviz.button.RESET_STOP_WAIT_SECONDS", 0.2):
+    async with _patched(hardware, stop_wait=0.2):
         entry = await _setup(hass, hardware)
         press = hass.async_create_task(
             hass.services.async_call(
@@ -329,7 +352,7 @@ async def test_stop_during_an_unload_cancels_a_hung_reset_once(hass, caplog):
         assert caplog.text.count("Reset of PoE port onboard:1 is stuck") == 1
 
         # The cycle is still stuck in `ip link up`, with the power on.
-        stuck = [t for t in asyncio.all_tasks() if t.get_name().startswith("reset PoE port")]
+        stuck = _reset_cycles()
         assert len(stuck) == 1
         stuck[0].cancel()
         await asyncio.wait([*stuck, press, unload])
