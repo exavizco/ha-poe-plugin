@@ -682,3 +682,87 @@ def test_proc_scan_ignores_sudo_and_other_commands(tmp_path):
         assert not switch_module._ip_link_in_proc("poe3")
     with patch.object(switch_module, "_PROC", tmp_path / "missing"):
         assert not switch_module._ip_link_in_proc("poe3")
+
+
+class _RefusingSudo:
+    """A just-started sudo: it refuses signals and its `ip` hangs."""
+
+    pid = 4242
+    returncode = None
+
+    def __init__(self) -> None:
+        self.signals = 0
+
+    def terminate(self) -> None:
+        self.signals += 1
+        raise PermissionError("Operation not permitted")
+
+    kill = terminate
+
+    async def communicate(self):
+        await asyncio.Event().wait()
+
+    async def wait(self):
+        await asyncio.Event().wait()
+
+
+@pytest.mark.asyncio
+async def test_sudo_refusing_the_stop_signal_counts_as_not_stopped():
+    """Real sudo refuses signals for a few ms after it starts. That must not
+    escape as a PermissionError with the run unrecorded: it is waited for,
+    then reported as not stopped, and the port stays blocked."""
+    sudo = _RefusingSudo()
+    with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=sudo)), \
+         patch.object(switch_module, "sudo_argv", lambda *a: ("sudo", *a)), \
+         patch.object(switch_module, "IP_LINK_TIMEOUT", 0.2), \
+         patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.2), \
+         patch.object(switch_module, "_PROC", Path("/nonexistent")), \
+         patch.dict(switch_module._stuck_ip_link, clear=True):
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await ExavizPoEPortSwitch._run_ip_link("poe3", "down")
+        assert sudo.signals == 1
+        with pytest.raises(HomeAssistantError, match="has not ended"):
+            await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
+
+
+@pytest.mark.asyncio
+async def test_a_start_that_failed_after_its_cancel_does_not_block_the_port():
+    """Cancelled while starting, and the start then failed (no sudo, say):
+    nothing is running, so the next `ip link` on the port runs."""
+    gate = asyncio.Event()
+    starts: list[tuple] = []
+
+    async def exec_(*argv, **kwargs):
+        starts.append(argv)
+        if len(starts) == 1:
+            await gate.wait()
+            raise FileNotFoundError("sudo")
+        return _proc(0)
+
+    with patch("asyncio.create_subprocess_exec", exec_), \
+         patch.object(switch_module, "_PROC", Path("/nonexistent")), \
+         patch.dict(switch_module._stuck_ip_link, clear=True):
+        run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+        await asyncio.sleep(0.05)
+        run.cancel()
+        with pytest.raises(HomeAssistantError, match="cancelled while it started"):
+            await run
+        gate.set()
+        await asyncio.sleep(0.05)
+        assert await ExavizPoEPortSwitch._run_ip_link("poe3", "up") is True
+    assert len(starts) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_late_start_that_refuses_sigterm_gets_it_again():
+    """Started after its caller was cancelled, a just-started sudo may
+    refuse the SIGTERM; it is sent once more shortly after."""
+    sudo = MagicMock(returncode=None)
+    sudo.terminate.side_effect = [PermissionError("Operation not permitted"), None]
+    spawn = asyncio.get_running_loop().create_future()
+    spawn.set_result(sudo)
+    switch_module._stop_when_started(True, spawn)
+    assert sudo.terminate.call_count == 1
+    await asyncio.sleep(0.3)
+    assert sudo.terminate.call_count == 2
+    sudo.kill.assert_not_called()

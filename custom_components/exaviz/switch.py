@@ -142,8 +142,20 @@ def _stop_when_started(under_sudo: bool, spawn: asyncio.Future) -> None:
         proc.terminate()
     except ProcessLookupError:
         return  # it ended already
+    except PermissionError:
+        # sudo refuses signals for a moment after it starts: try once more.
+        # Until the run ends, its record keeps the port blocked either way.
+        asyncio.get_running_loop().call_later(0.1, _terminate_if_running, proc)
     if not under_sudo:
         asyncio.get_running_loop().call_later(IP_LINK_STOP_WAIT, _kill_if_running, proc)
+
+
+def _terminate_if_running(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is None:
+        try:
+            proc.terminate()
+        except (ProcessLookupError, PermissionError):
+            pass
 
 
 def _kill_if_running(proc: asyncio.subprocess.Process) -> None:
@@ -169,6 +181,10 @@ async def _stop_ip_link(proc: asyncio.subprocess.Process, under_sudo: bool) -> b
             send_signal()
         except ProcessLookupError:
             return True  # it ended just now
+        except PermissionError:
+            # sudo refuses signals for a few ms after it starts (seen on
+            # sudo 1.9.16p2). Wait anyway: it may end by itself.
+            pass
         try:
             await asyncio.wait_for(proc.wait(), timeout=IP_LINK_STOP_WAIT)
             return True
