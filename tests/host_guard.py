@@ -1,41 +1,60 @@
 """Keep tests from changing the machine that runs them.
 
-The integration runs `sudo ip link set ...` and `sudo arp-scan` on a board.
-A test that lets port code outlive its patches (a reset cycle still running
-after its `with` block, say) would run those on the developer's machine or
-the CI runner, even after the test ends: the event loop's close cancels
-leftover tasks, and a cancelled reset turns its port back on. So the guard
-stays in place for the whole session.
+The integration runs `sudo ip link set ...` and `sudo arp-scan`, writes to
+the PoE controller's serial port (`bash -c "echo ... > /dev/pse"`) and sets
+that port up with `stty`. A test that lets port code outlive its patches (a
+reset cycle still running after its `with` block, say) would run those on
+the developer's machine or the CI runner, even after the test ends: the
+event loop's close cancels leftover tasks, and a cancelled reset turns its
+port back on. So the guard stays in place for the whole session.
+
+It sits on `subprocess.Popen`, which asyncio's `create_subprocess_exec` and
+`create_subprocess_shell` and `subprocess.run` all start their child with.
 """
 from __future__ import annotations
 
-import asyncio
+import shlex
+import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import PurePath
 from unittest.mock import patch
 
 import pytest
 
 # Commands that change the host. `ip` and `timeout` are what `sudo_argv`
-# runs without sudo when the tests run as root.
-_REFUSED = frozenset({"sudo", "ip", "timeout", "arp-scan", "tcpdump"})
+# runs without sudo when the tests run as root; `stty` changes a terminal.
+_REFUSED = frozenset({"sudo", "ip", "timeout", "arp-scan", "tcpdump", "stty"})
+# The PoE controller's serial port, under either of its names.
+_REFUSED_PATHS = ("/dev/pse", "/dev/ttyAMA")
 
 refused: list[tuple[str, ...]] = []
 
 
+def changes_host(args) -> bool:
+    """True for a command line (argv or shell string) the guard refuses."""
+    words = shlex.split(args) if isinstance(args, str) else [str(a) for a in args]
+    if not words:
+        return False
+    if PurePath(words[0]).name in _REFUSED:
+        return True
+    return any(path in word for word in words for path in _REFUSED_PATHS)
+
+
 @contextmanager
 def refuse_host_commands() -> Iterator[None]:
-    """Refuse privileged subprocesses; fail on exit if any were tried."""
-    real_exec = asyncio.create_subprocess_exec
+    """Refuse host-changing subprocesses; fail on exit if any were tried."""
 
-    async def guarded_exec(program, *args, **kwargs):
-        if str(program).rsplit("/", 1)[-1] in _REFUSED:
-            refused.append((program, *args))
-            # An OSError, which the port code handles like a missing binary.
-            raise PermissionError(f"test tried to run {program} {' '.join(args)}")
-        return await real_exec(program, *args, **kwargs)
+    class GuardedPopen(subprocess.Popen):
+        def __init__(self, args, *rest, **kwargs):
+            if changes_host(args):
+                words = (args,) if isinstance(args, str) else tuple(map(str, args))
+                refused.append(words)
+                # An OSError, which the port code handles like a missing binary.
+                raise PermissionError(f"test tried to run {' '.join(words)}")
+            super().__init__(args, *rest, **kwargs)
 
-    with patch("asyncio.create_subprocess_exec", guarded_exec):
+    with patch("subprocess.Popen", GuardedPopen):
         yield
     assert not refused, f"a test tried to run host commands: {refused}"
 
