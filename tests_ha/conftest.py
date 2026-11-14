@@ -82,3 +82,27 @@ async def board(socket_enabled):
     yield fake
     await fake.stop()
     loop.set_exception_handler(previous)
+
+
+@pytest.fixture
+def short_remote_timeout():
+    """Cap the remote client's timeouts at 1 s.
+
+    For tests that connect to a board stopped with stop_holding_port():
+    Linux refuses that connection at once, but macOS drops it, and the
+    client would wait its full timeout there.
+    """
+    from custom_components.exaviz import remote
+
+    real_connect = remote._tls_connect
+    real_init = remote.RemoteClient.__init__
+
+    async def tls_connect(host, port, ctx, timeout):
+        return await real_connect(host, port, ctx, min(timeout, 1))
+
+    def init(self, *args, timeout=remote.DEFAULT_TIMEOUT, **kwargs):
+        real_init(self, *args, timeout=min(timeout, 1), **kwargs)
+
+    with patch.object(remote, "_tls_connect", tls_connect), \
+         patch.object(remote.RemoteClient, "__init__", init):
+        yield

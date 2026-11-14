@@ -283,8 +283,8 @@ async def test_t23_bare_host_uses_443_and_https_url_accepted(hass, board):
     assert seen == [("board.example", 443), ("board.example", 8443), ("board.example", 443)]
 
 
-async def test_t24_cannot_connect(hass, board):
-    await board.stop()
+async def test_t24_cannot_connect(hass, board, short_remote_timeout):
+    await board.stop_holding_port()
     result = await start_remote(hass, board.host, board.port)
     assert result["errors"] == {"base": "board_unreachable"}
 
@@ -582,10 +582,12 @@ async def test_t22a_reauth_serial_mismatch_keeps_entry(hass, board):
     assert entry.data == before
 
 
-async def test_reauth_board_gone_says_cannot_connect_and_can_retry(hass, board):
+async def test_reauth_board_gone_says_cannot_connect_and_can_retry(
+    hass, board, short_remote_timeout
+):
     entry = remote_entry(board)
     entry.add_to_hass(hass)
-    await board.stop()
+    await board.stop_holding_port()
     result = await _reauth(hass, entry)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reauth_confirm"
@@ -817,9 +819,9 @@ async def test_local_unexpected_error_on_first_show_is_unknown(hass, caplog):
 # --- Coverage: remote error branches -----------------------------------------
 
 
-async def test_pair_board_gone_stays_on_step_and_can_retry(hass, board):
+async def test_pair_board_gone_stays_on_step_and_can_retry(hass, board, short_remote_timeout):
     result = await to_pair(hass, board)
-    await board.stop()
+    await board.stop_holding_port()
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": CODE}
     )
@@ -866,11 +868,11 @@ async def test_reauth_probe_serial_mismatch_keeps_entry(hass, board):
     assert pair_calls(board) == []
 
 
-async def test_reconfigure_board_unreachable_keeps_entry(hass, board):
+async def test_reconfigure_board_unreachable_keeps_entry(hass, board, short_remote_timeout):
     entry = remote_entry(board)
     entry.add_to_hass(hass)
     before = dict(entry.data)
-    await board.stop()
+    await board.stop_holding_port()
     result = await _reconfigure(hass, entry, board)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reconfigure"
@@ -878,7 +880,9 @@ async def test_reconfigure_board_unreachable_keeps_entry(hass, board):
     assert entry.data == before
 
 
-async def test_ca_check_unreachable_falls_back_to_pin(hass, board, monkeypatch, tmp_path):
+async def test_ca_check_unreachable_falls_back_to_pin(
+    hass, board, monkeypatch, tmp_path, short_remote_timeout
+):
     """Same certificate and bundle as the T-28 "ca" case, but the board is
     gone when trust is decided: no CA trust without a verified handshake."""
     ca = make_cert(("Test CA",), is_ca=True)
@@ -888,7 +892,7 @@ async def test_ca_check_unreachable_falls_back_to_pin(hass, board, monkeypatch, 
     await board.restart(make_cert(("127.0.0.1",), issuer=ca))
     result = await start_remote(hass, board.host, board.port)
     assert result["step_id"] == "fingerprint"
-    await board.stop()
+    await board.stop_holding_port()
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"confirm": True}
     )

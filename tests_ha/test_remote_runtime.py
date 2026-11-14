@@ -209,16 +209,16 @@ async def test_t33b_zigbee_change_seen_without_reload(hass, board):
 # --- T-34, T-35, T-35a: unreachable, 401, startup errors ---------------------
 
 
-async def test_t34_unreachable_at_setup_retries(hass, board):
-    await board.stop()
+async def test_t34_unreachable_at_setup_retries(hass, board, short_remote_timeout):
+    await board.stop_holding_port()
     entry = await setup_remote(hass, board)
     assert entry.state is ConfigEntryState.SETUP_RETRY
 
 
-async def test_t34_unreachable_later_then_recovers(hass, board):
+async def test_t34_unreachable_later_then_recovers(hass, board, short_remote_timeout):
     entry = await setup_remote(hass, board)
     port = board.port
-    await board.stop()
+    await board.stop_holding_port()
     await poll(hass, entry)
     assert state(hass, "switch.onboard_port0").state == "unavailable"
     assert state(hass, "sensor.board_status").state == "Error"

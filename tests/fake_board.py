@@ -10,6 +10,7 @@ import datetime as dt
 import hashlib
 import ipaddress
 import json
+import socket
 import ssl
 import tempfile
 from dataclasses import dataclass, field
@@ -145,6 +146,7 @@ class FakeBoard:
     replies: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
     _server: asyncio.AbstractServer | None = None
     _runner: web.AppRunner | None = None
+    _held: socket.socket | None = None
 
     def __post_init__(self) -> None:
         # Like the real board: GET /board with a credential adds the version
@@ -210,6 +212,9 @@ class FakeBoard:
         return ctx
 
     async def start(self) -> FakeBoard:
+        if self._held:  # serve on the held port again
+            self._held.close()
+            self._held = None
         app = web.Application()
         app.router.add_route("*", "/{tail:.*}", self._handle)
         self._runner = web.AppRunner(app, access_log=None)
@@ -233,7 +238,27 @@ class FakeBoard:
             self.cert = cert
         await self.start()
 
+    async def stop_holding_port(self) -> None:
+        """Stop serving but keep the port bound, not listening, until
+        start() or stop().
+
+        A test that then connects to the board's address reaches no board,
+        and the system does not hand the port to another server (one bound
+        to port 0) or an outgoing connection meanwhile, as it could a freed
+        port. Linux refuses the connection at once; macOS drops it, so the
+        client waits for its timeout (see the short_remote_timeout fixture).
+        """
+        await self.stop()
+        held = socket.socket()
+        # The closed connections can leave the port in TIME_WAIT.
+        held.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        held.bind((self.host, self.port))
+        self._held = held
+
     async def stop(self) -> None:
+        if self._held:
+            self._held.close()
+            self._held = None
         if self._server:
             self._server.close()
         # Runner first: it closes keep-alive connections that wait_closed()
