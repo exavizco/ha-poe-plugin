@@ -267,8 +267,11 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         Bare chip 'reset' is forbidden (mass re-power of siblings). Once
         disable-port has returned, enable-port is always sent. A disable-port
         write that cannot be stopped raises at once and nothing follows it,
-        since it may still land. Raises HomeAssistantError when the port does
-        not end up powered with its link up.
+        since it may still land. An `ip link` that cannot be stopped raises
+        the same way: enable-port still follows (the serial port is not
+        involved), but no other `ip link`, so a stuck `down` cannot land
+        after the `up`. Raises HomeAssistantError when the port does not end
+        up powered with its link up.
         """
         interface = f"poe{self._port_number}"
         pse_num, pse_port = ExavizPoEPortSwitch._linux_port_to_esp32(

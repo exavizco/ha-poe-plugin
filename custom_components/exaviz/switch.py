@@ -52,20 +52,34 @@ IP_LINK_TIMEOUT = 10
 IP_LINK_STOP_WAIT = 2
 
 
-async def _stop_process(proc: asyncio.subprocess.Process) -> None:
-    """Stop a subprocess: SIGTERM first, which sudo passes on to its
-    command (a SIGKILL would end sudo and leave `ip` running), then SIGKILL."""
-    for send_signal in (proc.terminate, proc.kill):
+async def _stop_ip_link(proc: asyncio.subprocess.Process, under_sudo: bool) -> bool:
+    """Stop an `ip link` that timed out or whose caller was cancelled.
+
+    Returns True once it has ended. SIGTERM first, which sudo passes on to
+    `ip`. Run without sudo (Home Assistant as root), `ip` then gets SIGKILL.
+    Under sudo it does not: a SIGKILL would end only sudo and leave `ip`,
+    a root process this one cannot signal, running unseen, while sudo stays
+    until `ip` ends. A second cancel while waiting counts as not ended.
+    """
+    signals = (proc.terminate,) if under_sudo else (proc.terminate, proc.kill)
+    for send_signal in signals:
         try:
             send_signal()
         except ProcessLookupError:
-            return  # it ended just now
+            return True  # it ended just now
         try:
             await asyncio.wait_for(proc.wait(), timeout=IP_LINK_STOP_WAIT)
-            return
+            return True
         except asyncio.TimeoutError:
             pass
-    _LOGGER.error("Process %s did not stop after SIGKILL", proc.pid)
+        except asyncio.CancelledError:
+            if not under_sudo:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+            return False
+    return False
 
 
 async def async_setup_entry(
@@ -194,25 +208,39 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
     async def _run_ip_link(interface: str, action: str) -> bool:
         """Run 'ip link set' asynchronously. Returns True on success.
 
-        A run that times out, or whose caller is cancelled, is stopped.
+        A run that times out, or whose caller is cancelled, is stopped. One
+        that does not stop may still change the link later, so it raises
+        HomeAssistantError and the caller must not run `ip link` after it.
         """
+        argv = sudo_argv("ip", "link", "set", interface, action)
         try:
             proc = await asyncio.create_subprocess_exec(
-                *sudo_argv("ip", "link", "set", interface, action),
+                *argv,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
             )
         except OSError as exc:
             _LOGGER.error("Could not run ip link to %s port %s: %s", action, interface, exc)
             return False
+
+        async def stop() -> None:
+            if not await _stop_ip_link(proc, under_sudo=argv[0] == "sudo"):
+                _LOGGER.warning(
+                    "ip link to %s port %s (pid %s) did not stop", action, interface, proc.pid
+                )
+                raise HomeAssistantError(
+                    f"ip link to {action} port {interface} timed out or was cancelled "
+                    "and did not stop; the link's state is unknown"
+                )
+
         try:
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=IP_LINK_TIMEOUT)
         except asyncio.TimeoutError:
-            await _stop_process(proc)
+            await stop()
             _LOGGER.error("ip link to %s port %s timed out", action, interface)
             return False
         except asyncio.CancelledError:
-            await _stop_process(proc)
+            await stop()
             raise
         if proc.returncode != 0:
             _LOGGER.error(
