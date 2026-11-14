@@ -874,8 +874,10 @@ async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocki
     finally:
         ticker.cancel()
     elapsed = loop.time() - started
-    # At least the stop wait; past it by at most a late last 50 ms wait.
-    assert stop_wait <= elapsed < stop_wait + 0.4
+    # At least the stop wait. The upper bound is only a hang guard; the count
+    # below is what pins the deadline (a late wakeup skips sleeps, never adds).
+    assert stop_wait <= elapsed < stop_wait + 2
     assert delays and set(delays) == {0.05}
+    assert len(delays) <= stop_wait / 0.05 + 2  # a deadline past the wait adds sleeps
     assert sudo.signals == len(delays) + 1  # a send after each wait
     assert ticks >= 5  # a busy loop would leave about none
