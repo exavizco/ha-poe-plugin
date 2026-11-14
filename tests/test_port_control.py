@@ -842,10 +842,11 @@ async def test_run_cancelled_twice_while_its_stop_signal_is_refused_is_recorded(
 
 
 @pytest.mark.asyncio
-async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocking():
+@pytest.mark.parametrize("stop_wait", [0.4, 1.3])
+async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocking(stop_wait):
     """Resent every 50 ms until the stop wait is over: the waits asked for
-    are all 50 ms, it gives up no earlier than the stop wait, and the event
-    loop keeps running meanwhile (no busy loop)."""
+    are all 50 ms, it lasts the stop wait (two widths, so a fixed window
+    fails one), and the event loop keeps running meanwhile (no busy loop)."""
     sudo = _RefusingSudo()
     real_sleep = asyncio.sleep
     delays: list[float] = []
@@ -865,7 +866,7 @@ async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocki
     loop = asyncio.get_running_loop()
     started = loop.time()
     try:
-        with patch.object(switch_module, "IP_LINK_STOP_WAIT", 1), \
+        with patch.object(switch_module, "IP_LINK_STOP_WAIT", stop_wait), \
              patch.object(switch_module.asyncio, "sleep", recording_sleep):
             assert await asyncio.wait_for(
                 switch_module._send_signal(sudo.terminate), timeout=10
@@ -873,9 +874,8 @@ async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocki
     finally:
         ticker.cancel()
     elapsed = loop.time() - started
-    # The stop wait (1 s), not a fixed or a shorter window; a late last
-    # 50 ms wait cannot stretch it to 1.8 s.
-    assert 1.0 <= elapsed < 1.8
+    # At least the stop wait; past it by at most a late last 50 ms wait.
+    assert stop_wait <= elapsed < stop_wait + 0.4
     assert delays and set(delays) == {0.05}
     assert sudo.signals == len(delays) + 1  # a send after each wait
-    assert ticks >= 20
+    assert ticks >= 5  # a busy loop would leave about none
