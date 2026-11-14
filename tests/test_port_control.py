@@ -841,22 +841,37 @@ async def test_run_cancelled_twice_while_its_stop_signal_is_refused_is_recorded(
 
 @pytest.mark.asyncio
 async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocking():
-    """Resent every 50 ms (about 20 times in 1 s), not a few times and not
-    in a busy loop: the event loop keeps running meanwhile."""
+    """Resent every 50 ms until the stop wait is over: the waits asked for
+    are all 50 ms, it gives up no earlier than the stop wait, and the event
+    loop keeps running meanwhile (no busy loop)."""
     sudo = _RefusingSudo()
+    real_sleep = asyncio.sleep
+    delays: list[float] = []
     ticks = 0
+
+    async def recording_sleep(delay, *args, **kwargs):
+        delays.append(delay)
+        return await real_sleep(delay, *args, **kwargs)
 
     async def tick() -> None:
         nonlocal ticks
         while True:
-            await asyncio.sleep(0.01)
+            await real_sleep(0.01)
             ticks += 1
 
     ticker = asyncio.ensure_future(tick())
+    loop = asyncio.get_running_loop()
+    started = loop.time()
     try:
-        with patch.object(switch_module, "IP_LINK_STOP_WAIT", 1):
-            assert await switch_module._send_signal(sudo.terminate) is False
+        with patch.object(switch_module, "IP_LINK_STOP_WAIT", 1), \
+             patch.object(switch_module.asyncio, "sleep", recording_sleep):
+            assert await asyncio.wait_for(
+                switch_module._send_signal(sudo.terminate), timeout=10
+            ) is False
     finally:
         ticker.cancel()
-    assert 8 <= sudo.signals <= 25
+    elapsed = loop.time() - started
+    assert 0.9 <= elapsed < 3
+    assert delays and set(delays) == {0.05}
+    assert sudo.signals == len(delays) + 1  # a send after each wait
     assert ticks >= 20
