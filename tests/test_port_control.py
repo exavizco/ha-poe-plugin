@@ -732,9 +732,16 @@ async def test_sudo_refusing_the_stop_signal_counts_as_not_stopped():
          patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.2), \
          patch.object(switch_module, "_PROC", Path("/nonexistent")), \
          patch.dict(switch_module._stuck_ip_link, clear=True):
+        started = asyncio.get_running_loop().time()
         with pytest.raises(HomeAssistantError, match="did not stop"):
-            await ExavizPoEPortSwitch._run_ip_link("poe3", "down")
-        assert sudo.signals > 1  # sent again for the whole stop wait
+            # Bounded, so a resend loop with no end fails instead of hanging.
+            await asyncio.wait_for(
+                ExavizPoEPortSwitch._run_ip_link("poe3", "down"), timeout=10
+            )
+        # Timeout 0.2 s, resends (see the timing test below), then the 0.2 s
+        # wait.
+        assert asyncio.get_running_loop().time() - started < 2
+        assert sudo.signals >= 2  # sent again
         with pytest.raises(HomeAssistantError, match="has not ended"):
             await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
 
@@ -783,3 +790,94 @@ async def test_a_late_start_that_refuses_sigterm_gets_it_again(under_sudo):
         await asyncio.sleep(0.5)  # past the retry and the stop wait
     assert proc.terminate.call_count == 2
     assert proc.kill.called is not under_sudo
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("under_sudo", [True, False])
+async def test_second_cancel_while_a_refused_signal_is_resent_counts_as_not_stopped(
+    under_sudo,
+):
+    """Shutdown's second cancel can land while a refused SIGTERM waits to be
+    sent again. It ends the stop at once as "not stopped" (which the caller
+    records, see the next test), and SIGKILL follows only without sudo."""
+    sudo = _RefusingSudo()
+    killed: list[bool] = []
+    sudo.kill = lambda: killed.append(True)
+    with patch.object(switch_module, "IP_LINK_STOP_WAIT", 5):
+        stop = asyncio.ensure_future(switch_module._stop_ip_link(sudo, under_sudo))
+        # Two refused sends in, so the stop is waiting to send again.
+        await asyncio.wait_for(_until(lambda: sudo.signals >= 2), timeout=10)
+        stop.cancel()
+        cancelled = asyncio.get_running_loop().time()
+        assert await asyncio.wait_for(stop, timeout=10) is False
+        assert asyncio.get_running_loop().time() - cancelled < 1  # not the 5 s wait
+    assert sudo.signals >= 2
+    assert killed == ([] if under_sudo else [True])
+
+
+@pytest.mark.asyncio
+async def test_run_cancelled_twice_while_its_stop_signal_is_refused_is_recorded():
+    """The run is cancelled, its SIGTERM is refused, and a second cancel
+    lands during a resend: the run is recorded and the port stays blocked."""
+    sudo = _RefusingSudo()
+    start = AsyncMock(return_value=sudo)
+    with patch("asyncio.create_subprocess_exec", start), \
+         patch.object(switch_module, "sudo_argv", lambda *a: ("sudo", *a)), \
+         patch.object(switch_module, "IP_LINK_STOP_WAIT", 5), \
+         patch.object(switch_module, "_PROC", Path("/nonexistent")), \
+         patch.dict(switch_module._stuck_ip_link, clear=True):
+        run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+        await asyncio.wait_for(_until(lambda: start.await_count), timeout=10)
+        await asyncio.sleep(0.05)  # in communicate()
+        run.cancel()
+        await asyncio.wait_for(_until(lambda: sudo.signals >= 2), timeout=10)
+        run.cancel()
+        cancelled = asyncio.get_running_loop().time()
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(run, timeout=10)
+        # At once, not after the 5 s resends and the 5 s wait.
+        assert asyncio.get_running_loop().time() - cancelled < 2
+        with pytest.raises(HomeAssistantError, match="has not ended"):
+            await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stop_wait", [0.4, 1.3])
+async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocking(stop_wait):
+    """Resent every 50 ms until the stop wait is over: the waits asked for
+    are all 50 ms, it lasts the stop wait (two widths, so a fixed window
+    fails one), and the event loop keeps running meanwhile (no busy loop)."""
+    sudo = _RefusingSudo()
+    real_sleep = asyncio.sleep
+    delays: list[float] = []
+    ticks = 0
+
+    async def recording_sleep(delay, *args, **kwargs):
+        delays.append(delay)
+        return await real_sleep(delay, *args, **kwargs)
+
+    async def tick() -> None:
+        nonlocal ticks
+        while True:
+            await real_sleep(0.01)
+            ticks += 1
+
+    ticker = asyncio.ensure_future(tick())
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    try:
+        with patch.object(switch_module, "IP_LINK_STOP_WAIT", stop_wait), \
+             patch.object(switch_module.asyncio, "sleep", recording_sleep):
+            assert await asyncio.wait_for(
+                switch_module._send_signal(sudo.terminate), timeout=10
+            ) is False
+    finally:
+        ticker.cancel()
+    elapsed = loop.time() - started
+    # At least the stop wait. The upper bound is only a hang guard; the count
+    # below is what pins the deadline (a late wakeup skips sleeps, never adds).
+    assert stop_wait <= elapsed < stop_wait + 2
+    assert delays and set(delays) == {0.05}
+    assert len(delays) <= stop_wait / 0.05 + 2  # a deadline past the wait adds sleeps
+    assert sudo.signals == len(delays) + 1  # a send after each wait
+    assert ticks >= 5  # a busy loop would leave about none
