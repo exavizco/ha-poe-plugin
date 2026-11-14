@@ -632,5 +632,11 @@ async def test_start_cancelled_with_its_caller_at_loop_shutdown_reports_not_stop
             run.cancel()
             with pytest.raises(HomeAssistantError, match="cancelled while it started"):
                 await asyncio.wait_for(run, timeout=10)
+            # The start may have left `ip` running unseen, so no later
+            # `ip link` runs on the port.
+            hung.gate.set()
+            with pytest.raises(HomeAssistantError, match="has not ended"):
+                await ExavizPoEPortSwitch._run_ip_link("poe3", "up")
+            assert hung.started == []
     finally:
         hung.cleanup()

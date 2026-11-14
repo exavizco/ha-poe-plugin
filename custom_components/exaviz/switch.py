@@ -83,10 +83,14 @@ def _ip_link_stuck(interface: str) -> bool:
 
 
 def _ip_link_running(spawn: asyncio.Future) -> bool:
-    """True until a recorded `ip link` has ended (or never started)."""
-    if not spawn.done():
+    """True until a recorded `ip link` has ended (or failed to start).
+
+    A start that was itself cancelled (the loop shutting down) may have left
+    `ip` running with sudo SIGKILLed, so it counts as running for good.
+    """
+    if not spawn.done() or spawn.cancelled():
         return True
-    if spawn.cancelled() or spawn.exception() is not None:
+    if spawn.exception() is not None:
         return False
     return spawn.result().returncode is None
 

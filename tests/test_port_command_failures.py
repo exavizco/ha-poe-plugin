@@ -6,6 +6,7 @@ logged and ignored, so the UI showed the action as done.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import signal
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -853,3 +854,31 @@ async def test_reset_waits_for_a_stuck_ip_link_being_stopped_before_cutting_powe
         with pytest.raises(HomeAssistantError, match="was not reset"):
             await asyncio.wait_for(second, timeout=10)
         assert sent == ["disable-port 1 0", "enable-port 1 0"]
+
+
+@pytest.mark.asyncio
+async def test_no_ip_link_starts_on_the_port_while_a_reset_cuts_its_power(tmp_path):
+    """The reset checks for a stuck run and cuts the power in one turn, so
+    no run can start (and get stuck) between the check and the cut."""
+    with _reset_with_hung_link(tmp_path, ignore_term=False) as (button, hung, sent):
+        cutting, release = asyncio.Event(), asyncio.Event()
+
+        async def send(command: str) -> bool:
+            sent.append(command)
+            if command.startswith("disable-port"):
+                cutting.set()
+                await release.wait()
+            return True
+
+        with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send):
+            cycle = asyncio.ensure_future(button._power_cycle_onboard_port())
+            await asyncio.wait_for(cutting.wait(), timeout=10)
+            other = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe0", "up"))
+            await asyncio.sleep(0.2)
+            assert hung.started == []  # waiting for the reset's turn
+            release.set()
+            await asyncio.wait_for(other, timeout=10)
+            cycle.cancel()
+            with contextlib.suppress(asyncio.CancelledError, HomeAssistantError):
+                await asyncio.wait_for(cycle, timeout=10)
+        assert hung.started[0] == ("up", False)
