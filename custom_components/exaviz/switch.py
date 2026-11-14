@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import weakref
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -56,9 +57,18 @@ IP_LINK_STOP_WAIT = 2
 # It may still change the link, so no other `ip link` runs on that interface
 # until it has ended: a stuck `down` must not land after a later `up`.
 _stuck_ip_link: dict[str, asyncio.Future] = {}
-# Per interface: one `ip link` at a time, held through its stop, so a run
-# that is still being stopped is recorded before the next one checks.
-_ip_link_locks: dict[str, asyncio.Lock] = {}
+# Per event loop and interface: one `ip link` at a time, held through its
+# stop, so a run that is still being stopped is recorded before the next
+# one checks. (A lock belongs to one loop; tests run many.)
+_ip_link_locks: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[str, asyncio.Lock]
+] = weakref.WeakKeyDictionary()
+
+
+def _ip_link_lock(interface: str) -> asyncio.Lock:
+    """The interface's turn for `ip link` runs (and a reset's power cut)."""
+    locks = _ip_link_locks.setdefault(asyncio.get_running_loop(), {})
+    return locks.setdefault(interface, asyncio.Lock())
 
 
 def _ip_link_stuck(interface: str) -> bool:
@@ -266,7 +276,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
         running that way, whoever started it. Runs on one interface take
         turns, so the next waits until the one before has been stopped.
         """
-        async with _ip_link_locks.setdefault(interface, asyncio.Lock()):
+        async with _ip_link_lock(interface):
             return await ExavizPoEPortSwitch._run_ip_link_alone(interface, action)
 
     @staticmethod
@@ -292,7 +302,7 @@ class ExavizPoEPortSwitch(ExavizPoEBaseEntity, SwitchEntity):
             _LOGGER.error("Could not run ip link to %s port %s: %s", action, interface, exc)
             return False
         except asyncio.CancelledError:
-            if not spawn.done() or spawn.exception() is not None:
+            if not spawn.done() or spawn.cancelled() or spawn.exception() is not None:
                 # Not known to have stopped: let it start, then ask it to stop.
                 spawn.add_done_callback(partial(_stop_when_started, argv[0] == "sudo"))
                 _stuck_ip_link[interface] = spawn

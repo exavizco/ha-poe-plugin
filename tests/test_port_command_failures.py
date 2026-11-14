@@ -756,7 +756,7 @@ async def test_reset_cancelled_while_ip_link_down_starts_runs_no_link_up(tmp_pat
         await _within(lambda: hung.ip_pids)
         switch = _switch()
         if ignore_term:
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.8)  # past the stop wait (0.5 s)
             assert hung.ip_alive() == [True]
             assert hung.procs[0].returncode is None  # sudo was not killed
             with pytest.raises(HomeAssistantError, match="has not ended"):
@@ -837,3 +837,19 @@ async def test_ip_link_cancelled_while_starting_as_root_gets_sigkill(tmp_path):
         assert hung.procs[0].returncode == -signal.SIGKILL
     finally:
         hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_reset_waits_for_a_stuck_ip_link_being_stopped_before_cutting_power(tmp_path):
+    """A second reset of the port (the first one's press was cancelled)
+    starts while the first one's `ip link down` is still being stopped. It
+    waits its turn, sees the stuck run, and sends nothing."""
+    with _reset_with_hung_link(tmp_path, ignore_term=True) as (button, hung, sent):
+        first = asyncio.ensure_future(button._power_cycle_onboard_port())
+        await _within(lambda: hung.ip_pids)
+        second = asyncio.ensure_future(_button()._power_cycle_onboard_port())
+        with pytest.raises(HomeAssistantError, match="did not stop"):
+            await asyncio.wait_for(first, timeout=10)
+        with pytest.raises(HomeAssistantError, match="was not reset"):
+            await asyncio.wait_for(second, timeout=10)
+        assert sent == ["disable-port 1 0", "enable-port 1 0"]

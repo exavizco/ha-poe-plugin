@@ -107,12 +107,10 @@ class HungIpLink:
                 self.on_started()
             return proc
 
-        # Each test starts with no `ip link` recorded as stuck (and fresh
-        # locks, which belong to one event loop), and leaves none.
+        # Each test starts with no `ip link` recorded as stuck, and leaves none.
         with patch("asyncio.create_subprocess_exec", exec_), \
              patch("custom_components.exaviz.switch.sudo_argv", sudo_argv), \
-             patch.dict("custom_components.exaviz.switch._stuck_ip_link", clear=True), \
-             patch.dict("custom_components.exaviz.switch._ip_link_locks", clear=True):
+             patch.dict("custom_components.exaviz.switch._stuck_ip_link", clear=True):
             yield
 
     def ip_alive(self) -> list[bool]:

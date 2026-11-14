@@ -508,7 +508,9 @@ async def test_second_cancel_while_ip_link_is_stopped_counts_as_not_stopped(tmp_
             with pytest.raises(HomeAssistantError, match="did not stop"):
                 await asyncio.wait_for(run, timeout=10)
         if sudo:
+            await asyncio.sleep(0.3)  # a kill would have been seen by now
             assert hung.ip_alive() == [True]
+            assert hung.procs[0].returncode is None  # sudo was not killed
         else:
             await asyncio.wait_for(hung.procs[0].wait(), timeout=10)
             assert hung.procs[0].returncode == -signal.SIGKILL
@@ -612,3 +614,23 @@ def test_pse_number_without_coordinator_data():
 def test_onboard_control_path_detection(poe_set, data, onboard):
     switch = ExavizPoEPortSwitch(_coordinator(data), poe_set, 0, "e")
     assert switch._is_onboard_poe_system() is onboard
+
+
+@pytest.mark.asyncio
+async def test_start_cancelled_with_its_caller_at_loop_shutdown_reports_not_stopped(tmp_path):
+    """Loop shutdown cancels every task, the start included. The caller
+    still reports that the run was not known to stop (not a bare cancel)."""
+    hung = HungIpLink(tmp_path, sudo=True)
+    try:
+        with hung.patches():
+            hung.gate = asyncio.Event()
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            await asyncio.sleep(0.05)  # the start now waits on the gate
+            others = asyncio.all_tasks() - {run, asyncio.current_task()}
+            (start,) = [t for t in others if "exec_" in repr(t.get_coro())]
+            start.cancel()
+            run.cancel()
+            with pytest.raises(HomeAssistantError, match="cancelled while it started"):
+                await asyncio.wait_for(run, timeout=10)
+    finally:
+        hung.cleanup()
