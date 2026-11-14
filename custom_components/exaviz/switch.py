@@ -142,8 +142,20 @@ def _stop_when_started(under_sudo: bool, spawn: asyncio.Future) -> None:
         proc.terminate()
     except ProcessLookupError:
         return  # it ended already
+    except PermissionError:
+        # sudo refuses signals for a moment after it starts: try once more.
+        # Until the run ends, its record keeps the port blocked either way.
+        asyncio.get_running_loop().call_later(0.1, _terminate_if_running, proc)
     if not under_sudo:
         asyncio.get_running_loop().call_later(IP_LINK_STOP_WAIT, _kill_if_running, proc)
+
+
+def _terminate_if_running(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is None:
+        try:
+            proc.terminate()
+        except (ProcessLookupError, PermissionError):
+            pass
 
 
 def _kill_if_running(proc: asyncio.subprocess.Process) -> None:
@@ -152,6 +164,25 @@ def _kill_if_running(proc: asyncio.subprocess.Process) -> None:
             proc.kill()
         except ProcessLookupError:
             pass
+
+
+async def _send_signal(send_signal) -> bool:
+    """Send a signal; True if the process had already ended.
+
+    sudo refuses signals for a few ms after it starts (EPERM, seen on sudo
+    1.9.16p2), so a refused one is sent again, for up to the stop wait.
+    """
+    deadline = asyncio.get_running_loop().time() + IP_LINK_STOP_WAIT
+    while True:
+        try:
+            send_signal()
+            return False
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            if asyncio.get_running_loop().time() >= deadline:
+                return False
+            await asyncio.sleep(0.05)
 
 
 async def _stop_ip_link(proc: asyncio.subprocess.Process, under_sudo: bool) -> bool:
@@ -166,10 +197,8 @@ async def _stop_ip_link(proc: asyncio.subprocess.Process, under_sudo: bool) -> b
     signals = (proc.terminate,) if under_sudo else (proc.terminate, proc.kill)
     for send_signal in signals:
         try:
-            send_signal()
-        except ProcessLookupError:
-            return True  # it ended just now
-        try:
+            if await _send_signal(send_signal):
+                return True  # it ended just now
             await asyncio.wait_for(proc.wait(), timeout=IP_LINK_STOP_WAIT)
             return True
         except asyncio.TimeoutError:
