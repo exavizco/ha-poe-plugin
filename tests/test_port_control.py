@@ -738,7 +738,8 @@ async def test_sudo_refusing_the_stop_signal_counts_as_not_stopped():
             await asyncio.wait_for(
                 ExavizPoEPortSwitch._run_ip_link("poe3", "down"), timeout=10
             )
-        # Timeout 0.2 s, resends for 0.2 s, then the 0.2 s wait.
+        # Timeout 0.2 s, resends (see the timing test below), then the 0.2 s
+        # wait.
         assert asyncio.get_running_loop().time() - started < 2
         assert sudo.signals >= 2  # sent again
         with pytest.raises(HomeAssistantError, match="has not ended"):
@@ -872,7 +873,9 @@ async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocki
     finally:
         ticker.cancel()
     elapsed = loop.time() - started
-    assert 0.9 <= elapsed < 3
+    # The stop wait (1 s), not a fixed or a shorter window; a late last
+    # 50 ms wait cannot stretch it to 1.8 s.
+    assert 1.0 <= elapsed < 1.8
     assert delays and set(delays) == {0.05}
     assert sudo.signals == len(delays) + 1  # a send after each wait
     assert ticks >= 20
