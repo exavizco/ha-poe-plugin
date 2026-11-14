@@ -433,6 +433,21 @@ async def test_ip_link_that_hangs_under_sudo_gets_sigterm_through_sudo(tmp_path,
 
 
 @pytest.mark.asyncio
+async def test_ip_link_that_finishes_as_it_is_stopped_counts_as_done(tmp_path):
+    """It ended with status 0 just as the timeout stopped it: the link did
+    change, so the caller must not report that it did not."""
+    hung = HungIpLink(tmp_path, sudo=True, term="exit0")
+    timeout, stop_wait = _fast_stop()
+    try:
+        with hung.patches(), timeout, stop_wait:
+            assert await asyncio.wait_for(
+                ExavizPoEPortSwitch._run_ip_link("poe3", "down"), timeout=10
+            ) is True
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
 async def test_ip_link_under_sudo_that_ignores_sigterm_is_reported_not_stopped(
     tmp_path, caplog
 ):
@@ -497,6 +512,23 @@ async def test_second_cancel_while_ip_link_is_stopped_counts_as_not_stopped(tmp_
         else:
             await asyncio.wait_for(hung.procs[0].wait(), timeout=10)
             assert hung.procs[0].returncode == -signal.SIGKILL
+    finally:
+        hung.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_cancel_just_as_ip_link_has_started_stops_it_and_cancels(tmp_path):
+    """The start finished but the caller had not resumed: the process is
+    known, so it is stopped like any cancelled run, and the cancel stands."""
+    hung = HungIpLink(tmp_path, sudo=True)
+    try:
+        with hung.patches():
+            run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
+            hung.on_started = run.cancel
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(run, timeout=10)
+        assert [p.returncode for p in hung.procs] == [-signal.SIGTERM]
+        assert hung.ip_alive() == [False]
     finally:
         hung.cleanup()
 
