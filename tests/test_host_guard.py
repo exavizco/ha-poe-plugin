@@ -21,6 +21,8 @@ HOST_CHANGING = [
     ("timeout", "3", "cat", "/dev/ttyAMA3"),
     ("/usr/sbin/arp-scan", "--interface", "br0", "--localnet", "--plain"),
     ("sudo", "timeout", "10", "tcpdump", "-i", "poe0", "-c", "20"),
+    ("bash", "-c", "ip link set poe0 down"),  # through a shell
+    ("sh", "-c", "cd /; sudo ip link set poe0 up"),
 ]
 
 
@@ -65,6 +67,8 @@ def _starts():
 async def test_refused_through_each_way_to_start_a_process(how):
     """Refused as an OSError (what the port code handles), and recorded so
     the test that tried fails."""
+    # Without the session guard these would really run; stop first.
+    assert subprocess.Popen.__name__ == "GuardedPopen"
     try:
         with pytest.raises(PermissionError, match="test tried to run"):
             await _starts()[how]()

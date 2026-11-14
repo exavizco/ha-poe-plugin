@@ -36,9 +36,14 @@ def changes_host(args) -> bool:
     words = shlex.split(args) if isinstance(args, str) else [str(a) for a in args]
     if not words:
         return False
-    if PurePath(words[0]).name in _REFUSED:
+    if any(path in word for word in words for path in _REFUSED_PATHS):
         return True
-    return any(path in word for word in words for path in _REFUSED_PATHS)
+    if PurePath(words[0]).name in {"bash", "sh"} and "-c" in words:
+        # The script's commands: any word a refused program counts.
+        script = " ".join(words[words.index("-c") + 1:])
+        words = script.replace(";", " ").replace("&", " ").replace("|", " ").split()
+        return any(PurePath(word).name in _REFUSED for word in words)
+    return PurePath(words[0]).name in _REFUSED
 
 
 @contextmanager
@@ -70,7 +75,8 @@ def no_host_commands() -> Iterator[None]:
 def no_host_commands_in_test(no_host_commands) -> Iterator[None]:
     """Name the test that tried, when it tried while it ran.
 
-    A try after its test ended fails the session at its end instead.
+    A try after its test ended is blamed on the test running then, or fails
+    the session at its end after the last test.
     """
     yield
     tried = refused.copy()
