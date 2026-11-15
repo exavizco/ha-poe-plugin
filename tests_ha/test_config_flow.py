@@ -351,14 +351,25 @@ async def test_t26_pair_errors_stay_on_step(hass, board, reply, error):
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_t26_too_many_attempts_shows_retry_after(hass, board):
-    board.reply("POST", "/ha/pair", case("pair_429"))
+@pytest.mark.parametrize(
+    ("header", "shown"),
+    [("60", "60"), ("15", "15"), (None, "60"), ("soon", "60"), ("1.5", "60")],
+)
+async def test_t26_too_many_attempts_shows_retry_after(hass, board, header, shown):
+    """The board's wait is shown; with no usable Retry-After the text still
+    names a wait (60 s), never "Wait  seconds"."""
+    reply = case("pair_429")
+    if header is None:
+        del reply["headers"]["Retry-After"]
+    else:
+        reply["headers"]["Retry-After"] = header
+    board.reply("POST", "/ha/pair", reply)
     result = await to_pair(hass, board)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"code": CODE}
     )
     assert result["errors"] == {"base": "too_many_attempts"}
-    assert result["description_placeholders"]["retry_after"] == "60"
+    assert result["description_placeholders"]["retry_after"] == shown
 
 
 async def test_pair_certificate_change_returns_to_fingerprint(hass, board):
