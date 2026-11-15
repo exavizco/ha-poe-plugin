@@ -361,6 +361,8 @@ async def test_t26_pair_errors_stay_on_step(hass, board, reply, error):
         ("1.5", "60"),
         # A board still refusing while it says 0 gets the 60 s wait, not "Wait 0".
         ("0", "60"),
+        # isdigit() is true for "\u00b2" but int() raises: still the 60 s wait.
+        ("\u00b2", "60"),
     ],
 )
 async def test_t26_too_many_attempts_shows_retry_after(hass, board, header, shown):
