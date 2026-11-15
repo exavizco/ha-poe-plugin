@@ -195,7 +195,8 @@ Per port, where `{set}` is `onboard`, `addon_0`, `addon_1`, ... and `{N}` is the
 - `button.{set}_port{N}_reset` - power-cycle the port
 
 Board-wide: `sensor.board_status` (the PoE card reads it) and `sensor.board_temperature`;
-`binary_sensor.zigbee_coordinator` on a Cruiser; `sensor.zigbee_radio` for a board on the network.
+`binary_sensor.zigbee_coordinator` on a Cruiser; `sensor.zigbee_radio` only for a board paired over the network
+(Home Assistant on another computer), not for a board running Home Assistant itself.
 
 The full entity list for each setup the tests cover is in `tests_ha/golden/*.json`.
 
