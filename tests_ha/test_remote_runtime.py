@@ -138,6 +138,22 @@ async def test_t19_no_ports_at_first_read_is_not_ready(hass, board):
     assert entry.state is ConfigEntryState.SETUP_RETRY
 
 
+async def test_t19_ports_but_no_port_count_at_first_read_is_not_ready(hass, board):
+    """A first /board with no usable port count is still the startup window,
+    even if /poe/ports already lists ports: never set up with 0 ports."""
+    startup = case("board")
+    del startup["body"]["total_poe_ports"]
+    board.reply("GET", "/board", startup)
+    entry = await setup_remote(hass, board)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+    board.reply("GET", "/board", case("board"))
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.total_poe_ports == case("board")["body"]["total_poe_ports"]
+
+
 async def test_t19_empty_after_good_poll_keeps_entities_and_count(hass, board):
     entry = await setup_remote(hass, board)
     board.reply("GET", "/poe/ports", case("poe_ports_empty"))

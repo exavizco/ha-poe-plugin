@@ -19,7 +19,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.exaviz.const import DOMAIN
-from tests.fake_board import case
+from tests.fake_board import case, make_cert
 
 from .local_board import patch_local_board
 from .remote_helpers import remote_entry
@@ -217,6 +217,24 @@ async def test_t37_other_serial_refuses_control_without_request(hass, board):
     assert posts(board) == []
 
 
+async def test_t37_control_works_again_once_the_paired_board_is_back(hass, board):
+    """Another board at the address refuses control; the paired board coming
+    back must lift that, without a reload."""
+    entry = await setup_remote(hass, board)
+    other = case("board")
+    other["body"]["serial"] = "CRU-OTHER-0002"
+    board.reply("GET", "/board", other)
+    await entry.runtime_data.async_refresh()
+    with pytest.raises(HomeAssistantError, match="different board"):
+        await entry.runtime_data.async_port_action(0, "disable")
+
+    board.reply("GET", "/board", case("board"))
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    await call(hass, "switch", "turn_off", "switch.onboard_port0")
+    assert posts(board) == ["/api/v1/poe/ports/1/0/disable"]
+
+
 def _normalised_states(hass) -> dict:
     registry = er.async_get(hass)
     view = {}
@@ -299,6 +317,20 @@ async def test_t44_control_401_starts_reauth(hass, board):
         await call(hass, "switch", "turn_off", "switch.onboard_port0")
     await hass.async_block_till_done()
     assert len(reauth_flows(hass)) == 1
+
+
+async def test_t44_control_certificate_change_starts_reauth(hass, board):
+    """A certificate change found by a switch action asks to pair again and
+    starts reauth at once, the same as a revoked token."""
+    entry = await setup_remote(hass, board)
+    await board.restart(make_cert())
+    board.requests.clear()
+    with pytest.raises(HomeAssistantError, match="Pair Home Assistant"):
+        await call(hass, "switch", "turn_off", "switch.onboard_port0")
+    await hass.async_block_till_done()
+    assert len(reauth_flows(hass)) == 1
+    assert board.seen("POST") == []
+    assert not entry.runtime_data.last_update_success
 
 
 async def test_t44_control_refused_raises(hass, board, short_remote_timeout):
