@@ -271,10 +271,11 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at, restore_ok, c
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
          patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
         press = asyncio.create_task(button._reset_onboard_port())
-        await reached.wait()
+        # Bounded: if the cycle never gets there, fail instead of hanging.
+        await asyncio.wait_for(reached.wait(), 5)
         press.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await press
+            await asyncio.wait_for(press, 5)
         button.hass.async_create_task.assert_not_called()
         go_on.set()
         for _ in range(10):
