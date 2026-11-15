@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import aiohttp
 import pytest
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -741,6 +742,53 @@ async def test_options_default_is_the_interval_chosen_at_pairing(hass, board):
     result = await hass.config_entries.options.async_init(entry.entry_id)
     (key,) = result["data_schema"].schema
     assert key.default() == 120
+
+
+async def test_options_default_is_the_saved_option_over_the_pairing_interval(hass, board):
+    """Reopening options shows the interval saved there, not the one from setup."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=remote_data(board, update_interval=120),
+        options={"update_interval": 45},
+        unique_id=SERIAL,
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    (key,) = result["data_schema"].schema
+    assert key.default() == 45
+
+
+@pytest.mark.parametrize(
+    ("options", "shown"),
+    [({}, False), ({"switch_mode_discovery": True}, True)],
+)
+async def test_local_options_switch_mode_default(hass, options, shown):
+    """Discovery is off until the user turns it on, and then shows as on."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={}, options=options, unique_id="exaviz_cruiser"
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    defaults = {str(k): k.default() for k in result["data_schema"].schema}
+    assert defaults["switch_mode_discovery"] is shown
+
+
+@pytest.mark.parametrize(("interval", "accepted"), [(9, False), (10, True), (300, True), (301, False)])
+async def test_options_interval_is_10_to_300_seconds(hass, board, interval, accepted):
+    entry = remote_entry(board)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    if not accepted:
+        with pytest.raises(vol.Invalid):
+            await hass.config_entries.options.async_configure(
+                result["flow_id"], {"update_interval": interval}
+            )
+        return
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"update_interval": interval}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {"update_interval": interval}
 
 
 @pytest.mark.parametrize(

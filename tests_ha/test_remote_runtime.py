@@ -501,3 +501,17 @@ async def test_board_fields_of_the_wrong_type_are_missing(hass, board, caplog, t
     assert state(hass, "sensor.board_status").state == "Operational"
     assert state(hass, "sensor.board_temperature").state == "unavailable"
     assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []
+
+
+async def test_saved_option_interval_wins_over_the_pairing_interval(hass, board):
+    """Paired at 120 s, then 45 s saved in options: the board is polled every
+    45 s after the reload, as the options form shows."""
+    entry = await setup_remote(hass, board, update_interval=120)
+    assert entry.runtime_data.update_interval == timedelta(seconds=120)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        result["flow_id"], {"update_interval": 45}
+    )
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.update_interval == timedelta(seconds=45)
