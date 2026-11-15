@@ -4,13 +4,10 @@
 
 The Python integration (`custom_components/exaviz/`) is **LOCKED** and should **NOT** be modified:
 
-- ✅ **921 tests passing** - All backend functionality stable
 - ✅ **Entity ids stable** - see "Entity ids" below
 - ✅ **Local board management** - Direct PoE control on Cruiser/Interceptor boards
 - ✅ **Zero configuration** - Auto-detects board type and PoE ports
 - ✅ **Production ready** - Working on Cruiser board
-
-**Tag**: `v1.0.0-backend-stable` - marks the locked backend state
 
 ## ✅ Frontend Cards: ACTIVE DEVELOPMENT
 
@@ -31,7 +28,7 @@ npm install
 
 ### Development Commands
 ```bash
-npm run dev          # Development server with hot reload
+npm run dev          # Rebuild the bundle on every change (no server)
 npm run build        # Build for production deployment
 npm run type-check   # TypeScript validation
 npm run test         # Run component tests
@@ -56,7 +53,7 @@ lovelace-cards/
 ## 🎨 Theming & Design
 
 ### Brand Colors
-- **Primary**: #90FF80 (Exaviz blue)
+- **Primary**: #90FF80 (Exaviz green)
 - **Success**: #4CAF50 (green)
 - **Warning**: #FF9800 (orange)
 - **Error**: #F44336 (red)
@@ -116,8 +113,9 @@ describe('exaviz-poe-card', () => {
 npm run build
 ```
 
-Commit the rebuilt bundle with the source change. The integration serves it and registers it
-as a Lovelace resource, so installing the integration installs the card.
+Commit the rebuilt bundle with the source change. The integration serves it and, when
+dashboards use storage mode (the default), registers it as a Lovelace resource. In YAML mode
+it logs a message (level info) asking you to add the resource by hand.
 
 ## 🎯 Development Goals
 
@@ -152,7 +150,7 @@ as a Lovelace resource, so installing the integration installs the card.
 
 ### Debug Mode
 ```typescript
-// Add to any card for debugging
+// Temporary debugging only: lint warns on console.log (no-console)
 console.log('Card config:', this.config);
 console.log('Home Assistant state:', this.hass);
 ```
