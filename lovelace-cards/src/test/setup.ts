@@ -15,29 +15,6 @@ export const createMockHass = () => ({
   language: 'en',
 });
 
-// Mock entity for PoE port testing
-export const createMockPoEEntity = (overrides = {}) => ({
-  entity_id: 'sensor.exaviz_poe_port_1',
-  state: 'active',
-  attributes: {
-    port_number: 1,
-    status: 'active',
-    enabled: true,
-    power_consumption_watts: 12.5,
-    voltage_volts: 48.0,
-    current_milliamps: 260,
-    connected_device: {
-      name: 'Test Camera',
-      device_type: 'IP Camera',
-      ip_address: '192.168.1.100',
-      mac_address: '00:11:22:33:44:55',
-      manufacturer: 'Test Corp',
-      power_class: 'Class 0 - 15.4W',
-    },
-    ...overrides,
-  },
-});
-
 // Setup DOM environment for Lit Element testing
 if (typeof window !== 'undefined') {
   // Basic Web Components support for testing

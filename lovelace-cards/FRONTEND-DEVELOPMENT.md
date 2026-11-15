@@ -5,7 +5,7 @@
 The Python integration (`custom_components/exaviz/`) is **LOCKED** and should **NOT** be modified:
 
 - ✅ **921 tests passing** - All backend functionality stable
-- ✅ **Entity structure locked** - `sensor.exaviz_*` pattern stable
+- ✅ **Entity ids stable** - see "Entity ids" below
 - ✅ **Local board management** - Direct PoE control on Cruiser/Interceptor boards
 - ✅ **Zero configuration** - Auto-detects board type and PoE ports
 - ✅ **Production ready** - Working on Cruiser board
@@ -185,19 +185,25 @@ console.log('Home Assistant state:', this.hass);
 
 ## 📋 Backend Integration Reference
 
-### Available Entities (READ-ONLY)
-- `sensor.exaviz_system_status` - VMS server status
-- `sensor.exaviz_camera_system` - Camera system overview
-- `sensor.exaviz_system_metrics` - Performance metrics
-- `sensor.exaviz_gateway_status` - Gateway device status
-- `sensor.exaviz_poe_system` - PoE switch overview
-- `sensor.exaviz_poe_port_*` - Individual PoE ports
+### Entity ids
+Per port, where `{set}` is `onboard`, `addon_0`, `addon_1`, ... and `{N}` is the port number (from 0):
+- `switch.{set}_port{N}` - PoE power for the port; the PoE card finds ports by this name
+- `sensor.{set}_port{N}_current` - power draw in W (the id says current; the milliamps are
+  the `current_milliamps` attribute)
+- `binary_sensor.{set}_port{N}_powered`, `binary_sensor.{set}_port{N}_plug` - power drawn, and something
+  plugged in
+- `button.{set}_port{N}_reset` - power-cycle the port
 
-### Available Services (READ-ONLY)
-- `exaviz.open_client` - Launch Exaviz client
-- `exaviz.refresh_data` - Refresh integration data
+Board-wide: `sensor.board_status` (the PoE card reads it) and `sensor.board_temperature`;
+`binary_sensor.zigbee_coordinator` on a Cruiser; `sensor.zigbee_radio` only for a board paired over the network
+(Home Assistant on another computer), not for a board running Home Assistant itself.
 
-**🚨 DO NOT MODIFY**: These entities and services are locked and stable.
+The full entity list for each setup the tests cover is in `tests_ha/golden/*.json`.
+
+### Actions
+See "Actions" in the top-level `README.md`.
+
+**🚨 DO NOT RENAME**: users' dashboards and automations use these entity ids.
 
 ---
 
