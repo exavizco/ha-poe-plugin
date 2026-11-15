@@ -1,14 +1,5 @@
 # 🎨 Frontend Development Guide
 
-## 🔒 Backend Integration: LOCKED & STABLE
-
-The Python integration (`custom_components/exaviz/`) is **LOCKED** and should **NOT** be modified:
-
-- ✅ **Entity ids stable** - see "Entity ids" below
-- ✅ **Local board management** - Direct PoE control on Cruiser/Interceptor boards
-- ✅ **Zero configuration** - Auto-detects board type and PoE ports
-- ✅ **Production ready** - Working on Cruiser board
-
 ## ✅ Frontend Cards: ACTIVE DEVELOPMENT
 
 Continue developing and enhancing the frontend cards:
