@@ -752,6 +752,41 @@ def test_proc_scan_ignores_sudo_and_other_commands(tmp_path):
         assert not switch_module._ip_link_in_proc("poe3")
 
 
+class _EndedWhileRead:
+    """/proc/<pid> whose process ended after its cmdline was opened: the
+    read fails with ESRCH (ProcessLookupError), not ENOENT."""
+
+    name = "41"
+
+    def __truediv__(self, _child: str) -> _EndedWhileRead:
+        return self
+
+    def read_bytes(self) -> bytes:
+        raise ProcessLookupError(3, "No such process")
+
+
+@pytest.mark.parametrize("stuck", [True, False])
+def test_proc_scan_skips_a_process_that_ended_meanwhile(tmp_path, stuck):
+    """Processes come and go while /proc is read: one listed may be gone
+    before its cmdline is read, and kernel threads have an empty cmdline.
+    Neither may end the scan or make it fail; a stuck `ip link` listed
+    after them is still found."""
+    processes = {2: []}  # a kernel thread: empty cmdline
+    if stuck:
+        processes[42] = ["ip", "link", "set", "poe3", "down"]
+    root = _fake_proc(tmp_path / "proc", processes)
+    (root / "2" / "cmdline").write_bytes(b"")
+    (root / "40").mkdir()  # listed, then ended: no cmdline any more
+    listing = MagicMock()
+    listing.iterdir.return_value = [
+        root / "self", root / "40", _EndedWhileRead(), root / "2",
+    ] + (
+        [root / "42"] if stuck else []
+    )
+    with patch.object(switch_module, "_PROC", listing):
+        assert switch_module._ip_link_in_proc("poe3") is stuck
+
+
 class _RefusingSudo:
     """A just-started sudo: it refuses the first `refusals` signals; its
     `ip` ends on the first SIGTERM that gets through (never, by default)."""
