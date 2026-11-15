@@ -447,6 +447,62 @@ async def test_ip_link_that_finishes_as_it_is_stopped_counts_as_done(tmp_path):
         hung.cleanup()
 
 
+class _EndedBeforeTheStop:
+    """An `ip link` whose reply never came in time, and which had ended by
+    the time it was told to stop: every signal finds no process."""
+
+    pid = 4242
+
+    def __init__(self, returncode: int) -> None:
+        self.returncode: int | None = None
+        self._final = returncode
+
+    async def communicate(self):
+        await asyncio.Event().wait()  # times out
+
+    def _gone(self) -> None:
+        self.returncode = self._final
+        raise ProcessLookupError
+
+    terminate = kill = _gone
+
+    async def wait(self) -> int:
+        return self.returncode
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sudo", [True, False])
+@pytest.mark.parametrize(("returncode", "result"), [(0, True), (1, False)])
+async def test_ip_link_that_ended_before_the_stop_does_not_block_the_port(
+    sudo, returncode, result
+):
+    """It timed out but had ended before the stop's signal. It is not stuck:
+    the result follows its exit status, and the next run on the port goes
+    ahead instead of being refused as "has not ended"."""
+    runs: list[str] = []
+
+    async def exec_(*argv, **kwargs):
+        runs.append(argv[-1])
+        if argv[-1] == "down":
+            return _EndedBeforeTheStop(returncode)
+        done = MagicMock(returncode=0, pid=4343)
+        done.communicate = AsyncMock(return_value=(b"", b""))
+        return done
+
+    argv = (lambda *a: ("sudo", *a)) if sudo else (lambda *a: a)
+    timeout, stop_wait = _fast_stop()
+    with patch("asyncio.create_subprocess_exec", exec_), \
+         patch.object(switch_module, "sudo_argv", argv), \
+         patch.object(switch_module, "IP_LINK_TIMEOUT", 0.1), stop_wait, \
+         patch.dict(switch_module._stuck_ip_link, clear=True):
+        assert await asyncio.wait_for(
+            ExavizPoEPortSwitch._run_ip_link("poe3", "down"), timeout=10
+        ) is result
+        assert switch_module._stuck_ip_link == {}
+        assert await ExavizPoEPortSwitch._run_ip_link("poe3", "up") is True
+    assert runs == ["down", "up"]
+
+
 @pytest.mark.asyncio
 async def test_ip_link_under_sudo_that_ignores_sigterm_is_reported_not_stopped(
     tmp_path, caplog
