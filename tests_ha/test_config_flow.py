@@ -353,11 +353,19 @@ async def test_t26_pair_errors_stay_on_step(hass, board, reply, error):
 
 @pytest.mark.parametrize(
     ("header", "shown"),
-    [("60", "60"), ("15", "15"), (None, "60"), ("soon", "60"), ("1.5", "60")],
+    [
+        ("60", "60"),
+        ("15", "15"),
+        (None, "60"),
+        ("soon", "60"),
+        ("1.5", "60"),
+        # A board still refusing while it says 0 gets the 60 s wait, not "Wait 0".
+        ("0", "60"),
+    ],
 )
 async def test_t26_too_many_attempts_shows_retry_after(hass, board, header, shown):
     """The board's wait is shown; with no usable Retry-After the text still
-    names a wait (60 s), never "Wait  seconds"."""
+    names a wait (60 s), never "Wait None seconds"."""
     reply = case("pair_429")
     if header is None:
         del reply["headers"]["Retry-After"]
