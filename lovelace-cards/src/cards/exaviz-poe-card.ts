@@ -175,6 +175,13 @@ export class ExavizPoECard extends LitElement {
 
   private async _togglePort(portConfig: any): Promise<void> {
     const portNumber = portConfig.port;
+
+    // HA drops a call to an unavailable or missing switch without an
+    // error, so the wait below would spin for 10 s and change nothing.
+    const switchState = this.hass.states[portConfig.switchEntity];
+    if (!switchState || switchState.state === 'unavailable') {
+      return;
+    }
     
     // Add to loading set
     this._loadingPorts.add(portNumber);
