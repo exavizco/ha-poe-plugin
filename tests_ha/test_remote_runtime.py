@@ -140,7 +140,8 @@ async def test_t19_no_ports_at_first_read_is_not_ready(hass, board):
 
 async def test_t19_ports_but_no_port_count_at_first_read_is_not_ready(hass, board):
     """A first /board with no usable port count is still the startup window,
-    even if /poe/ports already lists ports: never set up with 0 ports."""
+    even if /poe/ports already lists ports: never load with a port count of 0
+    (Board Status would read "No PoE Detected")."""
     startup = case("board")
     del startup["body"]["total_poe_ports"]
     board.reply("GET", "/board", startup)

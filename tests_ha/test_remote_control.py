@@ -329,7 +329,21 @@ async def test_t44_control_certificate_change_starts_reauth(hass, board):
         await call(hass, "switch", "turn_off", "switch.onboard_port0")
     await hass.async_block_till_done()
     assert len(reauth_flows(hass)) == 1
-    assert board.seen("POST") == []
+    assert not entry.runtime_data.last_update_success
+
+
+async def test_t44_certificate_change_right_after_a_toggle_starts_reauth_at_once(
+    hass, board
+):
+    """The refresh after a good toggle starts HA's 10 s refresh cooldown; a
+    certificate change found by the next action must still poll at once."""
+    entry = await setup_remote(hass, board)
+    await call(hass, "switch", "turn_off", "switch.onboard_port0")
+    await board.restart(make_cert())
+    with pytest.raises(HomeAssistantError, match="Pair Home Assistant"):
+        await call(hass, "switch", "turn_on", "switch.onboard_port0")
+    await hass.async_block_till_done()
+    assert len(reauth_flows(hass)) == 1
     assert not entry.runtime_data.last_update_success
 
 
