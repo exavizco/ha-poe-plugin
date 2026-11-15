@@ -172,7 +172,7 @@ async def test_t07_retry_after(board, session):
         pytest.param("9" * 5000, id="past-int-digit-limit"),
     ],
 )
-async def test_t07_retry_after_not_ascii_seconds_is_no_wait(board, session, value):
+async def test_t07_retry_after_isdigit_but_not_seconds_is_no_wait(board, session, value):
     """str.isdigit() is true for each of these, but none is a Retry-After
     a board means: int() raises on the first and last, and the middle is
     not HTTP's ASCII DIGIT. Each must read as no wait, not escape pairing."""
