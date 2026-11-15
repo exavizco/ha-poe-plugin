@@ -5,7 +5,7 @@
 The Python integration (`custom_components/exaviz/`) is **LOCKED** and should **NOT** be modified:
 
 - ✅ **921 tests passing** - All backend functionality stable
-- ✅ **Entity structure locked** - `sensor.exaviz_*` pattern stable
+- ✅ **Entity ids stable** - see "Entity ids" below
 - ✅ **Local board management** - Direct PoE control on Cruiser/Interceptor boards
 - ✅ **Zero configuration** - Auto-detects board type and PoE ports
 - ✅ **Production ready** - Working on Cruiser board
@@ -186,10 +186,12 @@ console.log('Home Assistant state:', this.hass);
 ## 📋 Backend Integration Reference
 
 ### Entity ids
-Per port, where `{set}` is `onboard`, `addon_0`, `addon_1`, ... and `{N}` is the port number:
+Per port, where `{set}` is `onboard`, `addon_0`, `addon_1`, ... and `{N}` is the port number (from 0):
 - `switch.{set}_port{N}` - PoE power for the port; the PoE card finds ports by this name
-- `sensor.{set}_port{N}_current` - port current
-- `binary_sensor.{set}_port{N}_powered`, `binary_sensor.{set}_port{N}_plug` - power and link
+- `sensor.{set}_port{N}_current` - power draw in W (the id says current; the milliamps are
+  the `current_milliamps` attribute)
+- `binary_sensor.{set}_port{N}_powered`, `binary_sensor.{set}_port{N}_plug` - power drawn, and something
+  plugged in
 - `button.{set}_port{N}_reset` - power-cycle the port
 
 Board-wide: `sensor.board_status` (the PoE card reads it) and `sensor.board_temperature`;
