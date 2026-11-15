@@ -23,7 +23,8 @@ from .switch import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# One port action at a time, so two cannot race on the board.
+# One press at a time (Home Assistant's per-platform limit). A reset and a
+# switch action on the same port also take turns, through _port_action_lock.
 PARALLEL_UPDATES = 1
 
 # How long a reset keeps the port's power off.
@@ -36,6 +37,9 @@ RESET_POWER_OFF_SECONDS = 3
 # once. A reset whose `ip link` steps hang (each capped at 14 s, plus a
 # wait for the port's turn) can outlast the first wait; it is then
 # cancelled, and its cancel path turns the power on before any `ip link`.
+# A reset can first wait for a switch action or an earlier reset on the
+# same port; one still waiting when the first wait ends is cancelled before
+# it has cut the power, and sends nothing.
 # The stop is held for at most twice this, inside Home Assistant's 100 s.
 RESET_STOP_WAIT_SECONDS = 30
 
