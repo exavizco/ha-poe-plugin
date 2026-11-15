@@ -57,11 +57,11 @@ async function click(card: Card, port: number, type: 'click' | 'contextmenu' = '
 }
 
 // HA hands the card a new hass object on every state change.
-function setSwitch(card: Card, port: number, state: string): void {
-  card.hass = {
-    ...card.hass,
-    states: { ...card.hass.states, [`switch.onboard_port${port}`]: { state } },
-  };
+function setSwitch(card: Card, port: number, state: string | null): void {
+  const states = { ...card.hass.states };
+  if (state === null) delete states[`switch.onboard_port${port}`];
+  else states[`switch.onboard_port${port}`] = { state };
+  card.hass = { ...card.hass, states };
 }
 
 // Fake timers in every test, run out at the end, so no toggle's 10 s wait
@@ -106,6 +106,32 @@ describe('port click', () => {
     expect(callService).not.toHaveBeenCalled();
     expect(portEl(card, 1).classList).toContain('selected');
     expect(portEl(card, 0).classList).not.toContain('selected');
+  });
+
+  // A read-only pairing, a board that stopped answering, or a switch
+  // removed since the card drew its ports: HA drops a service call to it
+  // without an error, so the card must not send one and spin for 10 s.
+  it.each([
+    ['an unavailable', 'unavailable'],
+    ['a missing', null],
+  ])('%s switch is not sent a toggle and shows no spinner', async (_case, state) => {
+    const callService = vi.fn().mockResolvedValue(undefined);
+    const card = await mount(callService);
+    setSwitch(card, 0, state);
+    await card.updateComplete;
+
+    await click(card, 0);
+    await click(card, 0);
+
+    expect(callService).not.toHaveBeenCalled();
+    expect(portEl(card, 0).querySelector('.spinner')).toBeNull();
+
+    // Once it is back, the next click toggles it again.
+    setSwitch(card, 0, 'on');
+    await click(card, 0);
+    expect(callService).toHaveBeenCalledWith('switch', 'turn_off', {
+      entity_id: 'switch.onboard_port0',
+    });
   });
 
   it('a right-click presses that port reset button and never switches it', async () => {
