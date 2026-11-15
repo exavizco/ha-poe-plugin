@@ -164,6 +164,27 @@ async def test_t07_retry_after(board, session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param("\u00b2", id="superscript-two"),
+        pytest.param("\u0661\u0665", id="arabic-indic-15"),
+        pytest.param("9" * 5000, id="past-int-digit-limit"),
+    ],
+)
+async def test_t07_retry_after_not_ascii_seconds_is_no_wait(board, session, value):
+    """str.isdigit() is true for each of these, but none is a Retry-After
+    a board means: int() raises on the first and last, and the middle is
+    not HTTP's ASCII DIGIT. Each must read as no wait, not escape pairing."""
+    reply = case("pair_429")
+    reply["headers"] = {"Retry-After": value}
+    board.reply("POST", "/ha/pair", reply)
+    with pytest.raises(TooManyAttempts) as err:
+        await client(session, board).pair("ABCD-EFGH")
+    assert err.value.retry_after is None
+
+
+@pytest.mark.asyncio
 async def test_t07_refused_and_timeout(board, session):
     with refusing_port() as port:
         c = RemoteClient(

@@ -312,7 +312,11 @@ class RemoteClient:
                     raise ProtocolError(f"{method} {path}: redirect {status}")
                 if status == 429:
                     retry = resp.headers.get("Retry-After", "")
-                    raise TooManyAttempts(int(retry) if retry.isdigit() else None)
+                    try:
+                        wait = int(retry) if retry.isascii() and retry.isdigit() else None
+                    except ValueError:  # more digits than int() will read
+                        wait = None
+                    raise TooManyAttempts(wait)
                 if status in _STATUS_ERRORS:
                     raise _STATUS_ERRORS[status](f"{method} {path}: {status}")
                 if status >= 500:
