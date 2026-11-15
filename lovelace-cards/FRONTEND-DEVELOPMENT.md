@@ -16,18 +16,10 @@ The Python integration (`custom_components/exaviz/`) is **LOCKED** and should **
 
 Continue developing and enhancing the frontend cards:
 
-### 🎯 Current Working Cards
+### 🎯 Current Card
 
-1. **ExavizStatusCard** - VMS server status with beautiful dark theming
-2. **ExavizCameraStatusCard** - Camera system overview with counts
-3. **ExavizGaugeCard** - Animated circular progress indicators
-4. **ExavizSystemMetricsCard** - Performance charts and metrics
-5. **ExavizPoEPortCard** - Individual PoE port monitoring
-
-### 🚧 Development Templates
-
-1. **ExavizEventsCard** - Event timeline (ready for customization)
-2. **ExavizPoEManagementCard** - Full PoE switch management
+The bundle registers one card, **ExavizPoECard** (`custom:exaviz-poe-card`, source
+`src/cards/exaviz-poe-card.ts`): the PoE port grid, port detail panel, power toggle and reset.
 
 ## 🛠️ Development Workflow
 
@@ -50,16 +42,11 @@ npm run lint         # ESLint validation
 ```
 lovelace-cards/
 ├── src/
-│   ├── cards/           # 🎨 ACTIVE: Card components
-│   │   ├── exaviz-status-card.ts
-│   │   ├── exaviz-camera-status-card.ts
-│   │   ├── exaviz-gauge-card.ts
-│   │   ├── exaviz-system-metrics-card.ts
-│   │   ├── exaviz-poe-port-card.ts
-│   │   ├── exaviz-events-card.ts      # Template
-│   │   └── exaviz-poe-management-card.ts # Template
-│   ├── types/           # TypeScript definitions
-│   ├── test/            # Test utilities
+│   ├── cards/           # 🎨 ACTIVE: the PoE card and its tests
+│   │   └── exaviz-poe-card.ts
+│   ├── assets/images/   # Logos, copied next to the bundle at build time
+│   ├── types/           # TypeScript definitions (homeassistant.ts)
+│   ├── test/            # Test setup and fixtures
 │   └── index.ts         # Card registration
 ├── package.json         # Dependencies
 ├── rollup.config.js     # Build configuration
@@ -110,14 +97,13 @@ lovelace-cards/
 ### Test Examples
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { ExavizStatusCard } from '../cards/exaviz-status-card';
+import './exaviz-poe-card';
 
-describe('ExavizStatusCard', () => {
-  it('should render with valid config', () => {
-    const card = new ExavizStatusCard();
-    const config = { type: 'custom:exaviz-status-card' };
-    
-    expect(() => card.setConfig(config)).not.toThrow();
+describe('exaviz-poe-card', () => {
+  it('accepts a valid config', () => {
+    const card = document.createElement('exaviz-poe-card') as any;
+
+    expect(() => card.setConfig({ type: 'custom:exaviz-poe-card' })).not.toThrow();
   });
 });
 ```
@@ -126,28 +112,16 @@ describe('ExavizStatusCard', () => {
 
 ### Build & Deploy
 ```bash
-# Build optimized bundle
+# Build the bundle into custom_components/exaviz/www/exaviz-cards.js
 npm run build
-
-# Copy to Home Assistant
-cp dist/exaviz-cards.js ~/homeassistant/www/custom_components/exaviz/www/
-
-# Or deploy to Cruiser board (use deploy script, not manual scp)
-# ./scripts/deploy-unified.sh
 ```
 
-### Development Testing
-Use `frontend-development-dashboard.yaml` for testing cards:
-```bash
-# Copy to HA for testing
-cp frontend-development-dashboard.yaml ~/homeassistant/homeassistant-config/
-```
+Commit the rebuilt bundle with the source change. The integration serves it and registers it
+as a Lovelace resource, so installing the integration installs the card.
 
 ## 🎯 Development Goals
 
 ### Immediate Goals
-- [ ] Complete ExavizEventsCard implementation
-- [ ] Build full PoE management interface
 - [ ] Add more animation effects
 - [ ] Enhance mobile responsiveness
 
