@@ -6,7 +6,7 @@
 // Port actions through the rendered card: what a click sends to Home
 // Assistant, and that a port's spinner always ends.
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExavizPoECard } from './exaviz-poe-card';
 
 type States = Record<string, { state: string; attributes?: Record<string, unknown> }>;
@@ -36,7 +36,8 @@ async function mount(callService: ReturnType<typeof vi.fn>): Promise<Card> {
   card.setConfig({ type: 'custom:exaviz-poe-card', poe_set: 'onboard' });
   card.hass = { states: STATES, callService };
   document.body.appendChild(card);
-  await card.updateComplete;
+  // Ports are discovered in firstUpdated, which can ask for one more render.
+  while (!(await card.updateComplete));
   return card;
 }
 
@@ -63,7 +64,14 @@ function setSwitch(card: Card, port: number, state: string): void {
   };
 }
 
-afterEach(() => {
+// Fake timers in every test, run out at the end, so no toggle's 10 s wait
+// outlives its test.
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(async () => {
+  await vi.runAllTimersAsync();
   document.body.innerHTML = '';
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -86,6 +94,18 @@ describe('port click', () => {
     expect(callService).toHaveBeenCalledWith('switch', service, {
       entity_id: `switch.onboard_port${port}`,
     });
+  });
+
+  it('with one port selected, a click on another port only selects that one', async () => {
+    const callService = vi.fn().mockResolvedValue(undefined);
+    const card = await mount(callService);
+
+    await click(card, 0);
+    await click(card, 1);
+
+    expect(callService).not.toHaveBeenCalled();
+    expect(portEl(card, 1).classList).toContain('selected');
+    expect(portEl(card, 0).classList).not.toContain('selected');
   });
 
   it('a right-click presses that port reset button and never switches it', async () => {
@@ -125,12 +145,12 @@ describe('port spinner', () => {
   });
 
   it('stays until the switch reports the new state', async () => {
-    vi.useFakeTimers();
     const card = await mount(vi.fn().mockResolvedValue(undefined));
 
     await click(card, 0);
     await click(card, 0);
     expect(portEl(card, 0).querySelector('.spinner')).not.toBeNull();
+    expect(portEl(card, 1).querySelector('.spinner')).toBeNull();
 
     await vi.advanceTimersByTimeAsync(1000);
     await card.updateComplete;
@@ -143,7 +163,6 @@ describe('port spinner', () => {
   });
 
   it('gives up after 10 s when the switch never changes', async () => {
-    vi.useFakeTimers();
     const card = await mount(vi.fn().mockResolvedValue(undefined));
 
     await click(card, 0);
