@@ -40,7 +40,8 @@ npm run lint         # ESLint validation
 lovelace-cards/
 ├── src/
 │   ├── cards/           # 🎨 ACTIVE: the PoE card and its tests
-│   │   └── exaviz-poe-card.ts
+│   │   ├── exaviz-poe-card.ts
+│   │   └── exaviz-poe-card*.test.ts   # Vitest tests
 │   ├── assets/images/   # Logos, copied next to the bundle at build time
 │   ├── types/           # TypeScript definitions (homeassistant.ts)
 │   ├── test/            # Test setup and fixtures
