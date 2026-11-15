@@ -166,7 +166,8 @@ async def test_unload_waits_for_a_running_reset(hass, caplog):
 
 async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
     """A cancelled press frees the button, so a second reset of the same
-    port can start and end while the first still has the power off."""
+    port can be pressed while the first still has the power off. The second
+    waits for the first, and the stop waits for both."""
     hardware = SlowLinkHardware()
     async with _patched(hardware):
         await _setup(hass, hardware)
@@ -179,8 +180,8 @@ async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
         first.cancel()
         await asyncio.sleep(0)
 
-        # The second reset fails at once: the controller does not take the
-        # power cut. It ends while the first is still waiting.
+        # The second reset fails at once when it runs: the controller does
+        # not take the power cut.
         real_send = hardware.send
 
         async def refuse_disable(command: str) -> bool:
@@ -190,17 +191,24 @@ async def test_stop_waits_for_an_older_reset_still_running(hass, caplog):
             return await real_send(command)
 
         hardware.send = refuse_disable
-        with pytest.raises(HomeAssistantError, match="did not disable port poe1"):
-            await hass.services.async_call(
+        second = hass.async_create_task(
+            hass.services.async_call(
                 "button", "press", {"entity_id": "button.onboard_port1_reset"},
                 blocking=True,
             )
-        assert "Successfully reset PoE port poe1" not in caplog.text
+        )
+        await asyncio.sleep(0.05)
+        # The second has sent nothing while the first has the power off.
+        assert hardware.calls == FULL_RESET[:2]
 
         await hass.async_stop()
 
         assert "Successfully reset PoE port poe1" in caplog.text
         assert "still running after final writes" not in caplog.text
+        # The second ran only after the first had turned the port back on.
+        assert hardware.calls == FULL_RESET + ["disable-port 1 1", "enable-port 1 1"]
+        with pytest.raises(HomeAssistantError, match="did not disable port poe1"):
+            await second
 
 
 async def test_stop_turns_power_back_on_for_a_hung_reset(hass, caplog):
@@ -356,3 +364,67 @@ async def test_stop_during_an_unload_cancels_a_hung_reset_once(hass, caplog):
         assert len(stuck) == 1
         stuck[0].cancel()
         await asyncio.wait([*stuck, press, unload])
+
+
+async def test_turn_off_during_a_reset_leaves_the_port_off(hass):
+    """Through the services: a turn-off sent while a reset has the power
+    off is done after the reset, not undone by it."""
+    hardware = SlowLinkHardware()
+    async with _patched(hardware):
+        await _setup(hass, hardware)
+        press = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+        await hass.services.async_call(
+            "switch", "turn_off", {"entity_id": "switch.onboard_port1"}, blocking=True
+        )
+        await press
+        assert hardware.calls == FULL_RESET + ["disable-port 1 1", "poe1 down"]
+
+
+async def test_stop_turns_power_back_on_for_a_hung_reset_with_another_queued(hass):
+    """The older reset hangs with the power off and a newer press waits
+    behind it. The stop must cancel the older one too, so its cancel path
+    turns the power on; the queued one never cuts the power."""
+    hardware = SlowLinkHardware(hang_link=True)
+    async with _patched(hardware, stop_wait=0.2):
+        await _setup(hass, hardware)
+        stage_at_power_on: list[CoreState] = []
+        real_send = hardware.send
+
+        async def send(command: str) -> bool:
+            if command.startswith("enable-port"):
+                stage_at_power_on.append(hass.state)
+            return await real_send(command)
+
+        hardware.send = send
+        first = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await hardware.power_off.wait()
+        first.cancel()
+        await asyncio.sleep(0)
+        second = hass.async_create_task(
+            hass.services.async_call(
+                "button", "press", {"entity_id": "button.onboard_port1_reset"}, blocking=True
+            )
+        )
+        await asyncio.sleep(0.05)
+
+        await hass.async_stop()
+
+        assert hardware.calls == [
+            "disable-port 1 1", "poe1 down", "enable-port 1 1", "poe1 up",
+        ]
+        # Turned on while the stop waited, not by the last stage's cancel.
+        assert stage_at_power_on == [CoreState.stopping]
+        # The older cycle is still stuck in `ip link up`, with the power on.
+        stuck = _reset_cycles()
+        assert len(stuck) == 1
+        stuck[0].cancel()
+        await asyncio.wait([*stuck, first, second])
