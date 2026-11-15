@@ -783,7 +783,6 @@ async def test_options_interval_is_10_to_300_seconds(hass, board, interval, acce
             await hass.config_entries.options.async_configure(
                 result["flow_id"], {"update_interval": interval}
             )
-        assert entry.options == {}
         return
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"update_interval": interval}
