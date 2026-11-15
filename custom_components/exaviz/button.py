@@ -14,7 +14,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import ExavizPoEBaseEntity, async_setup_port_entities
 from .coordinator import ExavizDataUpdateCoordinator
-from .switch import ExavizPoEPortSwitch, _ip_link_blocked, _ip_link_lock
+from .switch import (
+    ExavizPoEPortSwitch,
+    _ip_link_blocked,
+    _ip_link_lock,
+    _port_action_lock,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -264,6 +269,16 @@ class ExavizPoEPortResetButton(ExavizPoEBaseEntity, ButtonEntity):
         return sent
 
     async def _power_cycle_onboard_port(self) -> None:
+        """Power-cycle the port, holding it against switch actions.
+
+        A switch action on the port waits until the whole cycle is done,
+        and the cycle waits for one already running, so a turn-off during
+        the settle is not undone when the cycle turns the port back on.
+        """
+        async with _port_action_lock(f"poe{self._port_number}"):
+            await self._power_cycle_onboard_port_alone()
+
+    async def _power_cycle_onboard_port_alone(self) -> None:
         """disable-port → link down → settle → link up → enable-port.
 
         Bare chip 'reset' is forbidden (mass re-power of siblings). Once

@@ -235,6 +235,78 @@ async def test_onboard_reset_fails_when_power_restore_fails():
     button.coordinator.async_request_refresh.assert_awaited_once()
 
 
+def _patch_port(calls: list[str], hold: str, held: asyncio.Event, go_on: asyncio.Event):
+    """Record writes and `ip link` runs; `hold` ("settle" or a command
+    prefix) waits on `go_on` once, after setting `held`."""
+
+    async def wait_once() -> None:
+        if not held.is_set():
+            held.set()
+            await go_on.wait()
+
+    async def send(command: str) -> bool:
+        if command.startswith(hold):
+            await wait_once()
+        calls.append(command)
+        return True
+
+    async def link(interface: str, action: str) -> bool:
+        calls.append(f"link {action}")
+        return True
+
+    async def settle(delay):
+        if hold == "settle":
+            await wait_once()
+
+    return (
+        patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send),
+        patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link),
+        patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle),
+    )
+
+
+@pytest.mark.asyncio
+async def test_turn_off_during_a_reset_runs_after_it():
+    """A turn-off sent while a reset waits with the port off used to run at
+    once, and the reset then turned the port back on. It now waits for the
+    reset, so the port ends off as asked."""
+    calls: list[str] = []
+    held, go_on = asyncio.Event(), asyncio.Event()
+    real_sleep = asyncio.sleep
+    p1, p2, p3 = _patch_port(calls, "settle", held, go_on)
+    with p1, p2, p3:
+        reset = asyncio.create_task(_button()._power_cycle_onboard_port())
+        await asyncio.wait_for(held.wait(), 5)
+        off = asyncio.create_task(_switch().async_turn_off())
+        for _ in range(10):
+            await real_sleep(0)
+        during = list(calls)
+        go_on.set()
+        await asyncio.wait_for(asyncio.gather(reset, off), 5)
+    assert during == FULL_RESET[:2]  # the turn-off sent nothing meanwhile
+    assert calls == FULL_RESET + ["disable-port 1 0", "link down"]
+
+
+@pytest.mark.asyncio
+async def test_reset_during_a_turn_off_waits_for_it():
+    """A reset pressed while a turn-off is writing starts after the turn-off."""
+    calls: list[str] = []
+    held, go_on = asyncio.Event(), asyncio.Event()
+    real_sleep = asyncio.sleep
+    p1, p2, p3 = _patch_port(calls, "disable-port", held, go_on)
+    with p1, p2, p3:
+        off = asyncio.create_task(_switch().async_turn_off())
+        await asyncio.wait_for(held.wait(), 5)
+        reset = asyncio.create_task(_button()._power_cycle_onboard_port())
+        for _ in range(10):
+            await real_sleep(0)
+        during = list(calls)
+        go_on.set()
+        await asyncio.wait_for(asyncio.gather(off, reset), 5)
+    assert during == []  # the reset sent nothing meanwhile
+    assert calls == ["disable-port 1 0", "link down"] + FULL_RESET
+
+
 @pytest.mark.parametrize(
     ("cancel_at", "restore_ok"),
     [("disable-port", True), ("settle", True), ("settle", False)],
