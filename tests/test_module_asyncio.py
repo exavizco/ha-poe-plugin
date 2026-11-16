@@ -35,13 +35,19 @@ def test_an_unknown_name_is_refused():
         patch_module_asyncio(button_module, sleeep=_settle)
 
 
-def test_a_faked_spawn_in_one_module_does_not_answer_in_another():
-    """Faking poe_readers' subprocesses must not fake the coordinator's or
-    the board detector's, which a process-wide patch did (#43)."""
+SPAWNING_MODULES = [board_detector, coordinator, poe_readers, switch_module]
+
+
+@pytest.mark.parametrize("module", SPAWNING_MODULES, ids=lambda m: m.__name__)
+def test_a_faked_spawn_in_one_module_does_not_answer_in_another(module):
+    """Faking one module's subprocesses must not fake another's, which a
+    process-wide patch did (#43)."""
     real_spawn = asyncio.create_subprocess_exec
     fake = AsyncMock()
-    with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
-        assert poe_readers.asyncio.create_subprocess_exec is fake
-        assert coordinator.asyncio.create_subprocess_exec is real_spawn
-        assert board_detector.asyncio.create_subprocess_exec is real_spawn
+    with patch_module_asyncio(module, create_subprocess_exec=fake):
+        assert module.asyncio.create_subprocess_exec is fake
+        for other in SPAWNING_MODULES:
+            if other is not module:
+                assert other.asyncio.create_subprocess_exec is real_spawn
         assert asyncio.create_subprocess_exec is real_spawn
+    assert module.asyncio is asyncio

@@ -15,12 +15,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.exaviz import coordinator as coordinator_module
 from custom_components.exaviz.board_detector import BoardType
 from custom_components.exaviz.const import CONF_SCOPE, PLUGIN_VERSION, SCOPE_CONTROL
 from custom_components.exaviz.coordinator import (
     ExavizDataUpdateCoordinator,
     parse_esp32_info,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 pytestmark = pytest.mark.asyncio
 
@@ -268,7 +270,7 @@ async def test_cm_model_emmc_above_top_tier_is_unknown(coordinator, root):
 async def test_esp32_query_parses_reply_from_dev_pse(coordinator, root):
     put(root, "/dev/pse")
     fake = FakeExec({"bash": ESP32_INFO})
-    with patch("asyncio.create_subprocess_exec", fake):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         info = await coordinator._query_esp32_info()
     assert info["esp32_firmware_version"] == "1.1.2+c951f9d"
     assert info["board_serial"] == "CRU-000012"
@@ -280,7 +282,7 @@ async def test_esp32_query_parses_reply_from_dev_pse(coordinator, root):
 async def test_esp32_query_falls_back_to_ttyama3(coordinator, root):
     put(root, "/dev/ttyAMA3")
     fake = FakeExec({"bash": ESP32_INFO})
-    with patch("asyncio.create_subprocess_exec", fake):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         info = await coordinator._query_esp32_info()
     assert info["board_model_esp32"] == "Cruiser"
     assert fake.calls[0][2] == str(root / "dev/ttyAMA3")
@@ -288,14 +290,14 @@ async def test_esp32_query_falls_back_to_ttyama3(coordinator, root):
 
 async def test_esp32_query_no_device_runs_nothing(coordinator, root):
     fake = FakeExec({"bash": ESP32_INFO})
-    with patch("asyncio.create_subprocess_exec", fake):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         assert await coordinator._query_esp32_info() == {}
     assert fake.calls == []
 
 
 async def test_esp32_query_subprocess_error_returns_empty(coordinator, root):
     put(root, "/dev/pse")
-    with patch("asyncio.create_subprocess_exec", FakeExec(error=OSError("no stty"))):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=FakeExec(error=OSError("no stty"))):
         assert await coordinator._query_esp32_info() == {}
 
 
@@ -338,7 +340,7 @@ async def test_gather_cruiser(coordinator, root):
     # The ESP32 serial wins, so the device-tree board name is not used.
     put(root, "/proc/device-tree/chosen/board", b"cruiser-raspberrypi-cm5\x00")
     fake = FakeExec({"uname": KERNEL, "dpkg-query": DPKG_OUT, "bash": ESP32_INFO})
-    with patch("asyncio.create_subprocess_exec", fake):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         info = await coordinator._gather_system_info()
 
     info.pop("cm_model")  # covered by the part-number tests above
@@ -370,7 +372,7 @@ async def test_gather_interceptor(coordinator, root):
     put(root, "/proc/device-tree/chosen/board", b"interceptor-raspberrypi-cm4\x00")
     # dpkg-query output with a stray line and an unrelated package.
     fake = FakeExec({"uname": KERNEL, "dpkg-query": "exaviz-dkms 1.4.2\nbroken\nfoo 1.0\n"})
-    with patch("asyncio.create_subprocess_exec", fake):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         info = await coordinator._gather_system_info()
 
     assert info["compute_module"] == "Raspberry Pi CM4"
@@ -390,7 +392,7 @@ async def test_gather_cm3_without_chosen_board(coordinator, root):
     put(root, "/proc/device-tree/compatible", COMPAT_CM3)
     put(root, "/proc/meminfo", "MemTotal:         948304 kB\n")
     put(root, "/etc/os-release", 'NAME="Debian GNU/Linux"\n')
-    with patch("asyncio.create_subprocess_exec", FakeExec()):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=FakeExec()):
         info = await coordinator._gather_system_info()
     assert info["compute_module"] == "Raspberry Pi CM3"
     assert info["cm_model"].startswith("CM30")
@@ -402,7 +404,7 @@ async def test_gather_cm3_without_chosen_board(coordinator, root):
 async def test_gather_unknown_module_has_no_cm_model(coordinator, root):
     coordinator.board_type = BoardType.CRUISER
     put(root, "/proc/device-tree/compatible", b"sinovoip,bpi-cm4\x00")
-    with patch("asyncio.create_subprocess_exec", FakeExec(error=OSError("not found"))):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=FakeExec(error=OSError("not found"))):
         info = await coordinator._gather_system_info()
     assert info == {
         "plugin_version": PLUGIN_VERSION,
