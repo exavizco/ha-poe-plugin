@@ -455,9 +455,10 @@ class RemoteClient:
         ):
             raise ProtocolError("POST /ha/pair: incomplete reply")
         # The user revokes this id on the board by name, so it is refused, not cut.
-        # Blank counts as missing.
+        # A blank token or id counts as missing.
         if (
-            not reply["token_id"].strip()
+            not reply["token"].strip()
+            or not reply["token_id"].strip()
             or len(reply["token_id"]) > MAX_BOARD_STRING_CHARS
         ):
             raise ProtocolError("POST /ha/pair: incomplete reply")

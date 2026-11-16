@@ -599,6 +599,18 @@ async def test_43_pair_reply_with_a_blank_token_id_is_a_protocol_error(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("token", ["", " ", " \t\n"])
+async def test_43_pair_reply_with_a_blank_token_is_a_protocol_error(
+    board, session, token
+):
+    reply = case("pair_201")
+    reply["body"]["token"] = token
+    board.reply("POST", "/ha/pair", reply)
+    with pytest.raises(ProtocolError, match="incomplete reply"):
+        await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("length", [257, 500_000])
 async def test_43_pair_reply_scope_is_cut_to_the_cap(board, session, length):
     reply = case("pair_201")
