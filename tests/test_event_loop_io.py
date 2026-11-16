@@ -23,6 +23,7 @@ from custom_components.exaviz.board_detector import BoardType
 from custom_components.exaviz.const import ARP_SCAN_OUI_FILE, CONF_SWITCH_MODE_DISCOVERY
 from custom_components.exaviz.coordinator import ExavizDataUpdateCoordinator
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
+from tests.module_asyncio import patch_module_asyncio
 
 from .test_poe_readers_parsing import (
     ESP32_PORT_0_0,
@@ -131,7 +132,7 @@ def local_coordinator(mock_hass, mock_config_entry):
 async def test_local_poll_touches_the_filesystem_off_the_loop(board_root, local_coordinator):
     fake = _fake_exec()
     with patch("custom_components.exaviz.utils.os.geteuid", return_value=0), \
-         patch("asyncio.create_subprocess_exec", fake), \
+         patch_module_asyncio(poe_readers, create_subprocess_exec=fake), \
          patch.object(poe_readers, "_detect_bosch_camera", return_value=None), \
          loop_io_recorder() as on_loop:
         data = await local_coordinator._async_update_data()
@@ -154,7 +155,8 @@ async def test_system_info_touches_the_filesystem_off_the_loop(board_root, local
         ("uname",): (b"6.12.0\n", 0),
         ("dpkg-query",): (b"", 0),
     })
-    with patch("asyncio.create_subprocess_exec", fake), loop_io_recorder() as on_loop:
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake), \
+         loop_io_recorder() as on_loop:
         info = await local_coordinator._gather_system_info()
 
     assert info["compute_module"] == "Raspberry Pi CM5"
@@ -176,7 +178,8 @@ async def test_proc_pse_header_touches_the_filesystem_off_the_loop(
 
 async def test_esp32_command_touches_the_filesystem_off_the_loop(board_root):
     fake = _fake_exec()
-    with patch("asyncio.create_subprocess_exec", fake), loop_io_recorder() as on_loop:
+    with patch_module_asyncio(switch_module, create_subprocess_exec=fake), \
+         loop_io_recorder() as on_loop:
         assert await ExavizPoEPortSwitch._send_esp32_command("enable-port 0 1") is True
     assert fake.ran("bash") == [
         ("bash", "-c", f"echo 'enable-port 0 1' > {board_root / 'dev/pse'}")
@@ -185,7 +188,7 @@ async def test_esp32_command_touches_the_filesystem_off_the_loop(board_root):
 
 
 async def test_single_port_esp32_stream_touches_the_filesystem_off_the_loop(board_root):
-    with patch("asyncio.create_subprocess_exec", _fake_exec()), \
+    with patch_module_asyncio(poe_readers, create_subprocess_exec=_fake_exec()), \
          loop_io_recorder() as on_loop:
         data = await poe_readers._try_read_cruiser_pse_data(4)
     assert data["state"] == "power-on"

@@ -13,6 +13,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+from custom_components.exaviz import switch as switch_module
+from tests.module_asyncio import patch_module_asyncio
+
 # The stand-in `ip`: writes its pid once its SIGTERM handling is set, then
 # hangs. argv: pid file, then "obey" SIGTERM, "ignore" it, or "exit0" on it
 # (as if it finished just as it was told to stop).
@@ -108,7 +111,7 @@ class HungIpLink:
             return proc
 
         # Each test starts with no `ip link` recorded as stuck, and leaves none.
-        with patch("asyncio.create_subprocess_exec", exec_), \
+        with patch_module_asyncio(switch_module, create_subprocess_exec=exec_), \
              patch("custom_components.exaviz.switch.sudo_argv", sudo_argv), \
              patch.dict("custom_components.exaviz.switch._stuck_ip_link", clear=True):
             yield

@@ -221,9 +221,10 @@ class TestRunArpScan:
     @pytest.mark.asyncio
     async def test_skips_scan_when_bridge_has_no_ipv4(self):
         # No IPv4 -> --localnet has no subnet; never spawn arp-scan.
+        spawn = AsyncMock()
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=False)), \
-             patch("asyncio.create_subprocess_exec") as spawn:
+             patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
             result = await _run_arp_scan("br0")
         assert result == {}
         spawn.assert_not_called()
@@ -234,7 +235,7 @@ class TestRunArpScan:
         spawn = AsyncMock(return_value=_fake_proc(ARP_SCAN_OUTPUT.encode()))
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
-             patch("asyncio.create_subprocess_exec", spawn):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
             import asyncio
             results = await asyncio.gather(*[_run_arp_scan("br0") for _ in range(8)])
         assert spawn.call_count == 1
@@ -246,7 +247,7 @@ class TestRunArpScan:
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
              patch("custom_components.exaviz.poe_readers.Path") as path_cls, \
-             patch("asyncio.create_subprocess_exec", spawn):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
             path_cls.return_value.exists.return_value = True
             await _run_arp_scan("br0")
         argv = spawn.call_args[0]
@@ -261,7 +262,7 @@ class TestRunArpScan:
         with patch("custom_components.exaviz.utils.os.geteuid", return_value=1000), \
              patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
-             patch("asyncio.create_subprocess_exec", spawn):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
             await _run_arp_scan("br0")
         argv = list(spawn.call_args[0])
         assert argv[0] == "sudo"
@@ -276,7 +277,7 @@ class TestRunArpScan:
         with patch("custom_components.exaviz.utils.os.geteuid", return_value=0), \
              patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
-             patch("asyncio.create_subprocess_exec", spawn):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
             await _run_arp_scan("br0")
         argv = list(spawn.call_args[0])
         assert argv[0] == "/usr/sbin/arp-scan"
@@ -289,7 +290,7 @@ class TestRunArpScan:
         spawn = AsyncMock(return_value=_fake_proc(b"", returncode=1))
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
-             patch("asyncio.create_subprocess_exec", spawn):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
             import asyncio
             results = await asyncio.gather(*[_run_arp_scan("br0") for _ in range(8)])
         assert spawn.call_count == 1
@@ -306,8 +307,11 @@ class TestRunArpScan:
 
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
-             patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
-             patch_module_asyncio(poe_readers, wait_for=fake_wait_for):
+             patch_module_asyncio(
+                 poe_readers,
+                 create_subprocess_exec=AsyncMock(return_value=proc),
+                 wait_for=fake_wait_for,
+             ):
             result = await _run_arp_scan("br0")
         assert result == {}
         proc.kill.assert_called_once()

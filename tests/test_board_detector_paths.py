@@ -233,7 +233,7 @@ async def test_addon_boards_read_only_the_first_lines(fake_root):
         runs.append((func, args, kwargs))
         return await real_to_thread(func, *args, **kwargs)
 
-    with patch.object(board_detector.asyncio, "to_thread", side_effect=to_thread):
+    with patch_module_asyncio(board_detector, to_thread=to_thread):
         assert await detect_addon_boards() == ["pse0", "pse1"]
     import subprocess
 

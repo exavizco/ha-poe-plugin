@@ -15,6 +15,7 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.exaviz import button as button_module
+from custom_components.exaviz import switch as switch_module
 from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
 from tests.hung_ip_link import HungIpLink
@@ -130,7 +131,7 @@ async def test_turn_on_and_off_succeed_quietly():
 
 @pytest.mark.asyncio
 async def test_run_ip_link_returns_false_when_it_cannot_start():
-    with patch("asyncio.create_subprocess_exec", AsyncMock(side_effect=OSError("no sudo"))):
+    with patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(side_effect=OSError("no sudo"))):
         assert await ExavizPoEPortSwitch._run_ip_link("poe0", "up") is False
 
 
@@ -144,7 +145,7 @@ async def test_turn_on_restores_power_when_ip_cannot_start():
         return True
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(side_effect=OSError("no sudo"))), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(side_effect=OSError("no sudo"))), \
          pytest.raises(HomeAssistantError, match="link did not come up"):
         await switch.async_turn_on()
     assert sent == ["enable-port 1 0"]
@@ -169,7 +170,7 @@ def _patch_button(esp32: dict[str, bool], link_rc: dict[str, int]):
 
     return calls, (
         patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send),
-        patch("asyncio.create_subprocess_exec", side_effect=exec_),
+        patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(side_effect=exec_)),
         patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0),
     )
 
@@ -647,7 +648,7 @@ async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path
         return None
 
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
-         patch("asyncio.create_subprocess_exec", side_effect=exec_), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(side_effect=exec_)), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
          patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
