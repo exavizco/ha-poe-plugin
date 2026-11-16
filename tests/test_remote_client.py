@@ -586,6 +586,38 @@ async def test_43_pair_reply_token_id_at_the_cap_is_kept_whole(board, session):
     assert got["token_id"] == "t" * 256
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("token_id", ["", " ", " \t\n"])
+async def test_43_pair_reply_with_a_blank_token_id_is_a_protocol_error(
+    board, session, token_id
+):
+    reply = case("pair_201")
+    reply["body"]["token_id"] = token_id
+    board.reply("POST", "/ha/pair", reply)
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("length", [257, 500_000])
+async def test_43_pair_reply_scope_is_cut_to_the_cap(board, session, length):
+    reply = case("pair_201")
+    reply["body"]["scope"] = "s" * length
+    board.reply("POST", "/ha/pair", reply)
+    got = await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+    assert got["scope"] == "s" * 256
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scope", ["poe_control", "poe_read", "s" * 256])
+async def test_43_pair_reply_scope_within_the_cap_is_kept_whole(board, session, scope):
+    reply = case("pair_201")
+    reply["body"]["scope"] = scope
+    board.reply("POST", "/ha/pair", reply)
+    got = await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+    assert got["scope"] == scope
+
+
 def _wire(name, pse, index):
     return {"name": name, "pse": pse, "index": index, "state": "disabled"}
 
