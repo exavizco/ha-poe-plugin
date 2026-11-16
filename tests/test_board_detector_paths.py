@@ -23,6 +23,7 @@ from custom_components.exaviz.board_detector import (
     detect_board_type,
     detect_onboard_poe,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 pytestmark = pytest.mark.asyncio
 
@@ -180,7 +181,7 @@ def _dpkg(versions: dict[str, tuple[int, bytes] | Exception]):
         proc.communicate = AsyncMock(return_value=(stdout, None))
         return proc
 
-    return argvs, patch("asyncio.create_subprocess_exec", side_effect=exec_)
+    return argvs, patch_module_asyncio(board_detector, create_subprocess_exec=AsyncMock(side_effect=exec_))
 
 
 async def test_prerequisites_all_installed(caplog):
