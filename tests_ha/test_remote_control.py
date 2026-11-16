@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -74,7 +75,13 @@ def no_subprocess():
     async def fail(*args, **kwargs):
         pytest.fail(f"remote control spawned {args}")
 
-    with patch.object(asyncio, "create_subprocess_exec", fail):
+    def fail_run(*args, **kwargs):
+        pytest.fail(f"remote control ran {args}")
+
+    with (
+        patch.object(asyncio, "create_subprocess_exec", fail),
+        patch.object(subprocess, "run", fail_run),
+    ):
         yield
 
 

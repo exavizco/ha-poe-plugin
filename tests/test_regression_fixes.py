@@ -82,9 +82,11 @@ class TestViaDeviceRegistration:
 
         mock_hass.config_entries.async_forward_entry_setups = track_forward
 
-        with patch("custom_components.exaviz.ExavizDataUpdateCoordinator", return_value=mock_coordinator):
-            with patch("custom_components.exaviz.dr.async_get", return_value=mock_device_reg):
-                await exaviz_init.async_setup_entry(mock_hass, mock_entry)
+        prereqs = {"all_ok": True, "missing": []}
+        with patch("custom_components.exaviz.check_prerequisites", AsyncMock(return_value=prereqs)):
+            with patch("custom_components.exaviz.ExavizDataUpdateCoordinator", return_value=mock_coordinator):
+                with patch("custom_components.exaviz.dr.async_get", return_value=mock_device_reg):
+                    await exaviz_init.async_setup_entry(mock_hass, mock_entry)
 
         assert call_order.index("device_create") < call_order.index("platform_forward")
 

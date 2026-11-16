@@ -78,7 +78,9 @@ class TestAsyncSetupEntryBasic:
         mock_entry = Mock()
         
         # Mock the coordinator class
-        with patch('custom_components.exaviz.ExavizDataUpdateCoordinator') as mock_coordinator_class:
+        prereqs = {"all_ok": True, "missing": []}
+        with patch('custom_components.exaviz.check_prerequisites', AsyncMock(return_value=prereqs)), \
+                patch('custom_components.exaviz.ExavizDataUpdateCoordinator') as mock_coordinator_class:
             mock_coordinator = AsyncMock()
             mock_coordinator.async_setup.return_value = False  # Simulate setup failure
             mock_coordinator_class.return_value = mock_coordinator
