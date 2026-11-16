@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.exaviz import poe_readers
 from custom_components.exaviz.poe_readers import (
     get_allocated_power_watts,
     read_pse_port_status,
@@ -13,6 +14,7 @@ from custom_components.exaviz.poe_readers import (
     _get_connected_device_from_arp,
     _detect_bosch_camera,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +49,9 @@ class TestReadPSEPortStatus:
     @pytest.mark.asyncio
     async def test_active_port(self):
         mock_result = MagicMock(stdout=PROC_PSE_SAMPLE, stderr="")
+        to_thread = AsyncMock(return_value=mock_result)
         with patch("pathlib.Path.exists", return_value=True), \
-             patch("asyncio.to_thread", return_value=mock_result):
+             patch_module_asyncio(poe_readers, to_thread=to_thread):
             result = await read_pse_port_status("pse0", 0)
 
         assert result["available"] is True
@@ -62,8 +65,9 @@ class TestReadPSEPortStatus:
     async def test_backoff_port_is_enabled(self):
         """Regression: backoff must be treated as enabled (Oct 2025 fix)."""
         mock_result = MagicMock(stdout=PROC_PSE_SAMPLE, stderr="")
+        to_thread = AsyncMock(return_value=mock_result)
         with patch("pathlib.Path.exists", return_value=True), \
-             patch("asyncio.to_thread", return_value=mock_result):
+             patch_module_asyncio(poe_readers, to_thread=to_thread):
             result = await read_pse_port_status("pse0", 1)
 
         assert result["state"] == "backoff"
@@ -72,8 +76,9 @@ class TestReadPSEPortStatus:
     @pytest.mark.asyncio
     async def test_disabled_port(self):
         mock_result = MagicMock(stdout=PROC_PSE_SAMPLE, stderr="")
+        to_thread = AsyncMock(return_value=mock_result)
         with patch("pathlib.Path.exists", return_value=True), \
-             patch("asyncio.to_thread", return_value=mock_result):
+             patch_module_asyncio(poe_readers, to_thread=to_thread):
             result = await read_pse_port_status("pse0", 2)
 
         assert result["state"] == "disabled"

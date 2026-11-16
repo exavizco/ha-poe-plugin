@@ -14,9 +14,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 
+from custom_components.exaviz import button as button_module
 from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
 from tests.hung_ip_link import HungIpLink
+from tests.module_asyncio import patch_module_asyncio
 
 
 
@@ -257,13 +259,14 @@ def _patch_port(calls: list[str], hold: str, held: asyncio.Event, go_on: asyncio
         return True
 
     async def settle(delay):
+        assert delay == 3  # the port stays off long enough for a device to reboot
         if hold == "settle":
             await wait_once()
 
     return (
         patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send),
         patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link),
-        patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle),
+        patch_module_asyncio(button_module, sleep=settle),
     )
 
 
@@ -281,14 +284,13 @@ async def test_switch_action_during_a_reset_runs_after_it(service, tail):
     waits for the reset, so the port ends as asked."""
     calls: list[str] = []
     held, go_on = asyncio.Event(), asyncio.Event()
-    real_sleep = asyncio.sleep
     p1, p2, p3 = _patch_port(calls, "settle", held, go_on)
     with p1, p2, p3:
         reset = asyncio.create_task(_button()._power_cycle_onboard_port())
         await asyncio.wait_for(held.wait(), 5)
         action = asyncio.create_task(getattr(_switch(), service)())
         for _ in range(10):
-            await real_sleep(0)
+            await asyncio.sleep(0)
         during = list(calls)
         go_on.set()
         await asyncio.wait_for(asyncio.gather(reset, action), 5)
@@ -302,14 +304,13 @@ async def test_reset_during_a_turn_off_waits_for_it(hold):
     """A reset pressed during either step of a turn-off starts after it."""
     calls: list[str] = []
     held, go_on = asyncio.Event(), asyncio.Event()
-    real_sleep = asyncio.sleep
     p1, p2, p3 = _patch_port(calls, hold, held, go_on)
     with p1, p2, p3:
         off = asyncio.create_task(_switch().async_turn_off())
         await asyncio.wait_for(held.wait(), 5)
         reset = asyncio.create_task(_button()._power_cycle_onboard_port())
         for _ in range(10):
-            await real_sleep(0)
+            await asyncio.sleep(0)
         during = list(calls)
         go_on.set()
         await asyncio.wait_for(asyncio.gather(off, reset), 5)
@@ -343,8 +344,6 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at, restore_ok, c
         calls.append(f"link {action}")
         return True
 
-    real_sleep = asyncio.sleep
-
     async def settle(delay):
         if cancel_at == "settle":
             reached.set()
@@ -352,7 +351,7 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at, restore_ok, c
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         press = asyncio.create_task(button._reset_onboard_port())
         # Bounded: if the cycle never gets there, fail instead of hanging.
         await asyncio.wait_for(reached.wait(), 5)
@@ -362,7 +361,7 @@ async def test_cancelled_reset_still_finishes_the_cycle(cancel_at, restore_ok, c
         button.hass.async_create_task.assert_not_called()
         go_on.set()
         for _ in range(10):
-            await real_sleep(0)
+            await asyncio.sleep(0)
     assert calls == FULL_RESET
     # The refresh comes after the cycle, not when the press was cancelled.
     button.hass.async_create_task.assert_called_once()
@@ -398,7 +397,7 @@ async def test_cycle_task_cancelled_at_shutdown_still_turns_the_port_on(cancel_a
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
         await reached.wait()
         cycle.cancel()
@@ -463,7 +462,7 @@ async def test_cancel_during_the_restore_write_resends_it(resend_result, caplog)
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
         await in_restore.wait()
         cycle.cancel()
@@ -498,7 +497,7 @@ async def test_cycle_cancelled_then_a_failed_turn_on_is_logged(cancel_at, caplog
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
         await reached.wait()
         cycle.cancel()
@@ -527,7 +526,7 @@ async def test_cycle_cancelled_during_the_settle_turns_power_on_then_the_link():
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
         await in_settle.wait()
         cycle.cancel()
@@ -561,7 +560,7 @@ async def test_cycle_cancelled_during_the_settle_sends_nothing_after_a_stuck_res
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=send), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
         await in_settle.wait()
         cycle.cancel()
@@ -650,7 +649,7 @@ async def test_cancel_during_the_restore_write_with_the_real_write_path(tmp_path
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
          patch("asyncio.create_subprocess_exec", side_effect=exec_), \
          patch.object(ExavizPoEPortSwitch, "_run_ip_link", side_effect=link), \
-         patch("custom_components.exaviz.button.asyncio.sleep", side_effect=settle):
+         patch_module_asyncio(button_module, sleep=settle):
         cycle = asyncio.create_task(button._power_cycle_onboard_port())
         await in_restore.wait()
         cycle.cancel()

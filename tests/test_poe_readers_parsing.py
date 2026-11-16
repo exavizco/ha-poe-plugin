@@ -51,6 +51,7 @@ from custom_components.exaviz.poe_readers import (
     read_network_port_status,
     read_pse_port_status,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 
 # ---------------------------------------------------------------------------
@@ -903,7 +904,7 @@ class TestArpScanErrors:
 
         with patch.object(poe_readers, "_bridge_has_ipv4", AsyncMock(return_value=True)), \
              patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
-             patch("asyncio.wait_for", fake_wait_for):
+             patch_module_asyncio(poe_readers, wait_for=fake_wait_for):
             assert await _run_arp_scan("br0") == {}
         proc.kill.assert_called_once()
 
