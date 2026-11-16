@@ -565,6 +565,27 @@ async def test_incomplete_pair_reply_is_a_protocol_error(board, session):
         await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("token_id", ["t" * 257, "t" * 500_000])
+async def test_43_pair_reply_with_a_too_long_token_id_is_a_protocol_error(
+    board, session, token_id
+):
+    reply = case("pair_201")
+    reply["body"]["token_id"] = token_id
+    board.reply("POST", "/ha/pair", reply)
+    with pytest.raises(ProtocolError):
+        await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+
+
+@pytest.mark.asyncio
+async def test_43_pair_reply_token_id_at_the_cap_is_kept_whole(board, session):
+    reply = case("pair_201")
+    reply["body"]["token_id"] = "t" * 256
+    board.reply("POST", "/ha/pair", reply)
+    got = await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
+    assert got["token_id"] == "t" * 256
+
+
 def _wire(name, pse, index):
     return {"name": name, "pse": pse, "index": index, "state": "disabled"}
 
