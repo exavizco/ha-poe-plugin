@@ -12,7 +12,6 @@ from .test_golden_local import local_entry
 from .test_remote_runtime import setup_remote
 
 
-
 def set_port(board, index, **fields):
     reply = case("poe_ports")
     reply["body"]["ports"][index].update(fields)
@@ -41,10 +40,15 @@ async def test_plugged_by_current_alone(hass, board, milliamps, shown):
 
 @pytest.mark.parametrize(
     ("board_type", "has_zigbee"),
-    [(BoardType.CRUISER, True), (BoardType.INTERCEPTOR, False)],
+    [
+        (BoardType.CRUISER, True),
+        (BoardType.INTERCEPTOR, False),
+        (BoardType.UNKNOWN, False),
+    ],
 )
 async def test_zigbee_coordinator_sensor_only_on_a_cruiser(hass, board_type, has_zigbee):
-    """The Zigbee radio is on the Cruiser's ESP32-C6; an Interceptor has none."""
+    """The Zigbee radio is on the Cruiser's ESP32-C6; an Interceptor, or a
+    board whose type was not detected, gets no Zigbee sensor."""
     entry = local_entry()
     entry.add_to_hass(hass)
     stack, _reader = patch_local_board()
@@ -61,5 +65,7 @@ async def test_zigbee_coordinator_sensor_only_on_a_cruiser(hass, board_type, has
     ):
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
-    assert hass.states.get("switch.onboard_port0") is not None
+    # Same platform as the Zigbee sensor, so a failed binary_sensor setup
+    # cannot pass as "no Zigbee sensor".
+    assert hass.states.get("binary_sensor.onboard_port0_powered") is not None
     assert (hass.states.get("binary_sensor.zigbee_coordinator") is not None) is has_zigbee
