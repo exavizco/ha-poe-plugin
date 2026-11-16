@@ -31,7 +31,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.exaviz import poe_readers
-from tests.module_asyncio import patch_module_asyncio
 from custom_components.exaviz.poe_readers import (
     _bridge_has_ipv4,
     _collect_local_macs,
@@ -52,6 +51,7 @@ from custom_components.exaviz.poe_readers import (
     read_network_port_status,
     read_pse_port_status,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 
 # ---------------------------------------------------------------------------

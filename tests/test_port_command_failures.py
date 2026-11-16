@@ -15,10 +15,7 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.exaviz import button as button_module
-from custom_components.exaviz.button import (
-    RESET_POWER_OFF_SECONDS,
-    ExavizPoEPortResetButton,
-)
+from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
 from tests.hung_ip_link import HungIpLink
 from tests.module_asyncio import patch_module_asyncio
@@ -262,7 +259,7 @@ def _patch_port(calls: list[str], hold: str, held: asyncio.Event, go_on: asyncio
         return True
 
     async def settle(delay):
-        assert delay == RESET_POWER_OFF_SECONDS
+        assert delay == 3  # the port stays off long enough for a device to reboot
         if hold == "settle":
             await wait_once()
 
