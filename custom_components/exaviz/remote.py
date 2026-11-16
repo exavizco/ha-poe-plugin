@@ -454,6 +454,9 @@ class RemoteClient:
             for key in ("token", "token_id", "scope", "serial")
         ):
             raise ProtocolError("POST /ha/pair: incomplete reply")
+        # The user revokes this id on the board by name, so it is refused, not cut.
+        if len(reply["token_id"]) > MAX_BOARD_STRING_CHARS:
+            raise ProtocolError("POST /ha/pair: incomplete reply")
         return reply
 
     async def port_action(self, pse: int, index: int, action: str) -> None:
