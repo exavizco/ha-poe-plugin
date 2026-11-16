@@ -633,8 +633,12 @@ def map_ports(
             or type(index) is not int
         ):
             # A name that is not text is logged by its type: it may be unhashable
-            # or very large.
-            shown = name if isinstance(name, str) else f"<{type(name).__name__}>"
+            # or very large. Text is cut, as it may be very large too.
+            shown = (
+                name[:MAX_BOARD_STRING_CHARS]
+                if isinstance(name, str)
+                else f"<{type(name).__name__}>"
+            )
             if shown not in _WARNED_PORT_NAMES and len(_WARNED_PORT_NAMES) < _MAX_WARNED_PORT_NAMES:
                 _WARNED_PORT_NAMES.add(shown)
                 _LOGGER.warning("Skipping board port %r: unknown name or address", shown)
@@ -644,8 +648,11 @@ def map_ports(
         stats = link.get("stats")
         if not isinstance(stats, dict):
             stats = {}
-        poe_class = str(wire.get("class", "?"))
-        state = wire.get("state", "unknown")
+        poe_class = wire.get("class")
+        if type(poe_class) is int:  # the contract sends a number; not a bool
+            poe_class = str(poe_class)
+        poe_class = board_text(poe_class) or "?"
+        state = board_text(wire.get("state")) or "unknown"
         port: dict[str, Any] = {
             "port": number,
             "interface": interface,
@@ -659,7 +666,7 @@ def map_ports(
             "poe_class": poe_class,
             "voltage_volts": _measurement(wire.get("voltage_v"), 0.0, "voltage_v", readings),
             "current_milliamps": _measurement(wire.get("current_ma"), 0, "current_ma", readings),
-            "link_state": link.get("oper_state", "unknown"),
+            "link_state": board_text(link.get("oper_state")) or "unknown",
             "speed_mbps": _measurement(link.get("speed_mbps"), 0, "speed_mbps", readings),
             "rx_bytes": _measurement(stats.get("rx_bytes"), 0, "rx_bytes", readings),
             "tx_bytes": _measurement(stats.get("tx_bytes"), 0, "tx_bytes", readings),

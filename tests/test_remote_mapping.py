@@ -323,6 +323,43 @@ def test_43_a_device_entry_that_is_not_a_dict_drops_only_that_device():
     assert ports[2]["connected_device"]["ip_address"] == "192.0.2.12"
 
 
+def _port0(wire=None, link=None):
+    body, links = poe(), switch()
+    body["ports"][0].update(wire or {})
+    links["ports"][0].update(link or {})
+    return by_port(map_ports(body, links, DATE, None))[0]
+
+
+def test_43_port_state_class_and_link_text_is_trimmed_and_capped():
+    port = _port0(
+        {"state": " " + "s" * 500_000, "class": "c" * 300 + "TAIL"},
+        {"oper_state": "o" * 300 + "TAIL "},
+    )
+    assert port["status"] == "s" * 256
+    assert port["poe_class"] == "c" * 256
+    assert port["link_state"] == "o" * 256
+
+
+def test_43_port_class_and_link_text_is_trimmed():
+    port = _port0({"class": " 4 "}, {"oper_state": "   "})
+    assert port["poe_class"] == "4"
+    assert port["allocated_power_watts"] == 30.0
+    assert port["link_state"] == "unknown"
+
+
+def test_43_a_bool_class_is_not_a_class():
+    assert _port0({"class": True})["poe_class"] == "?"
+
+
+def test_43_port_state_and_link_that_are_not_text_fall_back():
+    port = _port0(
+        {"state": ["x" * 100_000], "class": {"x": 1}}, {"oper_state": {"up": True}}
+    )
+    assert port["status"] == "unknown"
+    assert port["poe_class"] == "?"
+    assert port["link_state"] == "unknown"
+
+
 # --- #43 round 8: a malformed reply degrades, it does not raise ---------------
 
 GOOD_PORT = {"name": "poe0", "pse": 0, "index": 0, "state": "delivering"}
@@ -435,6 +472,16 @@ def test_43_a_port_name_that_is_not_text_is_logged_by_type_once(caplog, monkeypa
     messages = [r.getMessage() for r in caplog.records]
     assert sum("<list>" in m for m in messages) == 1
     assert all(len(m) < 200 for m in messages)
+
+
+def test_43_a_huge_unknown_port_name_is_logged_cut(caplog, monkeypatch):
+    monkeypatch.setattr(remote, "_WARNED_PORT_NAMES", set())
+    with caplog.at_level("WARNING"):
+        _ports([dict(GOOD_PORT, name="x" * 500_000)])
+    (message,) = [r.getMessage() for r in caplog.records]
+    assert "x" * 256 in message
+    assert len(message) < 400
+    assert remote._WARNED_PORT_NAMES == {"x" * 256}
 
 
 def test_43_a_huge_integer_temperature_means_no_temperature():
