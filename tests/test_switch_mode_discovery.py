@@ -12,7 +12,6 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.exaviz import poe_readers
-from tests.module_asyncio import patch_module_asyncio
 from custom_components.exaviz.poe_readers import (
     _is_multicast_mac,
     _parse_bridge_fdb,
@@ -20,6 +19,7 @@ from custom_components.exaviz.poe_readers import (
     _resolve_bridged_device,
     _run_arp_scan,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 
 # ---------------------------------------------------------------------------

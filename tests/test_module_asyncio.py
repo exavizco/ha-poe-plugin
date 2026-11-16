@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from custom_components.exaviz import button as button_module
 from custom_components.exaviz import switch as switch_module
 from tests.module_asyncio import patch_module_asyncio
@@ -24,3 +26,8 @@ def test_only_the_patched_module_sees_the_override():
         assert button_module.asyncio.TimeoutError is asyncio.TimeoutError
         assert button_module.asyncio.subprocess.PIPE is asyncio.subprocess.PIPE
     assert button_module.asyncio is asyncio
+
+
+def test_an_unknown_name_is_refused():
+    with pytest.raises(AttributeError, match="sleeep"):
+        patch_module_asyncio(button_module, sleeep=_settle)

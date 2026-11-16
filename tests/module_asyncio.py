@@ -17,6 +17,9 @@ class _ModuleAsyncio:
     """asyncio with some names replaced; every other name is the real one."""
 
     def __init__(self, **overrides: Any) -> None:
+        for name in overrides:  # catch a typo, as patch.object would
+            if not hasattr(asyncio, name):
+                raise AttributeError(f"asyncio has no attribute {name!r}")
         self.__dict__.update(overrides)
 
     def __getattr__(self, name: str) -> Any:
