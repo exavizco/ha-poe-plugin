@@ -476,13 +476,21 @@ async def test_port_action_unknown_port_refused_without_request(coordinator):
 
 
 @pytest.mark.parametrize("scope", [" poe_control", "poe_control ", "POE_CONTROL", "poe_read"])
-def test_43_only_an_exact_control_scope_can_control(coordinator, scope):
+async def test_43_a_remote_pairing_needs_the_exact_control_scope_to_control(
+    coordinator, scope
+):
     coordinator.entry.data = {CONF_SCOPE: scope}
     coordinator.remote = MagicMock()
     assert coordinator.can_control is False
 
 
-def test_43_exact_control_scope_can_control(coordinator):
+async def test_43_remote_pairing_with_the_exact_control_scope_can_control(coordinator):
     coordinator.entry.data = {CONF_SCOPE: SCOPE_CONTROL}
     coordinator.remote = MagicMock()
+    assert coordinator.can_control is True
+
+
+async def test_43_a_local_board_has_no_pairing_and_always_controls(coordinator):
+    coordinator.entry.data = {}
+    coordinator.remote = None
     assert coordinator.can_control is True

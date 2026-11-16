@@ -606,7 +606,7 @@ async def test_43_pair_reply_with_a_blank_token_is_a_protocol_error(
     reply = case("pair_201")
     reply["body"]["token"] = token
     board.reply("POST", "/ha/pair", reply)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(ProtocolError, match="incomplete reply"):
         await client(session, board, pin=board.cert.sha256).pair("ABCD-EFGH")
 
 
