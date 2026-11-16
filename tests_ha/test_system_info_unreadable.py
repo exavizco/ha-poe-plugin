@@ -7,7 +7,9 @@ come from a fake root, through a real Home Assistant setup.
 
 from unittest.mock import AsyncMock, patch
 
+from custom_components.exaviz import coordinator as coordinator_module
 from custom_components.exaviz.coordinator import ExavizDataUpdateCoordinator
+from tests.module_asyncio import patch_module_asyncio
 
 from .local_board import patch_local_board
 from .test_golden_local import local_entry
@@ -56,7 +58,7 @@ def _fake_exec():
 
 
 async def test_unreadable_ram_and_emmc_size_are_omitted(hass, tmp_path):
-    with patch("asyncio.create_subprocess_exec", _fake_exec()):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=_fake_exec()):
         attrs = await _board_attrs(
             hass,
             tmp_path,
@@ -72,7 +74,7 @@ async def test_unreadable_ram_and_emmc_size_are_omitted(hass, tmp_path):
 
 
 async def test_readable_ram_and_emmc_are_shown(hass, tmp_path):
-    with patch("asyncio.create_subprocess_exec", _fake_exec()):
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=_fake_exec()):
         attrs = await _board_attrs(
             hass,
             tmp_path,

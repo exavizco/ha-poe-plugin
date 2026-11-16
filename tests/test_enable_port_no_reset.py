@@ -10,8 +10,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.exaviz import switch as switch_module
 from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
+from tests.module_asyncio import patch_module_asyncio
 
 
 def _is_bare_reset(command: str) -> bool:
@@ -89,7 +91,7 @@ async def test_reset_button_no_esp32_reset():
     fake_proc.returncode = 0
 
     with patch.object(ExavizPoEPortSwitch, "_send_esp32_command", side_effect=capture), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=fake_proc)), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(return_value=fake_proc)), \
          patch("custom_components.exaviz.button.RESET_POWER_OFF_SECONDS", 0):
         await button._reset_onboard_port()
 

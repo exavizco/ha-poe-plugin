@@ -22,6 +22,7 @@ from custom_components.exaviz.button import ExavizPoEPortResetButton
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
 from custom_components.exaviz.utils import sudo_argv
 from tests.hung_ip_link import HungIpLink
+from tests.module_asyncio import patch_module_asyncio
 
 
 def _coordinator(data: dict | None, *, can_control: bool = True) -> MagicMock:
@@ -195,7 +196,7 @@ async def test_esp32_command_tries_the_next_device_when_bash_cannot_start(tmp_pa
     second.write_text("")
     exec_ = AsyncMock(side_effect=[OSError("no bash"), _proc(0)])
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [first, second]), \
-         patch("asyncio.create_subprocess_exec", exec_), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=exec_), \
          caplog.at_level(logging.WARNING, logger=switch_module.__name__):
         assert await ExavizPoEPortSwitch._send_esp32_command("enable-port 0 1") is True
     assert f"Could not write to {first}: no bash" in caplog.text
@@ -234,7 +235,7 @@ async def test_esp32_write_that_never_finishes_is_killed_and_fails(
     exec_ = AsyncMock(return_value=proc)
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [first, second]), \
          patch.object(switch_module, "ESP32_WRITE_TIMEOUT", 0.05), \
-         patch("asyncio.create_subprocess_exec", exec_), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=exec_), \
          caplog.at_level(logging.INFO, logger=switch_module.__name__):
         result = await asyncio.wait_for(
             ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2"), timeout=2
@@ -265,7 +266,7 @@ async def test_esp32_write_that_does_not_stop_after_the_kill_raises(tmp_path):
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
          patch.object(switch_module, "ESP32_WRITE_TIMEOUT", 0.05), \
          patch.object(switch_module, "ESP32_KILL_WAIT", 0.05), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(return_value=proc)), \
          pytest.raises(HomeAssistantError, match="did not stop"):
         await asyncio.wait_for(
             ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2"), timeout=2
@@ -295,7 +296,7 @@ async def test_cancelled_esp32_write_is_killed_before_the_caller_goes_on(tmp_pat
     proc.wait = exits if stops else blocked
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
          patch.object(switch_module, "ESP32_KILL_WAIT", 0.05), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(return_value=proc)):
         task = asyncio.create_task(
             ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2")
         )
@@ -332,7 +333,7 @@ async def test_second_cancel_during_the_kill_wait_counts_as_not_stopped(tmp_path
     proc.communicate = blocked
     proc.wait = waits
     with patch.object(switch_module, "_PSE_DEVICE_PATHS", [device]), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(return_value=proc)):
         task = asyncio.create_task(
             ExavizPoEPortSwitch._send_esp32_command("disable-port 1 2")
         )
@@ -369,7 +370,7 @@ async def test_enable_and_disable_send_the_mapped_esp32_commands():
 @pytest.mark.asyncio
 async def test_run_ip_link_runs_ip_link_set():
     exec_ = AsyncMock(return_value=_proc(0))
-    with patch("asyncio.create_subprocess_exec", exec_):
+    with patch_module_asyncio(switch_module, create_subprocess_exec=exec_):
         assert await ExavizPoEPortSwitch._run_ip_link("poe3", "down") is True
     assert exec_.await_args.args == tuple(sudo_argv("ip", "link", "set", "poe3", "down"))
 
@@ -377,7 +378,7 @@ async def test_run_ip_link_runs_ip_link_set():
 @pytest.mark.asyncio
 async def test_run_ip_link_failure_logs_stderr(caplog):
     exec_ = AsyncMock(return_value=_proc(2, b"RTNETLINK answers: Operation not permitted\n"))
-    with patch("asyncio.create_subprocess_exec", exec_), \
+    with patch_module_asyncio(switch_module, create_subprocess_exec=exec_), \
          caplog.at_level(logging.ERROR, logger=switch_module.__name__):
         assert await ExavizPoEPortSwitch._run_ip_link("poe3", "up") is False
     assert "Failed to up port poe3: RTNETLINK answers: Operation not permitted" in caplog.text
@@ -500,7 +501,7 @@ async def test_ip_link_that_ended_before_the_stop_does_not_block_the_port(
 
     argv = (lambda *a: ("sudo", *a)) if sudo else (lambda *a: a)
     _, stop_wait = _fast_stop()
-    with patch("asyncio.create_subprocess_exec", exec_), \
+    with patch_module_asyncio(switch_module, create_subprocess_exec=exec_), \
          patch.object(switch_module, "sudo_argv", argv), \
          patch.object(switch_module, "_PROC", Path("/nonexistent")), \
          patch.object(switch_module, "IP_LINK_TIMEOUT", 0.1), stop_wait, \
@@ -643,7 +644,7 @@ async def test_addon_pse_reset_failed_write_raises(tmp_path):
     reset.parent.mkdir(parents=True)
     reset.write_text("")
     with patch.object(switch_module, "Path", side_effect=lambda p: tmp_path / p.lstrip("/")), \
-         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=_proc(1))), \
+         patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(return_value=_proc(1))), \
          pytest.raises(Exception, match="Failed to reset port"):
         await switch._control_pse_port("reset")
 
@@ -829,7 +830,7 @@ async def test_sudo_refusing_the_stop_signal_counts_as_not_stopped():
     escape as a PermissionError with the run unrecorded: it is waited for,
     then reported as not stopped, and the port stays blocked."""
     sudo = _RefusingSudo()
-    with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=sudo)), \
+    with patch_module_asyncio(switch_module, create_subprocess_exec=AsyncMock(return_value=sudo)), \
          patch.object(switch_module, "sudo_argv", lambda *a: ("sudo", *a)), \
          patch.object(switch_module, "IP_LINK_TIMEOUT", 0.2), \
          patch.object(switch_module, "IP_LINK_STOP_WAIT", 0.2), \
@@ -863,7 +864,7 @@ async def test_a_start_that_failed_after_its_cancel_does_not_block_the_port():
             raise FileNotFoundError("sudo")
         return _proc(0)
 
-    with patch("asyncio.create_subprocess_exec", exec_), \
+    with patch_module_asyncio(switch_module, create_subprocess_exec=exec_), \
          patch.object(switch_module, "_PROC", Path("/nonexistent")), \
          patch.dict(switch_module._stuck_ip_link, clear=True):
         run = asyncio.ensure_future(ExavizPoEPortSwitch._run_ip_link("poe3", "down"))
@@ -924,7 +925,7 @@ async def test_run_cancelled_twice_while_its_stop_signal_is_refused_is_recorded(
     lands during a resend: the run is recorded and the port stays blocked."""
     sudo = _RefusingSudo()
     start = AsyncMock(return_value=sudo)
-    with patch("asyncio.create_subprocess_exec", start), \
+    with patch_module_asyncio(switch_module, create_subprocess_exec=start), \
          patch.object(switch_module, "sudo_argv", lambda *a: ("sudo", *a)), \
          patch.object(switch_module, "IP_LINK_STOP_WAIT", 5), \
          patch.object(switch_module, "_PROC", Path("/nonexistent")), \
@@ -970,7 +971,7 @@ async def test_a_refused_signal_is_resent_for_the_whole_stop_wait_without_blocki
     started = loop.time()
     try:
         with patch.object(switch_module, "IP_LINK_STOP_WAIT", stop_wait), \
-             patch.object(switch_module.asyncio, "sleep", recording_sleep):
+             patch_module_asyncio(switch_module, sleep=recording_sleep):
             assert await asyncio.wait_for(
                 switch_module._send_signal(sudo.terminate), timeout=10
             ) is False
