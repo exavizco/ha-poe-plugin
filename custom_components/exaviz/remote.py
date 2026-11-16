@@ -644,8 +644,11 @@ def map_ports(
         stats = link.get("stats")
         if not isinstance(stats, dict):
             stats = {}
-        poe_class = str(wire.get("class", "?"))
-        state = wire.get("state", "unknown")
+        poe_class = wire.get("class")
+        if isinstance(poe_class, int):  # the contract sends the class as a number
+            poe_class = str(poe_class)
+        poe_class = board_text(poe_class) or "?"
+        state = board_text(wire.get("state")) or "unknown"
         port: dict[str, Any] = {
             "port": number,
             "interface": interface,
@@ -659,7 +662,7 @@ def map_ports(
             "poe_class": poe_class,
             "voltage_volts": _measurement(wire.get("voltage_v"), 0.0, "voltage_v", readings),
             "current_milliamps": _measurement(wire.get("current_ma"), 0, "current_ma", readings),
-            "link_state": link.get("oper_state", "unknown"),
+            "link_state": board_text(link.get("oper_state")) or "unknown",
             "speed_mbps": _measurement(link.get("speed_mbps"), 0, "speed_mbps", readings),
             "rx_bytes": _measurement(stats.get("rx_bytes"), 0, "rx_bytes", readings),
             "tx_bytes": _measurement(stats.get("tx_bytes"), 0, "tx_bytes", readings),
