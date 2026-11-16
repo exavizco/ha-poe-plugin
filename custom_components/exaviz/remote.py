@@ -17,6 +17,7 @@ import math
 import os
 import re
 import ssl
+from collections.abc import Callable
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -150,6 +151,11 @@ def check_contract(board: dict[str, Any]) -> None:
         raise UnsupportedContract(f"board speaks contract {version}")
 
 
+def is_pin(value: object) -> bool:
+    """True for a 64-character lower-case hex hash."""
+    return isinstance(value, str) and bool(_PIN_RE.match(value))
+
+
 def fingerprint_of(der: bytes) -> str:
     """SHA-256 of the certificate's DER bytes, lower-case hex."""
     return hashlib.sha256(der).hexdigest()
@@ -261,6 +267,38 @@ class _SpkiPin(aiohttp.Fingerprint):
             raise aiohttp.ServerFingerprintMismatch(self.fingerprint, got, host, port)
 
 
+class _CertOrKeyPin(aiohttp.Fingerprint):
+    """Pin mode: the confirmed leaf, or a re-issued leaf with the same key.
+
+    A match on the whole certificate passes silently. A match on the public
+    key alone (a SAN-only re-issue) passes too and records the new leaf
+    fingerprint in `renewed`; the client stores it after the request returns,
+    never here, because this runs inside the handshake. Anything else closes
+    the connection before any HTTP byte.
+    """
+
+    def __init__(self, fingerprint: bytes, spki: bytes) -> None:
+        super().__init__(fingerprint)
+        self._spki = spki
+        self.renewed: str | None = None
+
+    def check(self, transport: asyncio.Transport) -> None:
+        sslobj = transport.get_extra_info("ssl_object")
+        der = sslobj.getpeercert(binary_form=True) if sslobj else None
+        if der and hashlib.sha256(der).digest() == self.fingerprint:
+            return
+        try:
+            same_key = bool(der) and bytes.fromhex(spki_of(der)) == self._spki
+        except Exception:  # any leaf cryptography cannot read is a mismatch
+            same_key = False
+        if not same_key:
+            host, port, *_ = transport.get_extra_info("peername")
+            raise aiohttp.ServerFingerprintMismatch(
+                self.fingerprint, hashlib.sha256(der or b"").digest(), host, port
+            )
+        self.renewed = fingerprint_of(der)
+
+
 class RemoteClient:
     """Contract v1 client. Every request goes through `_request`."""
 
@@ -271,6 +309,8 @@ class RemoteClient:
         *,
         pin: str | None = None,
         spki_pin: str | None = None,
+        key_pin: str | None = None,
+        on_renewed: Callable[[str], None] | None = None,
         token: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
@@ -280,15 +320,22 @@ class RemoteClient:
             raise ValueError("give exactly one of pin or spki_pin")
         if not _PIN_RE.match(pin or spki_pin or ""):
             raise ValueError("pin must be 64 lower-case hex characters")
+        if key_pin is not None and (pin is None or on_renewed is None):
+            raise ValueError("key_pin needs pin and on_renewed")
+        if key_pin is not None and not _PIN_RE.match(key_pin):
+            raise ValueError("pin must be 64 lower-case hex characters")
+        self._on_renewed = on_renewed
         self._session = session
         self._base = base_url.rstrip("/") + "/api/v1"
         # Built once: a new object per request is a new pool key and a new
         # TCP connection every time.
-        self._ssl: aiohttp.Fingerprint = (
-            aiohttp.Fingerprint(bytes.fromhex(pin))
-            if pin
-            else _SpkiPin(bytes.fromhex(spki_pin or ""))
-        )
+        self._ssl: aiohttp.Fingerprint
+        if key_pin and pin and on_renewed:
+            self._ssl = _CertOrKeyPin(bytes.fromhex(pin), bytes.fromhex(key_pin))
+        elif pin:
+            self._ssl = aiohttp.Fingerprint(bytes.fromhex(pin))
+        else:
+            self._ssl = _SpkiPin(bytes.fromhex(spki_pin or ""))
         self._token = token
         self._timeout = aiohttp.ClientTimeout(total=timeout)
 
@@ -296,6 +343,20 @@ class RemoteClient:
         self, method: str, path: str, body: dict[str, Any] | None = None
     ) -> tuple[Any, datetime | None]:
         """Send one request; return the JSON body and the board's Date."""
+        try:
+            return await self._send(method, path, body)
+        finally:
+            # The handshake proved the confirmed key; the entry is only
+            # written now that the request is over.
+            ssl_pin = self._ssl
+            if isinstance(ssl_pin, _CertOrKeyPin) and ssl_pin.renewed:
+                renewed, ssl_pin.renewed = ssl_pin.renewed, None
+                if self._on_renewed:
+                    self._on_renewed(renewed)
+
+    async def _send(
+        self, method: str, path: str, body: dict[str, Any] | None
+    ) -> tuple[Any, datetime | None]:
         headers = {"Authorization": f"Bearer {self._token}"} if self._token else {}
         try:
             async with self._session.request(
