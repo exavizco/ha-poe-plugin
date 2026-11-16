@@ -20,4 +20,7 @@ def test_only_the_patched_module_sees_the_override():
         assert switch_module.asyncio.sleep is real_sleep
         # Every other name is the real asyncio one.
         assert button_module.asyncio.shield is asyncio.shield
+        assert button_module.asyncio.CancelledError is asyncio.CancelledError
+        assert button_module.asyncio.TimeoutError is asyncio.TimeoutError
+        assert button_module.asyncio.subprocess.PIPE is asyncio.subprocess.PIPE
     assert button_module.asyncio is asyncio
