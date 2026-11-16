@@ -633,8 +633,12 @@ def map_ports(
             or type(index) is not int
         ):
             # A name that is not text is logged by its type: it may be unhashable
-            # or very large.
-            shown = name if isinstance(name, str) else f"<{type(name).__name__}>"
+            # or very large. Text is cut, as it may be very large too.
+            shown = (
+                name[:MAX_BOARD_STRING_CHARS]
+                if isinstance(name, str)
+                else f"<{type(name).__name__}>"
+            )
             if shown not in _WARNED_PORT_NAMES and len(_WARNED_PORT_NAMES) < _MAX_WARNED_PORT_NAMES:
                 _WARNED_PORT_NAMES.add(shown)
                 _LOGGER.warning("Skipping board port %r: unknown name or address", shown)
@@ -645,7 +649,7 @@ def map_ports(
         if not isinstance(stats, dict):
             stats = {}
         poe_class = wire.get("class")
-        if isinstance(poe_class, int):  # the contract sends the class as a number
+        if type(poe_class) is int:  # the contract sends a number; not a bool
             poe_class = str(poe_class)
         poe_class = board_text(poe_class) or "?"
         state = board_text(wire.get("state")) or "unknown"
