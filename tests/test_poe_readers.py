@@ -214,7 +214,7 @@ class TestBoschCameraDetection:
         mock_proc.communicate.return_value = (b"", b"tcpdump: command not found")
         mock_proc.returncode = 127
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _detect_bosch_camera("poe6")
         assert result is None
 
@@ -230,7 +230,7 @@ class TestBoschCameraDetection:
         mock_proc.communicate.return_value = (bosch_output, b"")
         mock_proc.returncode = 0
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _detect_bosch_camera("poe6")
 
         assert result is not None
@@ -243,7 +243,7 @@ class TestBoschCameraDetection:
         mock_proc.communicate.return_value = (b"", b"")
         mock_proc.returncode = 124
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _detect_bosch_camera("poe6")
         assert result is None
 
@@ -254,7 +254,7 @@ class TestBoschCameraDetection:
         mock_proc.communicate.return_value = (generic_output, b"")
         mock_proc.returncode = 0
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _detect_bosch_camera("poe6")
         assert result is None
 

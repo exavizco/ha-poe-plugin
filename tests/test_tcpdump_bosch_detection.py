@@ -6,10 +6,12 @@ and device identification fallback chain (ARP → tcpdump → Unknown).
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from custom_components.exaviz import poe_readers
 from custom_components.exaviz.poe_readers import (
     _detect_bosch_camera,
     _get_connected_device_from_arp,
 )
+from tests.module_asyncio import patch_module_asyncio
 
 
 class TestBoschDetection:
@@ -22,7 +24,7 @@ class TestBoschDetection:
         mock_proc.communicate.return_value = (b"", b"tcpdump: command not found")
         mock_proc.returncode = 127
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             assert await _detect_bosch_camera("poe6") is None
 
     @pytest.mark.asyncio
@@ -38,7 +40,7 @@ class TestBoschDetection:
         mock_proc.communicate.return_value = (bosch_output, b"")
         mock_proc.returncode = 0
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _detect_bosch_camera("poe6")
 
         assert result is not None
@@ -51,7 +53,7 @@ class TestBoschDetection:
         mock_proc.communicate.return_value = (b"", b"")
         mock_proc.returncode = 124
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             assert await _detect_bosch_camera("poe6") is None
 
     @pytest.mark.asyncio
@@ -61,7 +63,7 @@ class TestBoschDetection:
         mock_proc.communicate.return_value = (generic_output, b"")
         mock_proc.returncode = 0
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             assert await _detect_bosch_camera("poe6") is None
 
 
@@ -76,7 +78,7 @@ class TestARPDeviceDetection:
         mock_proc.communicate.return_value = (arp_output, b"")
         mock_proc.returncode = 0
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc), \
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)), \
              patch("custom_components.exaviz.poe_readers.enrich_device_info") as mock_enrich:
             mock_enrich.return_value = {
                 "ip_address": "192.168.1.100",
@@ -97,7 +99,7 @@ class TestARPDeviceDetection:
         mock_proc.communicate.return_value = (b"", b"")
         mock_proc.returncode = 0
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _get_connected_device_from_arp("poe0")
         assert result is None
 
@@ -107,7 +109,7 @@ class TestARPDeviceDetection:
         mock_proc.communicate.return_value = (b"", b"Command not found")
         mock_proc.returncode = 1
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
             result = await _get_connected_device_from_arp("poe0")
         assert result is None
 
@@ -127,7 +129,7 @@ async def _detect(output: bytes):
     mock_proc = AsyncMock()
     mock_proc.communicate.return_value = (output, b"")
     mock_proc.returncode = 0
-    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+    with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)):
         return await _detect_bosch_camera("poe6")
 
 
@@ -193,7 +195,7 @@ class TestVcsConfirmedAsBosch:
             "device_type": "Camera",
             "detection_method": "Bosch proprietary protocol",
         }
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc), \
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)), \
              patch("custom_components.exaviz.poe_readers.enrich_device_info") as mock_enrich, \
              patch("custom_components.exaviz.poe_readers._detect_bosch_camera", return_value=bosch):
             mock_enrich.side_effect = lambda info: {
@@ -210,7 +212,7 @@ class TestVcsConfirmedAsBosch:
         mock_proc = AsyncMock()
         mock_proc.communicate.return_value = (b"192.168.1.60 lladdr 00:11:22:33:44:55 REACHABLE\n", b"")
         mock_proc.returncode = 0
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc), \
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=AsyncMock(return_value=mock_proc)), \
              patch("custom_components.exaviz.poe_readers.enrich_device_info") as mock_enrich, \
              patch("custom_components.exaviz.poe_readers._detect_bosch_camera") as mock_detect:
             mock_enrich.side_effect = lambda info: {**info, "manufacturer": "Axis Communications AB"}
