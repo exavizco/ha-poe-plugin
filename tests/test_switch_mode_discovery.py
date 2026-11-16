@@ -12,6 +12,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.exaviz import poe_readers
+from tests.module_asyncio import patch_module_asyncio
 from custom_components.exaviz.poe_readers import (
     _is_multicast_mac,
     _parse_bridge_fdb,
@@ -306,7 +307,7 @@ class TestRunArpScan:
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
              patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
-             patch("asyncio.wait_for", fake_wait_for):
+             patch_module_asyncio(poe_readers, wait_for=fake_wait_for):
             result = await _run_arp_scan("br0")
         assert result == {}
         proc.kill.assert_called_once()
