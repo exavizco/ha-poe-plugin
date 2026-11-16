@@ -291,7 +291,7 @@ class TestReadAllAddonPorts:
                 (b"192.168.86.77 lladdr b8:27:eb:11:22:33 REACHABLE\n", 0),
             ("ip", "neigh", "show"): (b"", 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             ports = await read_all_addon_ports("pse1", port_count=3)
 
         # Ports 0 and 1 are absent on pse1, so ARP is only asked about poe10.
@@ -369,7 +369,7 @@ class TestEsp32SerialStream:
             ("timeout", "3", "cat"): (_esp32_stream(), 0),
             ("ip", "neigh"): (b"", 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe4")
 
         # Linux poe4 is the right-hand PSE 0, local port 0.
@@ -391,7 +391,7 @@ class TestEsp32SerialStream:
             ("timeout", "3", "cat"): (_esp32_stream(), 0),
             ("ip", "neigh"): (b"", 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe3")
 
         assert result["power_watts"] == 2.28
@@ -406,7 +406,7 @@ class TestEsp32SerialStream:
             ("timeout", "3", "cat"): (_esp32_stream(), 0),
             ("ip", "neigh"): (b"", 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe5")
 
         assert fake.ran("timeout") == [("timeout", "3", "cat", str(root / "dev/ttyAMA3"))]
@@ -426,7 +426,7 @@ class TestEsp32SerialStream:
             ("timeout", "3", "cat"): (b"0: 48.126 0.143*35\n", 0),
             ("ip", "neigh"): (b"", 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe4")
 
         assert fake.ran("timeout") == [("timeout", "3", "cat", str(root / "dev/ttyAMA3"))]
@@ -438,7 +438,7 @@ class TestEsp32SerialStream:
     async def test_no_serial_device_spawns_nothing(self, root):
         _make_iface(root, "poe0", operstate="down", speed=None)
         fake = FakeExec({("ip", "neigh"): (b"", 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe0")
 
         assert fake.ran("stty") == [] and fake.ran("timeout") == []
@@ -453,7 +453,7 @@ class TestReadAllEsp32Data:
             ("stty",): (b"", 0),
             ("timeout", "3", "cat"): (_esp32_stream(), 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             data = await _read_all_esp32_data()
 
         assert set(data) == {(0, 0), (0, 1), (1, 1), (1, 3)}
@@ -470,7 +470,7 @@ class TestReadAllEsp32Data:
             ("timeout", "3", "cat", pse): (b"", 124),
             ("timeout", "3", "cat"): (_esp32_stream(), 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             data = await _read_all_esp32_data()
 
         assert [c[3] for c in fake.ran("timeout")] == [pse, str(root / "dev/ttyAMA3")]
@@ -481,7 +481,7 @@ class TestReadAllEsp32Data:
         _write(root, "dev/pse", "")
         _write(root, "dev/ttyAMA3", "")
         fake = FakeExec({})  # no stty binary
-        with patch("asyncio.create_subprocess_exec", fake), caplog.at_level(logging.DEBUG):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake), caplog.at_level(logging.DEBUG):
             data = await _read_all_esp32_data()
 
         assert data == {}
@@ -502,7 +502,7 @@ class TestReadAllOnboardPorts:
                 (b"192.168.86.93 lladdr b8:27:eb:11:22:33 used 0/0/0 probes 4 STALE\n", 0),
             ("ip", "neigh", "show", "dev", "poe0"): (b"", 0),
         })
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             ports = await read_all_onboard_ports(["poe4", "poe0", "poe9"])
 
         assert len(fake.ran("timeout")) == 1
@@ -609,7 +609,7 @@ class TestOnboardResult:
     async def test_real_power_with_admin_up(self, root):
         _make_iface(root, "poe4")
         fake = FakeExec({("ip", "neigh"): (b"", 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe4", {(0, 0): _esp32_sample()})
 
         assert result["state"] == "power-on"
@@ -626,7 +626,7 @@ class TestOnboardResult:
         # TPS23861 keeps reporting power-on after `ip link set down`.
         _make_iface(root, "poe4", operstate="down", flags="0x1002", speed=None)
         fake = FakeExec({("ip", "neigh"): (b"", 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe4", {(0, 0): _esp32_sample()})
 
         assert result["state"] == "disabled"
@@ -642,7 +642,7 @@ class TestOnboardResult:
         # Port 6 has no ESP32 sample in the map, so power is estimated.
         _make_iface(root, "poe6", speed=speed, rx="10", tx="10")
         fake = FakeExec({("ip", "neigh"): (b"", 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe6", {})
 
         assert result["power_mocked"] is True
@@ -656,7 +656,7 @@ class TestOnboardResult:
     async def test_mocked_admin_down(self, root):
         _make_iface(root, "poe6", operstate="down", flags="0x1002", speed=None)
         fake = FakeExec({("ip", "neigh"): (b"", 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe6", {})
 
         assert result["state"] == "disabled"
@@ -689,7 +689,7 @@ class TestOnboardResult:
             ("timeout",): (capture, 124),  # running as root: no sudo prefix
         })
         with patch("custom_components.exaviz.utils.os.geteuid", return_value=0), \
-             patch("asyncio.create_subprocess_exec", fake):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             result = await read_network_port_status("poe6", {})
 
         assert fake.ran("timeout")[0][:4] == ("timeout", "10", "tcpdump", "-i")
@@ -747,7 +747,7 @@ class TestTryBoschDetection:
     @pytest.mark.asyncio
     async def test_tcpdump_spawn_failure(self, caplog):
         fake = FakeExec({})  # neither sudo nor timeout installed
-        with patch("asyncio.create_subprocess_exec", fake), caplog.at_level(logging.DEBUG):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake), caplog.at_level(logging.DEBUG):
             assert await _detect_bosch_camera("poe1") is None
         assert "Failed to detect Bosch camera on poe1" in caplog.text
 
@@ -761,7 +761,7 @@ class TestArp:
     async def test_ipv6_only_neighbor(self, no_dns):
         out = b"fe80::ba27:ebff:fe11:2233 lladdr b8:27:eb:11:22:33 router REACHABLE\n"
         fake = FakeExec({("ip", "neigh"): (out, 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             device = await _get_connected_device_from_arp("poe1")
 
         assert device["ip_address"] == "fe80::ba27:ebff:fe11:2233"
@@ -777,12 +777,12 @@ class TestArp:
     ])
     async def test_unusable_states_ignored(self, out):
         fake = FakeExec({("ip", "neigh"): (out, 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             assert await _get_connected_device_from_arp("poe1") is None
 
     @pytest.mark.asyncio
     async def test_ip_binary_missing(self, caplog):
-        with patch("asyncio.create_subprocess_exec", FakeExec({})), \
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=FakeExec({})), \
              caplog.at_level(logging.DEBUG):
             assert await _get_connected_device_from_arp("poe1") is None
         assert "Failed to get ARP info for poe1" in caplog.text
@@ -845,7 +845,7 @@ class TestBridgeCommands:
     @pytest.mark.asyncio
     async def test_fdb_show_argv_and_output(self):
         fake = FakeExec({("bridge",): (b"b8:27:eb:11:22:33 master br0\n", 0)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             out = await _read_bridge_fdb("poe3")
         assert out == "b8:27:eb:11:22:33 master br0\n"
         assert fake.calls == [("bridge", "fdb", "show", "dev", "poe3")]
@@ -853,12 +853,12 @@ class TestBridgeCommands:
     @pytest.mark.asyncio
     async def test_fdb_show_failure(self):
         fake = FakeExec({("bridge",): (b"", 255)})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             assert await _read_bridge_fdb("poe3") == ""
 
     @pytest.mark.asyncio
     async def test_fdb_bridge_binary_missing(self):
-        with patch("asyncio.create_subprocess_exec", FakeExec({})):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=FakeExec({})):
             assert await _read_bridge_fdb("poe3") == ""
 
     @pytest.mark.asyncio
@@ -869,13 +869,13 @@ class TestBridgeCommands:
     ])
     async def test_bridge_has_ipv4(self, route, expected):
         fake = FakeExec({("ip", "-4"): route})
-        with patch("asyncio.create_subprocess_exec", fake):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             assert await _bridge_has_ipv4("br0") is expected
         assert fake.calls == [("ip", "-4", "-o", "addr", "show", "dev", "br0", "scope", "global")]
 
     @pytest.mark.asyncio
     async def test_bridge_has_ipv4_without_ip_binary(self):
-        with patch("asyncio.create_subprocess_exec", FakeExec({})):
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=FakeExec({})):
             assert await _bridge_has_ipv4("br0") is False
 
 
@@ -884,7 +884,7 @@ class TestArpScanErrors:
     async def test_arp_scan_binary_missing(self, root, caplog):
         fake = FakeExec({("ip", "-4"): (IP_ADDR_BR0, 0)})  # no arp-scan route
         with patch("custom_components.exaviz.utils.os.geteuid", return_value=0), \
-             patch("asyncio.create_subprocess_exec", fake), caplog.at_level(logging.DEBUG):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=fake), caplog.at_level(logging.DEBUG):
             assert await _run_arp_scan("br0") == {}
         assert fake.calls[-1][:2] == ("/usr/sbin/arp-scan", "--interface")
         # The OUI file is absent from the fake root, so no --ouifile argument.
@@ -903,8 +903,11 @@ class TestArpScanErrors:
             raise asyncio.TimeoutError
 
         with patch.object(poe_readers, "_bridge_has_ipv4", AsyncMock(return_value=True)), \
-             patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)), \
-             patch_module_asyncio(poe_readers, wait_for=fake_wait_for):
+             patch_module_asyncio(
+                 poe_readers,
+                 create_subprocess_exec=AsyncMock(return_value=proc),
+                 wait_for=fake_wait_for,
+             ):
             assert await _run_arp_scan("br0") == {}
         proc.kill.assert_called_once()
 
@@ -945,7 +948,7 @@ class TestResolveBridgedEndToEnd:
             ("/usr/sbin/arp-scan",): (arp_scan, 0),
         })
         with patch("custom_components.exaviz.utils.os.geteuid", return_value=0), \
-             patch("asyncio.create_subprocess_exec", fake), caplog.at_level(logging.DEBUG):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=fake), caplog.at_level(logging.DEBUG):
             device = await _resolve_bridged_device("poe3", "up", None, enabled=True)
 
         assert device["mac_address"] == "3e:ac:94:54:25:fa"
@@ -1040,7 +1043,7 @@ class TestLogWhenUnavailable:
         _make_iface(root, "poe1", operstate="down", speed=None)
         fake = FakeExec({("ip", "neigh"): (b"", 0)})
         with caplog.at_level(logging.DEBUG, logger=poe_readers.__name__), \
-             patch("asyncio.create_subprocess_exec", fake):
+             patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
             with patch.object(
                 poe_readers, "_read_link_state", AsyncMock(side_effect=OSError("sysfs gone"))
             ):

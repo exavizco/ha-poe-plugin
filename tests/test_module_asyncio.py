@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 
+from custom_components.exaviz import board_detector, coordinator, poe_readers
 from custom_components.exaviz import button as button_module
 from custom_components.exaviz import switch as switch_module
 from tests.module_asyncio import patch_module_asyncio
@@ -31,3 +33,15 @@ def test_only_the_patched_module_sees_the_override():
 def test_an_unknown_name_is_refused():
     with pytest.raises(AttributeError, match="sleeep"):
         patch_module_asyncio(button_module, sleeep=_settle)
+
+
+def test_a_faked_spawn_in_one_module_does_not_answer_in_another():
+    """Faking poe_readers' subprocesses must not fake the coordinator's or
+    the board detector's, which a process-wide patch did (#43)."""
+    real_spawn = asyncio.create_subprocess_exec
+    fake = AsyncMock()
+    with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
+        assert poe_readers.asyncio.create_subprocess_exec is fake
+        assert coordinator.asyncio.create_subprocess_exec is real_spawn
+        assert board_detector.asyncio.create_subprocess_exec is real_spawn
+        assert asyncio.create_subprocess_exec is real_spawn
