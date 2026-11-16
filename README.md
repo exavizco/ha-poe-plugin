@@ -163,8 +163,10 @@ that runs Home Assistant does not need the Exaviz packages.
 
 - The integration talks to the board over HTTPS only and checks the board's certificate on every
   connection, before it sends anything. A board with a certificate from a public certificate
-  authority may renew it with the same key. Any other change makes Home Assistant ask you to pair
-  again, and it shows the new fingerprint first.
+  authority may renew it with the same key. A board with a self-signed certificate may also get a
+  new certificate with the same key and keeps working.
+  Any other change, such as Regenerate or a new upload on the board, makes Home Assistant ask you
+  to pair again, and it shows the new fingerprint first.
 - With **Read only**, the port switches and reset buttons are unavailable.
 - A board added this way also gets a **Zigbee Radio** sensor (`sensor.zigbee_radio`): on, off,
   starting or failed, read from the board on every poll. It is unavailable when the radio service
