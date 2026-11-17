@@ -228,8 +228,9 @@ async def test_a_reply_cut_off_mid_body_is_cannot_connect(session):
     with patch.object(fake, "_handle", cut):
         await fake.start()
         try:
-            with pytest.raises(CannotConnect):
-                await client(session, fake).get_board()
+            # A short timeout, so a stalled reply cannot pass as a cut one.
+            with pytest.raises(CannotConnect, match="ClientPayloadError"):
+                await client(session, fake, timeout=2).get_board()
         finally:
             await fake.stop()
 

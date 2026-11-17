@@ -8,6 +8,7 @@ from unittest.mock import patch
 import aiohttp
 import pytest
 import voluptuous as vol
+from cryptography.exceptions import UnsupportedAlgorithm
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -1064,13 +1065,15 @@ async def test_same_address_unreadable_new_leaf_still_compares(hass, board, flow
     as a same-key re-issue, and the flow must not fail."""
 
     def unreadable(der):
-        raise RuntimeError("unsupported key type")
+        raise UnsupportedAlgorithm("unsupported key type")
 
     entry = remote_entry(board, fingerprint="0" * 64)
     entry.add_to_hass(hass)
+    before = dict(entry.data)
     with patch.object(remote, "spki_of", unreadable):
         if flow == "reauth":
             result = await _reauth(hass, entry)
         else:
             result = await _reconfigure(hass, entry, board)
     assert result["step_id"] == "fingerprint"
+    assert entry.data == before
