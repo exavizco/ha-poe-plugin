@@ -22,6 +22,7 @@ from homeassistant.helpers.typing import ConfigType
 from .board_detector import check_prerequisites
 from .const import CONF_CONNECTION, CONNECTION_REMOTE, DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
+from .poe_readers import clear_unavailable_log
 from .services import async_setup_services
 
 # URL prefix for the bundled Lovelace frontend cards.
@@ -244,7 +245,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # The coordinator shuts itself down: HA registers its async_shutdown
     # with the entry's unload callbacks.
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded and entry.data.get(CONF_CONNECTION) != CONNECTION_REMOTE:
+        clear_unavailable_log()
+    return unloaded
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
