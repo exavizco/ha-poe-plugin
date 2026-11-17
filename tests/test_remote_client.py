@@ -10,6 +10,7 @@ from unittest.mock import patch
 import aiohttp
 import pytest
 import pytest_asyncio
+from aiohttp import web
 
 from custom_components.exaviz import remote
 from custom_components.exaviz.remote import (
@@ -205,6 +206,33 @@ async def test_t07_refused_and_timeout(board, session):
                 await client(session, slow, timeout=0.2).get_board()
         finally:
             await slow.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_reply_cut_off_mid_body_is_cannot_connect(session):
+    """The board promises 1000 bytes, sends the start of a reply and drops
+    the connection (a board restarting mid-reply). That is a lost
+    connection, not a reply the contract refuses."""
+
+    async def cut(request):
+        resp = web.StreamResponse(
+            headers={"Content-Type": "application/json", "Content-Length": "1000"}
+        )
+        await resp.prepare(request)
+        await resp.write(b'{"serial": "CRU-TEST-0001", "pad": "')
+        request.transport.close()
+        return resp
+
+    fake = FakeBoard()
+    # The route binds the handler at start, so patch before starting.
+    with patch.object(fake, "_handle", cut):
+        await fake.start()
+        try:
+            # A short timeout, so a stalled reply cannot pass as a cut one.
+            with pytest.raises(CannotConnect, match="ClientPayloadError"):
+                await client(session, fake, timeout=2).get_board()
+        finally:
+            await fake.stop()
 
 
 @pytest.mark.asyncio
