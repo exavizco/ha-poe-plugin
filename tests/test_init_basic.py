@@ -3,6 +3,8 @@
 Tests the simpler parts of the integration entry point.
 """
 
+import logging
+
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -10,6 +12,8 @@ from homeassistant.const import Platform
 
 # Import the module to test constants and basic structure
 import custom_components.exaviz as exaviz_init
+from custom_components.exaviz import poe_readers, remote
+from custom_components.exaviz.const import CONF_CONNECTION, CONNECTION_REMOTE
 
 
 class TestConstants:
@@ -136,3 +140,63 @@ class TestAsyncUnloadEntryBasic:
         assert result is True
         mock_entry.runtime_data.async_shutdown.assert_not_called()
         mock_hass.services.async_remove.assert_not_called() 
+
+class TestUnloadResetsLogOnceState:
+    """#43: warn-once state must not outlive the entry.
+
+    State left from the old entry would make the next fault after a reload
+    log at debug only (or not at all), so the user gets no warning for a
+    fault in the new entry's life.
+    """
+
+    @staticmethod
+    def _hass(unloaded: bool) -> Mock:
+        hass = Mock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=unloaded)
+        return hass
+
+    @staticmethod
+    def _skip_unknown_port() -> None:
+        remote.map_ports({"ports": [{"name": "uplink", "pse": 0, "index": 0}]}, {}, None, None)
+
+    @pytest.fixture(autouse=True)
+    def _clean(self, monkeypatch):
+        poe_readers._unavailable.clear()
+        monkeypatch.setattr(remote, "_WARNED_PORT_NAMES", set())
+        yield
+        poe_readers._unavailable.clear()
+
+    @pytest.mark.asyncio
+    async def test_a_local_reading_lost_before_a_reload_warns_again_after_it(self, caplog):
+        poe_readers._log_unavailable("/proc/pse", "Failed to read /proc/pse: %s", "old")
+
+        assert await exaviz_init.async_unload_entry(self._hass(True), Mock(data={})) is True
+
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG, logger=poe_readers._LOGGER.name):
+            poe_readers._log_unavailable("/proc/pse", "Failed to read /proc/pse: %s", "new")
+        assert [r.levelno for r in caplog.records] == [logging.WARNING]
+
+    @pytest.mark.asyncio
+    async def test_a_board_port_name_skipped_before_a_reload_warns_again_after_it(self, caplog):
+        self._skip_unknown_port()
+        remote_entry = Mock(data={CONF_CONNECTION: CONNECTION_REMOTE})
+
+        assert await exaviz_init.async_unload_entry(self._hass(True), remote_entry) is True
+
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger=remote._LOGGER.name):
+            self._skip_unknown_port()
+        assert [r.getMessage() for r in caplog.records] == [
+            "Skipping board port 'uplink': unknown name or address"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_failed_unload_keeps_the_state(self):
+        poe_readers._log_unavailable("/proc/pse", "Failed to read /proc/pse: %s", "x")
+        self._skip_unknown_port()
+
+        assert await exaviz_init.async_unload_entry(self._hass(False), Mock(data={})) is False
+
+        assert poe_readers._unavailable == {"/proc/pse"}
+        assert remote._WARNED_PORT_NAMES == {"uplink"}

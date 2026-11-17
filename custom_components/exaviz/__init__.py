@@ -22,6 +22,8 @@ from homeassistant.helpers.typing import ConfigType
 from .board_detector import check_prerequisites
 from .const import CONF_CONNECTION, CONNECTION_REMOTE, DOMAIN
 from .coordinator import ExavizDataUpdateCoordinator
+from .poe_readers import clear_unavailable_log
+from .remote import clear_warned_port_names
 from .services import async_setup_services
 
 # URL prefix for the bundled Lovelace frontend cards.
@@ -244,7 +246,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # The coordinator shuts itself down: HA registers its async_shutdown
     # with the entry's unload callbacks.
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        _forget_warnings()
+    return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Forget warnings of an entry removed while its setup was retrying.
+
+    HA skips async_unload_entry for an entry that never loaded.
+    """
+    _forget_warnings()
+
+
+def _forget_warnings() -> None:
+    """One entry at a time (single_config_entry), so the warn-once state is
+    all this entry's: the next entry warns again on its first fault."""
+    clear_unavailable_log()
+    clear_warned_port_names()
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

@@ -74,6 +74,11 @@ def _log_unavailable(key: str, msg: str, *args: Any) -> None:
     _LOGGER.warning(msg, *args)
 
 
+def clear_unavailable_log() -> None:
+    """Forget lost readings, so the next entry warns again on its first failure."""
+    _unavailable.clear()
+
+
 def _log_available(key: str) -> None:
     """Log once that `key` is readable again after a failure."""
     if key in _unavailable:
