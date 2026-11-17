@@ -48,6 +48,13 @@ MAX_REMOTE_PORTS = 8
 # capped so a board sending new names cannot grow it without bound.
 _WARNED_PORT_NAMES: set[str] = set()
 _MAX_WARNED_PORT_NAMES = 32
+
+
+def clear_warned_port_names() -> None:
+    """Forget warned port names, so the next entry warns again on each one."""
+    _WARNED_PORT_NAMES.clear()
+
+
 # GET /zigbee states the sensor shows. "unknown" (the board could not read the
 # unit) is a reading too; anything else means no radio state to show.
 ZIGBEE_RADIO_STATES = ("on", "off", "starting", "failed")
