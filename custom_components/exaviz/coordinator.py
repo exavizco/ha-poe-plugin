@@ -19,7 +19,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import remote
-from .board_detector import BoardType, detect_all_poe_systems
+from .board_detector import DPKG_INSTALLED, BoardType, detect_all_poe_systems
 from .const import (
     CONF_BOARD_TYPE,
     CONF_CONNECTION,
@@ -691,13 +691,13 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             # Exaviz package versions (integration-relevant only)
             dpkg_out = await self._run_cmd(
                 "dpkg-query", "-W", "-f",
-                "${Package} ${Version}\n",
+                "${db:Status-Abbrev} ${Package} ${Version}\n",
                 "exaviz-dkms", "exaviz-netplan",
             )
             for line in dpkg_out.splitlines():
-                parts = line.strip().split(None, 1)
-                if len(parts) == 2:
-                    pkg, ver = parts
+                parts = line.split()
+                if len(parts) == 3 and parts[0] == DPKG_INSTALLED:
+                    _status, pkg, ver = parts
                     if pkg == "exaviz-dkms":
                         info["dkms_driver_version"] = ver
                     elif pkg == "exaviz-netplan":

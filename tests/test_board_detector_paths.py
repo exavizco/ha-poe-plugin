@@ -23,6 +23,7 @@ from custom_components.exaviz.board_detector import (
     detect_board_type,
     detect_onboard_poe,
 )
+from tests import fake_dpkg
 from tests.module_asyncio import patch_module_asyncio
 
 pytestmark = pytest.mark.asyncio
@@ -186,25 +187,33 @@ async def test_config_txt_wins_over_a_uart3_on_an_interceptor(fake_root):
 # --- prerequisites (dpkg-query) -----------------------------------------------
 
 
-def _dpkg(versions: dict[str, tuple[int, bytes] | Exception]):
-    """Fake create_subprocess_exec answering dpkg-query per package."""
+def _dpkg(states: dict[str, tuple[str, str] | None | Exception]):
+    """Fake create_subprocess_exec answering dpkg-query per package.
+
+    A package maps to (status, version) rendered like dpkg-query, None when
+    dpkg does not know it, or an exception to raise.
+    """
     argvs: list[tuple] = []
 
     async def exec_(*argv, **kwargs):
         argvs.append(argv)
-        answer = versions[argv[-1]]
+        answer = states[argv[-1]]
         if isinstance(answer, Exception):
             raise answer
+        known = {argv[-1]: answer} if answer else {}
         proc = MagicMock()
-        proc.returncode, stdout = answer
-        proc.communicate = AsyncMock(return_value=(stdout, None))
+        proc.returncode, stdout = fake_dpkg.render(argv, known)
+        proc.communicate = AsyncMock(return_value=(stdout.encode(), None))
         return proc
 
     return argvs, patch_module_asyncio(board_detector, create_subprocess_exec=AsyncMock(side_effect=exec_))
 
 
 async def test_prerequisites_all_installed(caplog):
-    argvs, p = _dpkg({"exaviz-dkms": (0, b"2.1.0\n"), "exaviz-netplan": (0, b"1.4.2")})
+    argvs, p = _dpkg({
+        "exaviz-dkms": (fake_dpkg.INSTALLED, "2.1.0"),
+        "exaviz-netplan": (fake_dpkg.INSTALLED, "1.4.2"),
+    })
     with p, caplog.at_level(logging.INFO, logger=board_detector.__name__):
         result = await check_prerequisites()
     assert result == {
@@ -212,20 +221,21 @@ async def test_prerequisites_all_installed(caplog):
         "missing": [],
         "all_ok": True,
     }
-    assert argvs[0] == ("dpkg-query", "-W", "-f", "${Version}", "exaviz-dkms")
+    assert [argv[-1] for argv in argvs] == ["exaviz-dkms", "exaviz-netplan"]
     assert "exaviz-dkms 2.1.0, exaviz-netplan 1.4.2" in caplog.text
 
 
 @pytest.mark.parametrize(
     "netplan_answer",
     [
-        (1, b""),  # dpkg-query: no packages found
-        (0, b""),  # known to dpkg but no version (removed, config left)
+        None,  # dpkg-query: no packages found (never installed, or purged)
+        (fake_dpkg.REMOVED_CONFIG_LEFT, "1.4.2"),  # apt remove: version still printed, exit 0
         OSError("dpkg-query not found"),
     ],
+    ids=["unknown", "removed-config-left", "no-dpkg-query"],
 )
 async def test_prerequisites_report_a_missing_package(caplog, netplan_answer):
-    _argvs, p = _dpkg({"exaviz-dkms": (0, b"2.1.0"), "exaviz-netplan": netplan_answer})
+    _argvs, p = _dpkg({"exaviz-dkms": (fake_dpkg.INSTALLED, "2.1.0"), "exaviz-netplan": netplan_answer})
     with p, caplog.at_level(logging.WARNING, logger=board_detector.__name__):
         result = await check_prerequisites()
     assert result["all_ok"] is False

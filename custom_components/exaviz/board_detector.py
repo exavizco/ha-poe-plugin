@@ -34,6 +34,10 @@ _LOGGER = logging.getLogger(__name__)
 # DHCP servers for connected devices).
 REQUIRED_PACKAGES = ("exaviz-dkms", "exaviz-netplan")
 
+# dpkg ${db:Status-Abbrev} of an installed package.  A package removed
+# without purge ("rc") still reports its version.
+DPKG_INSTALLED = "ii"
+
 
 class BoardType(Enum):
     """Board type enumeration."""
@@ -173,13 +177,14 @@ async def check_prerequisites() -> dict[str, Any]:
     for pkg in REQUIRED_PACKAGES:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "dpkg-query", "-W", "-f", "${Version}", pkg,
+                "dpkg-query", "-W", "-f", "${db:Status-Abbrev} ${Version}", pkg,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
             stdout, _ = await proc.communicate()
-            if proc.returncode == 0 and stdout:
-                result["packages"][pkg] = stdout.decode().strip()
+            fields = stdout.decode().split()
+            if proc.returncode == 0 and len(fields) == 2 and fields[0] == DPKG_INSTALLED:
+                result["packages"][pkg] = fields[1]
             else:
                 result["packages"][pkg] = None
                 result["missing"].append(pkg)
