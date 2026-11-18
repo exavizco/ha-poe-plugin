@@ -158,6 +158,22 @@ async def test_t19_ports_but_no_port_count_at_first_read_is_not_ready(hass, boar
     assert entry.runtime_data.total_poe_ports == case("board")["body"]["total_poe_ports"]
 
 
+async def test_t19_port_count_but_no_ports_at_first_read_is_not_ready(hass, board):
+    """/board already gives the port count while /poe/ports is still empty
+    (the controllers are not parsed yet): still the startup window. Loading
+    here would show Board Status "Operational" with no port entities until
+    the next poll."""
+    board.reply("GET", "/poe/ports", case("poe_ports_empty"))
+    entry = await setup_remote(hass, board)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+    board.reply("GET", "/poe/ports", case("poe_ports"))
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert state(hass, "switch.onboard_port0") is not None
+
+
 async def test_t19_empty_after_good_poll_keeps_entities_and_count(hass, board):
     entry = await setup_remote(hass, board)
     board.reply("GET", "/poe/ports", case("poe_ports_empty"))
