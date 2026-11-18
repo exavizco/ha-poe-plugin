@@ -404,7 +404,7 @@ async def test_gather_interceptor(coordinator, root):
     assert "os_version" not in info
 
 
-@pytest.mark.parametrize("board_type", [BoardType.INTERCEPTOR, None], ids=["interceptor", "unknown"])
+@pytest.mark.parametrize("board_type", [BoardType.INTERCEPTOR, BoardType.UNKNOWN], ids=["interceptor", "unknown"])
 async def test_gather_leaves_uart3_alone_off_a_cruiser(coordinator, root, board_type):
     """A user-enabled UART3 on a non-Cruiser board is not the ESP32: no stty, no write."""
     coordinator.board_type = board_type
