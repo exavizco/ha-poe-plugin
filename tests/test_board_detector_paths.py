@@ -169,8 +169,8 @@ async def test_config_txt_wins_over_a_uart3_on_an_interceptor(fake_root):
 
     The Interceptor overlay never enables UART3, but a user can, and then
     /dev/ttyAMA3 exists just as it does on a Cruiser in Docker. config.txt is
-    checked first, so the board keeps its add-on ports only and the plugin
-    does not treat the user's serial device as the Cruiser ESP32.
+    checked first, so the board is not taken for a Cruiser and its poe
+    interfaces are not counted a second time next to the add-on ports.
     """
     write(fake_root, "/boot/firmware/config.txt", "dtoverlay=interceptor-raspberrypi-cm5\n")
     write(fake_root, "/dev/ttyAMA3", "")
@@ -364,8 +364,9 @@ async def test_full_detection_on_a_fake_interceptor(fake_root, caplog):
 async def test_unknown_board_keeps_its_poe_interfaces(fake_root):
     """HA in Docker on a Cruiser with no device passed through still gets its ports.
 
-    The container sees neither config.txt nor /dev/pse, so the board type is
-    unknown, but host networking shows poe0-poe7. With no add-on board those
+    The container sees no device tree name, config.txt, /dev/pse,
+    /dev/ttyAMA3 or /proc/pse, so the board type is unknown, but host
+    networking shows poe0-poe7. With no add-on board those
     are the board's own ports and must not be cleared (setup would otherwise
     fail with no PoE detected).
     """
@@ -378,3 +379,20 @@ async def test_unknown_board_keeps_its_poe_interfaces(fake_root):
         "onboard_ports": [f"poe{i}" for i in range(8)],
         "total_poe_ports": 8,
     }
+
+
+async def test_cruiser_with_the_poe_add_on_board_keeps_all_sixteen_ports(fake_root):
+    """A Cruiser with the PoE add-on board has poe0-poe15 and no /proc/pse.
+
+    The add-on board's ports are network interfaces of the Cruiser, so all
+    sixteen are the board's ports; none may be dropped.
+    """
+    write(fake_root, "/boot/firmware/config.txt", "dtoverlay=cruiser-raspberrypi-cm5\n")
+    write(fake_root, "/dev/pse", "")
+    for i in range(16):
+        (fake_root / f"proc/sys/net/ipv4/conf/poe{i}").mkdir(parents=True)
+    result = await detect_all_poe_systems()
+    assert result["board_type"] is BoardType.CRUISER
+    assert result["addon_boards"] == []
+    assert set(result["onboard_ports"]) == {f"poe{i}" for i in range(16)}
+    assert result["total_poe_ports"] == 16
