@@ -1012,6 +1012,30 @@ async def test_reauth_same_key_new_leaf_skips_the_console_compare(hass, board):
     assert entry.data["fingerprint"] == board.cert.sha256
 
 
+async def test_reauth_ca_mode_same_key_new_leaf_stays_ca(hass, board, monkeypatch, tmp_path):
+    """A CA entry re-paired across a renewal that kept the key stays in CA
+    mode: when reauth counts the certificate as the same (same key, CA-valid),
+    it keeps the stored trust mode."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(bundle))
+    first = make_cert(("127.0.0.1",), issuer=ca)
+    await board.restart(make_cert(("127.0.0.1",), issuer=ca, key=first.key))
+    entry = remote_entry(
+        board, fingerprint=first.sha256, spki=first.spki_sha256, trust_mode="ca"
+    )
+    entry.add_to_hass(hass)
+    result = await _reauth(hass, entry)
+    assert result["step_id"] == "repair"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["trust_mode"] == "ca"
+    assert entry.data["fingerprint"] == board.cert.sha256
+
+
 async def test_reconfigure_same_address_same_key_new_leaf_needs_no_compare(hass, board):
     entry = remote_entry(board, fingerprint="0" * 64)
     entry.add_to_hass(hass)
