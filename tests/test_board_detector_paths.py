@@ -209,7 +209,11 @@ def _dpkg(states: dict[str, tuple[str, str] | None | Exception]):
     return argvs, patch_module_asyncio(board_detector, create_subprocess_exec=AsyncMock(side_effect=exec_))
 
 
-@pytest.mark.parametrize("dkms_status", [fake_dpkg.INSTALLED, fake_dpkg.HELD], ids=["installed", "held"])
+@pytest.mark.parametrize(
+    "dkms_status",
+    [fake_dpkg.INSTALLED, fake_dpkg.HELD, fake_dpkg.TRIGGER_PENDING],
+    ids=["installed", "held", "trigger-pending"],
+)
 async def test_prerequisites_all_installed(caplog, dkms_status):
     argvs, p = _dpkg({
         "exaviz-dkms": (dkms_status, "2.1.0"),

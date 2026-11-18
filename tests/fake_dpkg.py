@@ -3,7 +3,7 @@
 A package maps to (status_abbrev, version). Status abbreviations are the
 three-character `${db:Status-Abbrev}` values, trailing space included:
 want, current state, error flag. "ii " installed, "hi " installed and held
-(apt-mark hold), "rc " removed with config files left. Checked against
+(apt-mark hold), "it " installed with a trigger still pending, "rc " removed with config files left. Checked against
 dpkg-query in a Debian trixie container: a removed (not purged) package
 still prints its version with exit 0; a purged or unknown package prints
 nothing to stdout and exits 1.
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 INSTALLED = "ii "
 HELD = "hi "
+TRIGGER_PENDING = "it "
 REMOVED_CONFIG_LEFT = "rc "
 
 
