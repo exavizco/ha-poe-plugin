@@ -404,6 +404,18 @@ async def test_gather_interceptor(coordinator, root):
     assert "os_version" not in info
 
 
+@pytest.mark.parametrize("board_type", [BoardType.INTERCEPTOR, None], ids=["interceptor", "unknown"])
+async def test_gather_leaves_uart3_alone_off_a_cruiser(coordinator, root, board_type):
+    """A user-enabled UART3 on a non-Cruiser board is not the ESP32: no stty, no write."""
+    coordinator.board_type = board_type
+    put(root, "/dev/ttyAMA3")
+    fake = FakeExec({"bash": ESP32_INFO})
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
+        info = await coordinator._gather_system_info()
+    assert [call for call in fake.calls if call[0] in ("stty", "bash")] == []
+    assert "esp32_firmware_version" not in info
+
+
 async def test_gather_cm3_without_chosen_board(coordinator, root):
     put(root, "/proc/device-tree/compatible", COMPAT_CM3)
     put(root, "/proc/meminfo", "MemTotal:         948304 kB\n")

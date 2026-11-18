@@ -709,9 +709,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             elif self.board_type == BoardType.INTERCEPTOR:
                 info["poe_controller"] = "IP808AR (IC Plus)"
 
-            # Board-specific info: ESP32 (Cruiser) or /proc/pse header (Interceptor)
-            esp32_info = await self._query_esp32_info()
-            info.update(esp32_info)
+            # Board-specific info: ESP32 (Cruiser) or /proc/pse header (Interceptor).
+            # Only a Cruiser's UART3 is the ESP32; elsewhere it may be the user's.
+            if self.board_type == BoardType.CRUISER:
+                info.update(await self._query_esp32_info())
 
             # If no ESP32, try /proc/pse header (Interceptor kernel driver)
             # Header format: "Axzez Interceptor PoE driver version 2.0"
