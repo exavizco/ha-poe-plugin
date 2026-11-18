@@ -231,9 +231,10 @@ async def test_prerequisites_all_installed(caplog, dkms_status):
     [
         None,  # dpkg-query: no packages found (never installed, or purged)
         (fake_dpkg.REMOVED_CONFIG_LEFT, "1.4.2"),  # apt remove: version still printed, exit 0
+        ("iiR", "1.4.2"),  # installed but broken: reinstall required
         OSError("dpkg-query not found"),
     ],
-    ids=["unknown", "removed-config-left", "no-dpkg-query"],
+    ids=["unknown", "removed-config-left", "reinstall-required", "no-dpkg-query"],
 )
 async def test_prerequisites_report_a_missing_package(caplog, netplan_answer):
     _argvs, p = _dpkg({"exaviz-dkms": (fake_dpkg.INSTALLED, "2.1.0"), "exaviz-netplan": netplan_answer})

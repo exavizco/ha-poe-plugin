@@ -38,11 +38,12 @@ REQUIRED_PACKAGES = ("exaviz-dkms", "exaviz-netplan")
 def dpkg_installed(status_abbrev: str) -> bool:
     """True when a dpkg ${db:Status-Abbrev} says the package is installed.
 
-    The second letter is the package's current state: "ii", "hi" (held),
-    "ri"/"pi" (selected for removal) are installed; a package removed
-    without purge ("rc") still reports its version but is not.
+    Letters are want, current state and an optional error flag. "ii",
+    "hi" (held), "ri"/"pi" (selected for removal) are installed; a package
+    removed without purge ("rc") still reports its version but is not, and
+    neither is one flagged for reinstall ("iiR").
     """
-    return status_abbrev[1:2] == "i"
+    return len(status_abbrev) == 2 and status_abbrev[1] == "i"
 
 
 class BoardType(Enum):
