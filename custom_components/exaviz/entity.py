@@ -105,7 +105,7 @@ class ExavizPoEBaseEntity(CoordinatorEntity):
 
     @property
     def available(self) -> bool:
-        """Unavailable when the last poll has no data for the port, or stale data."""
+        """Unavailable when the last poll has no data for the port, or the data is stale."""
         port_data = self._get_port_data()
         return (
             self.coordinator.last_update_success

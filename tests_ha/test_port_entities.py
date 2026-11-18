@@ -58,7 +58,7 @@ async def test_port_that_stops_reading_goes_unavailable(hass):
     await hass.async_block_till_done()
 
 
-async def test_port_unreadable_at_setup_gets_entities_when_it_reads(hass):
+async def test_port_unreadable_at_setup_gets_entities_when_it_reads(hass, caplog):
     entry = local_entry()
     entry.add_to_hass(hass)
     stack, reader = patch_local_board()
@@ -81,10 +81,10 @@ async def test_port_unreadable_at_setup_gets_entities_when_it_reads(hass):
         assert registry.async_get(entity_id).unique_id.startswith(
             f"{entry.entry_id}_onboard_port2"
         ), entity_id
-    # Each port's entities are added once: no duplicates on a further poll.
-    count = len(registry.entities)
+    # Each port's entities are added once: HA logs a second add of the same
+    # unique id as an error and drops it.
     await _poll(hass, entry, PORT_STATUS)
-    assert len(registry.entities) == count
+    assert "does not generate unique IDs" not in caplog.text
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
