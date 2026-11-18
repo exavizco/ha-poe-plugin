@@ -19,7 +19,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import remote
-from .board_detector import BoardType, detect_all_poe_systems
+from .board_detector import BoardType, detect_all_poe_systems, dpkg_installed
 from .const import (
     CONF_BOARD_TYPE,
     CONF_CONNECTION,
@@ -691,13 +691,13 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             # Exaviz package versions (integration-relevant only)
             dpkg_out = await self._run_cmd(
                 "dpkg-query", "-W", "-f",
-                "${Package} ${Version}\n",
+                "${db:Status-Abbrev} ${Package} ${Version}\n",
                 "exaviz-dkms", "exaviz-netplan",
             )
             for line in dpkg_out.splitlines():
-                parts = line.strip().split(None, 1)
-                if len(parts) == 2:
-                    pkg, ver = parts
+                parts = line.split()
+                if len(parts) == 3 and dpkg_installed(parts[0]):
+                    _status, pkg, ver = parts
                     if pkg == "exaviz-dkms":
                         info["dkms_driver_version"] = ver
                     elif pkg == "exaviz-netplan":
@@ -709,9 +709,10 @@ class ExavizDataUpdateCoordinator(DataUpdateCoordinator):
             elif self.board_type == BoardType.INTERCEPTOR:
                 info["poe_controller"] = "IP808AR (IC Plus)"
 
-            # Board-specific info: ESP32 (Cruiser) or /proc/pse header (Interceptor)
-            esp32_info = await self._query_esp32_info()
-            info.update(esp32_info)
+            # Board-specific info: ESP32 (Cruiser) or /proc/pse header (Interceptor).
+            # Only a Cruiser's UART3 is the ESP32; elsewhere it may be the user's.
+            if self.board_type == BoardType.CRUISER:
+                info.update(await self._query_esp32_info())
 
             # If no ESP32, try /proc/pse header (Interceptor kernel driver)
             # Header format: "Axzez Interceptor PoE driver version 2.0"

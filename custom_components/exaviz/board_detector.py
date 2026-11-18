@@ -35,6 +35,20 @@ _LOGGER = logging.getLogger(__name__)
 REQUIRED_PACKAGES = ("exaviz-dkms", "exaviz-netplan")
 
 
+def dpkg_installed(status_abbrev: str) -> bool:
+    """True when a dpkg ${db:Status-Abbrev} says the package is installed.
+
+    Letters are want, current state and an optional error flag. Installed
+    means the states that satisfy a dependency: "ii", "hi" (held),
+    "ri"/"pi" (selected for removal) and "it" (its trigger still to run).
+    A package removed without purge ("rc") still reports its version but is
+    not installed; neither is one half-installed ("iH"), unpacked ("iU"),
+    half-configured ("iF"), awaiting another package's trigger ("iW") or
+    flagged for reinstall ("iiR").
+    """
+    return len(status_abbrev) == 2 and status_abbrev[1] in "it"
+
+
 class BoardType(Enum):
     """Board type enumeration."""
     INTERCEPTOR = "interceptor"
@@ -173,13 +187,14 @@ async def check_prerequisites() -> dict[str, Any]:
     for pkg in REQUIRED_PACKAGES:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "dpkg-query", "-W", "-f", "${Version}", pkg,
+                "dpkg-query", "-W", "-f", "${db:Status-Abbrev} ${Version}", pkg,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
             stdout, _ = await proc.communicate()
-            if proc.returncode == 0 and stdout:
-                result["packages"][pkg] = stdout.decode().strip()
+            fields = stdout.decode().split()
+            if proc.returncode == 0 and len(fields) == 2 and dpkg_installed(fields[0]):
+                result["packages"][pkg] = fields[1]
             else:
                 result["packages"][pkg] = None
                 result["missing"].append(pkg)

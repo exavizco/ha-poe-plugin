@@ -22,6 +22,7 @@ from custom_components.exaviz.coordinator import (
     ExavizDataUpdateCoordinator,
     parse_esp32_info,
 )
+from tests import fake_dpkg
 from tests.module_asyncio import patch_module_asyncio
 
 pytestmark = pytest.mark.asyncio
@@ -51,8 +52,16 @@ PROC_PSE = (
     "Axzez Interceptor PoE driver version 2.0\n"
     "0-0: power-on 0 15.50 47.9375 0.05950/0.80000 33.1250/150.0000\n"
 )
-DPKG_OUT = "exaviz-dkms 1.4.2\nexaviz-netplan 0.3.1\n"
 KERNEL = "6.12.25+rpt-rpi-2712\n"
+BOTH_INSTALLED = {
+    "exaviz-dkms": (fake_dpkg.HELD, "1.4.2"),  # apt-mark hold: still installed
+    "exaviz-netplan": (fake_dpkg.INSTALLED, "0.3.1"),
+}
+
+
+def dpkg(states: dict[str, tuple[str, str]]):
+    """FakeExec output for dpkg-query, rendered from its own -f format."""
+    return lambda argv: fake_dpkg.render(argv, states)[1]
 
 
 @pytest.fixture
@@ -82,9 +91,12 @@ def put(root: Path, path: str, content: str | bytes = "") -> Path:
 
 
 class FakeExec:
-    """Stand-in for asyncio.create_subprocess_exec that records argv."""
+    """Stand-in for asyncio.create_subprocess_exec that records argv.
 
-    def __init__(self, outputs: dict[str, str] | None = None, error: Exception | None = None):
+    An output is a string, or a function of the argv returning one.
+    """
+
+    def __init__(self, outputs: dict[str, Any] | None = None, error: Exception | None = None):
         self.outputs = outputs or {}
         self.error = error
         self.calls: list[tuple[str, ...]] = []
@@ -93,10 +105,11 @@ class FakeExec:
         self.calls.append(args)
         if self.error:
             raise self.error
+        output = self.outputs.get(args[0], "")
+        if callable(output):
+            output = output(args)
         proc = MagicMock()
-        proc.communicate = AsyncMock(
-            return_value=(self.outputs.get(args[0], "").encode(), None)
-        )
+        proc.communicate = AsyncMock(return_value=(output.encode(), None))
         return proc
 
 
@@ -339,7 +352,7 @@ async def test_gather_cruiser(coordinator, root):
     put(root, "/dev/pse")
     # The ESP32 serial wins, so the device-tree board name is not used.
     put(root, "/proc/device-tree/chosen/board", b"cruiser-raspberrypi-cm5\x00")
-    fake = FakeExec({"uname": KERNEL, "dpkg-query": DPKG_OUT, "bash": ESP32_INFO})
+    fake = FakeExec({"uname": KERNEL, "dpkg-query": dpkg(BOTH_INSTALLED), "bash": ESP32_INFO})
     with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         info = await coordinator._gather_system_info()
 
@@ -370,8 +383,11 @@ async def test_gather_interceptor(coordinator, root):
     put(root, "/proc/meminfo", MEMINFO_2GB)
     put(root, "/proc/pse", PROC_PSE)
     put(root, "/proc/device-tree/chosen/board", b"interceptor-raspberrypi-cm4\x00")
-    # dpkg-query output with a stray line and an unrelated package.
-    fake = FakeExec({"uname": KERNEL, "dpkg-query": "exaviz-dkms 1.4.2\nbroken\nfoo 1.0\n"})
+    # exaviz-netplan was removed with apt remove: dpkg still knows its version.
+    fake = FakeExec({"uname": KERNEL, "dpkg-query": dpkg({
+        "exaviz-dkms": (fake_dpkg.INSTALLED, "1.4.2"),
+        "exaviz-netplan": (fake_dpkg.REMOVED_CONFIG_LEFT, "0.3.1"),
+    })})
     with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
         info = await coordinator._gather_system_info()
 
@@ -386,6 +402,18 @@ async def test_gather_interceptor(coordinator, root):
     assert "netplan_version" not in info
     assert "esp32_firmware_version" not in info
     assert "os_version" not in info
+
+
+@pytest.mark.parametrize("board_type", [BoardType.INTERCEPTOR, BoardType.UNKNOWN], ids=["interceptor", "unknown"])
+async def test_gather_leaves_uart3_alone_off_a_cruiser(coordinator, root, board_type):
+    """A user-enabled UART3 on a non-Cruiser board is not the ESP32: no stty, no write."""
+    coordinator.board_type = board_type
+    put(root, "/dev/ttyAMA3")
+    fake = FakeExec({"bash": ESP32_INFO})
+    with patch_module_asyncio(coordinator_module, create_subprocess_exec=fake):
+        info = await coordinator._gather_system_info()
+    assert [call for call in fake.calls if call[0] in ("stty", "bash")] == []
+    assert "esp32_firmware_version" not in info
 
 
 async def test_gather_cm3_without_chosen_board(coordinator, root):
