@@ -28,7 +28,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.exaviz.const import DOMAIN
 from custom_components.exaviz.switch import ExavizPoEPortSwitch
 
-from .local_board import patch_local_board
+from .local_board import PORT_STATUS, patch_local_board
 
 
 class Hardware:
@@ -335,3 +335,19 @@ async def test_port_action_runs_with_the_callers_permissions(
         blocking=True, context=Context(user_id=hass_admin_user.id),
     )
     assert hw.calls == ["disable-port 1 1", "poe1 down"]
+
+
+@pytest.mark.parametrize("service", ["turn_on_port", "turn_off_port", "reset_port"])
+async def test_action_on_a_port_missing_from_the_poll_is_refused(hass, local, service):
+    entry, reader, hw = local
+    reader.return_value = {
+        **PORT_STATUS, "poe2": {**PORT_STATUS["poe2"], "available": False}
+    }
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    with pytest.raises(HomeAssistantError, match="is unavailable"):
+        await action(hass, service, entity_id="switch.onboard_port2")
+    assert hw.calls == []
+    # Positive control: a port that still reads is switched.
+    await action(hass, service, entity_id="switch.onboard_port3")
+    assert hw.calls

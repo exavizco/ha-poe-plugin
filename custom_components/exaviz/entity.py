@@ -33,9 +33,9 @@ def async_setup_port_entities(
 ) -> None:
     """Add `build(poe_set, port)` entities for every port in the data.
 
-    A remote board can report ports after setup (one controller parsed before
-    the other), so remote entries also add entities for ports seen later,
-    with the same ids the first refresh would have given them.
+    A port can first appear after setup (a remote controller parsed late, or
+    a local port whose read failed), so entities are also added for ports
+    seen later, with the same ids the first refresh would have given them.
     """
     known: set[tuple[str, int]] = set()
 
@@ -53,8 +53,7 @@ def async_setup_port_entities(
             async_add_entities(entities)
 
     add_new_ports()
-    if coordinator.remote is not None:
-        config_entry.async_on_unload(coordinator.async_add_listener(add_new_ports))
+    config_entry.async_on_unload(coordinator.async_add_listener(add_new_ports))
 
 
 class ExavizPoEBaseEntity(CoordinatorEntity):
@@ -106,11 +105,12 @@ class ExavizPoEBaseEntity(CoordinatorEntity):
 
     @property
     def available(self) -> bool:
-        """Return if entity is available (a remote port can be stale)."""
+        """Unavailable when the last poll has no data for the port, or the data is stale."""
+        port_data = self._get_port_data()
         return (
             self.coordinator.last_update_success
-            and self.coordinator.data is not None
-            and not self._get_port_attribute("stale", False)
+            and port_data is not None
+            and not port_data.get("stale", False)
         )
 
     def _get_port_data(self) -> dict[str, Any] | None:
