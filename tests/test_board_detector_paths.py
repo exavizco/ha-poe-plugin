@@ -164,6 +164,25 @@ async def test_nothing_found_is_unknown_with_a_warning(fake_root, caplog):
     assert "Board type could not be determined" in caplog.text
 
 
+async def test_config_txt_wins_over_a_uart3_on_an_interceptor(fake_root):
+    """An Interceptor with UART3 enabled for another use stays an Interceptor.
+
+    The Interceptor overlay never enables UART3, but a user can, and then
+    /dev/ttyAMA3 exists just as it does on a Cruiser in Docker. config.txt is
+    checked first, so the board keeps its add-on ports only and the plugin
+    does not treat the user's serial device as the Cruiser ESP32.
+    """
+    write(fake_root, "/boot/firmware/config.txt", "dtoverlay=interceptor-raspberrypi-cm5\n")
+    write(fake_root, "/dev/ttyAMA3", "")
+    write(fake_root, "/proc/pse", PROC_PSE_TWO_CONTROLLERS)
+    for i in range(16):
+        (fake_root / f"proc/sys/net/ipv4/conf/poe{i}").mkdir(parents=True)
+    result = await detect_all_poe_systems()
+    assert result["board_type"] is BoardType.INTERCEPTOR
+    assert result["onboard_ports"] == []
+    assert result["total_poe_ports"] == 16
+
+
 # --- prerequisites (dpkg-query) -----------------------------------------------
 
 
@@ -340,3 +359,22 @@ async def test_full_detection_on_a_fake_interceptor(fake_root, caplog):
         "total_poe_ports": 16,
     }
     assert "Clearing onboard list" in caplog.text
+
+
+async def test_unknown_board_keeps_its_poe_interfaces(fake_root):
+    """HA in Docker on a Cruiser with no device passed through still gets its ports.
+
+    The container sees neither config.txt nor /dev/pse, so the board type is
+    unknown, but host networking shows poe0-poe7. With no add-on board those
+    are the board's own ports and must not be cleared (setup would otherwise
+    fail with no PoE detected).
+    """
+    for i in range(8):
+        (fake_root / f"proc/sys/net/ipv4/conf/poe{i}").mkdir(parents=True)
+    result = await detect_all_poe_systems()
+    assert result == {
+        "board_type": BoardType.UNKNOWN,
+        "addon_boards": [],
+        "onboard_ports": [f"poe{i}" for i in range(8)],
+        "total_poe_ports": 8,
+    }
