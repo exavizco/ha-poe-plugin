@@ -1014,8 +1014,7 @@ async def test_reauth_same_key_new_leaf_skips_the_console_compare(hass, board):
 
 async def test_reauth_ca_mode_same_key_new_leaf_stays_ca(hass, board, monkeypatch, tmp_path):
     """A CA entry re-paired across a renewal that kept the key stays in CA
-    mode. Saved as pin mode, another same-key re-issue followed by a move to a
-    new address would ask for the console compare that CA mode skips."""
+    mode: reauth keeps the trust mode the entry was paired with."""
     ca = make_cert(("Test CA",), is_ca=True)
     bundle = tmp_path / "ca.pem"
     bundle.write_bytes(ca.pem)
