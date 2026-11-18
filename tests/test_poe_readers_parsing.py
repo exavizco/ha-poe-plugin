@@ -461,6 +461,19 @@ class TestReadAllEsp32Data:
         assert len(fake.ran("timeout")) == 1
 
     @pytest.mark.asyncio
+    async def test_line_noise_byte_keeps_the_other_lines(self, root):
+        # A UART framing error can put a byte that is not UTF-8 in the capture.
+        _write(root, "dev/pse", "")
+        fake = FakeExec({
+            ("stty",): (b"", 0),
+            ("timeout", "3", "cat"): (b"\xff\xfe" + _esp32_stream(), 0),
+        })
+        with patch_module_asyncio(poe_readers, create_subprocess_exec=fake):
+            data = await _read_all_esp32_data()
+
+        assert set(data) == {(0, 0), (0, 1), (1, 1), (1, 3)}
+
+    @pytest.mark.asyncio
     async def test_empty_dev_pse_then_ttyama3(self, root):
         _write(root, "dev/pse", "")
         _write(root, "dev/ttyAMA3", "")
@@ -660,6 +673,7 @@ class TestOnboardResult:
             result = await read_network_port_status("poe6", {})
 
         assert result["state"] == "disabled"
+        assert result["enabled"] is False  # the port switch reads this
         assert result["power_watts"] == 0.0
         assert result["voltage_volts"] == 0.0
         assert result["current_milliamps"] == 0

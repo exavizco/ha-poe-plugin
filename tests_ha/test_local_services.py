@@ -106,6 +106,10 @@ async def test_control_port_with_an_action_and_with_the_default(hass, local):
     # No action given: toggle. poe7 starts disabled, so it is turned on.
     await action(hass, "control_port", entity_id="switch.onboard_port7")
     assert hw.calls == ["poe7 up", "enable-port 0 3"]
+    hw.calls.clear()
+    # And poe5 starts enabled, so it is turned off, not on.
+    await action(hass, "control_port", entity_id="switch.onboard_port5")
+    assert hw.calls == ["disable-port 0 1", "poe5 down"]
 
 
 async def test_port_action_accepts_the_current_sensor_entity(hass, local):
@@ -274,6 +278,39 @@ async def test_port_action_refuses_a_switch_of_another_integration(
     with pytest.raises(ServiceValidationError, match="is not an Exaviz"):
         await action(hass, service, entity_id=entity_id)
     assert kitchen.calls == []
+    assert hw.calls == []
+
+
+class HallSwitch(SwitchEntity):
+    """A switch from another integration with no unique id, so no registry entry."""
+
+    _attr_name = "Hall"
+    _attr_is_on = True
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def async_turn_off(self, **kwargs) -> None:
+        self.calls.append("off")
+
+
+@pytest.fixture
+async def hall(hass) -> HallSwitch:
+    """switch.hall, set up before the Exaviz entry like `kitchen`."""
+    switch = HallSwitch()
+    setup_test_component_platform(hass, "switch", [switch])
+    assert await async_setup_component(hass, "switch", {"switch": {"platform": "test"}})
+    await hass.async_block_till_done()
+    assert hass.states.get("switch.hall") is not None
+    assert er.async_get(hass).async_get("switch.hall") is None
+    return switch
+
+
+async def test_port_action_refuses_a_switch_with_no_registry_entry(hass, hall, local):
+    _entry, _reader, hw = local
+    with pytest.raises(ServiceValidationError, match="is not an Exaviz"):
+        await action(hass, "turn_off_port", entity_id="switch.hall")
+    assert hall.calls == []
     assert hw.calls == []
 
 
