@@ -209,9 +209,10 @@ def _dpkg(states: dict[str, tuple[str, str] | None | Exception]):
     return argvs, patch_module_asyncio(board_detector, create_subprocess_exec=AsyncMock(side_effect=exec_))
 
 
-async def test_prerequisites_all_installed(caplog):
+@pytest.mark.parametrize("dkms_status", [fake_dpkg.INSTALLED, fake_dpkg.HELD], ids=["installed", "held"])
+async def test_prerequisites_all_installed(caplog, dkms_status):
     argvs, p = _dpkg({
-        "exaviz-dkms": (fake_dpkg.INSTALLED, "2.1.0"),
+        "exaviz-dkms": (dkms_status, "2.1.0"),
         "exaviz-netplan": (fake_dpkg.INSTALLED, "1.4.2"),
     })
     with p, caplog.at_level(logging.INFO, logger=board_detector.__name__):

@@ -54,7 +54,7 @@ PROC_PSE = (
 )
 KERNEL = "6.12.25+rpt-rpi-2712\n"
 BOTH_INSTALLED = {
-    "exaviz-dkms": (fake_dpkg.INSTALLED, "1.4.2"),
+    "exaviz-dkms": (fake_dpkg.HELD, "1.4.2"),  # apt-mark hold: still installed
     "exaviz-netplan": (fake_dpkg.INSTALLED, "0.3.1"),
 }
 

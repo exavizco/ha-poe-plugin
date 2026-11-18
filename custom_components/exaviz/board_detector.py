@@ -34,9 +34,15 @@ _LOGGER = logging.getLogger(__name__)
 # DHCP servers for connected devices).
 REQUIRED_PACKAGES = ("exaviz-dkms", "exaviz-netplan")
 
-# dpkg ${db:Status-Abbrev} of an installed package.  A package removed
-# without purge ("rc") still reports its version.
-DPKG_INSTALLED = "ii"
+
+def dpkg_installed(status_abbrev: str) -> bool:
+    """True when a dpkg ${db:Status-Abbrev} says the package is installed.
+
+    The second letter is the package's current state: "ii", "hi" (held),
+    "ri"/"pi" (selected for removal) are installed; a package removed
+    without purge ("rc") still reports its version but is not.
+    """
+    return status_abbrev[1:2] == "i"
 
 
 class BoardType(Enum):
@@ -183,7 +189,7 @@ async def check_prerequisites() -> dict[str, Any]:
             )
             stdout, _ = await proc.communicate()
             fields = stdout.decode().split()
-            if proc.returncode == 0 and len(fields) == 2 and fields[0] == DPKG_INSTALLED:
+            if proc.returncode == 0 and len(fields) == 2 and dpkg_installed(fields[0]):
                 result["packages"][pkg] = fields[1]
             else:
                 result["packages"][pkg] = None
