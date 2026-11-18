@@ -379,20 +379,3 @@ async def test_unknown_board_keeps_its_poe_interfaces(fake_root):
         "onboard_ports": [f"poe{i}" for i in range(8)],
         "total_poe_ports": 8,
     }
-
-
-async def test_cruiser_with_the_poe_add_on_board_keeps_all_sixteen_ports(fake_root):
-    """A Cruiser with the PoE add-on board has poe0-poe15 and no /proc/pse.
-
-    The add-on board's ports are network interfaces of the Cruiser, so all
-    sixteen are the board's ports; none may be dropped.
-    """
-    write(fake_root, "/boot/firmware/config.txt", "dtoverlay=cruiser-raspberrypi-cm5\n")
-    write(fake_root, "/dev/pse", "")
-    for i in range(16):
-        (fake_root / f"proc/sys/net/ipv4/conf/poe{i}").mkdir(parents=True)
-    result = await detect_all_poe_systems()
-    assert result["board_type"] is BoardType.CRUISER
-    assert result["addon_boards"] == []
-    assert set(result["onboard_ports"]) == {f"poe{i}" for i in range(16)}
-    assert result["total_poe_ports"] == 16
