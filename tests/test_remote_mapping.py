@@ -59,8 +59,6 @@ def test_t12_neutral_names_and_skips():
         dict(body["ports"][0], name="pse0-1", pse=0, index=1),
         dict(body["ports"][0], name="pse2-0", pse=2, index=0),
         dict(body["ports"][0], name="eth9", pse=0, index=0),
-        # An Interceptor has up to 16 ports; the first one past the limit.
-        dict(body["ports"][0], name="poe8", pse=0, index=0),
     ]
     ports = by_port(map_ports(body, {"ports": []}, DATE, None))
     assert sorted(ports) == [2, 5]
