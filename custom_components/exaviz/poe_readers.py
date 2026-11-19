@@ -534,9 +534,12 @@ def _parse_bridge_fdb(output: str, own_macs: set[str]) -> list[str]:
 
         24:52:6a:08:71:80 master br0
 
-    We drop ``self``/``permanent`` entries (the bridge's own/static addresses),
-    multicast/broadcast MACs, and any of this host's own interface MACs. What
-    remains is the MAC(s) of the device(s) behind the port.
+    We drop ``self`` and ``permanent`` entries (the port's own addresses,
+    or an entry added by hand as ``local`` or with no state keyword),
+    entries without ``master``, multicast/broadcast MACs, and any of this
+    host's own interface MACs. A unicast entry pinned with ``static`` is
+    kept.
+    What remains is the MAC(s) of the device(s) behind the port.
     """
     macs: list[str] = []
     mac_re = re.compile(r"^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$", re.IGNORECASE)
