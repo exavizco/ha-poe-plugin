@@ -139,7 +139,7 @@ async def test_local_poll_touches_the_filesystem_off_the_loop(board_root, local_
 
     # The fake board was read for real (the guard is not vacuous).
     assert data["board_temperature_celsius"] == 55.1
-    assert data["poe"]["addon_0"]["ports"][0]["status"] == "power-on"
+    assert data["poe"]["addon_0"]["ports"][0]["status"] == "power on"
     onboard = {p["interface"]: p for p in data["poe"]["onboard"]["ports"]}
     assert onboard["poe0"]["link_state"] == "up"
     assert onboard["poe0"]["connected_device"]["mac_address"] == "3e:ac:94:54:25:fa"

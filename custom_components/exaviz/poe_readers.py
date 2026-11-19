@@ -155,7 +155,11 @@ async def read_pse_port_status(pse_id: str, port_num: int) -> dict[str, Any]:
             match = re.match(port_pattern, line.strip())
             if match:
                 state, poe_class, power_budget_str, voltage_str, current_str, temp_str = match.groups()
-                
+                # The driver writes "power-on"; the coordinator, entities and
+                # card all expect "power on".
+                if state == "power-on":
+                    state = "power on"
+
                 voltage_volts = float(voltage_str) if voltage_str != '?' else 0.0
                 
                 # Parse "current/limit" format

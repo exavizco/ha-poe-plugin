@@ -55,7 +55,8 @@ class TestReadPSEPortStatus:
             result = await read_pse_port_status("pse0", 0)
 
         assert result["available"] is True
-        assert result["state"] == "power-on"
+        # /proc/pse says "power-on"; the integration and the card use "power on".
+        assert result["state"] == "power on"
         assert result["class"] == "0"
         assert result["voltage_volts"] == 47.94
         assert result["current_milliamps"] == 59
