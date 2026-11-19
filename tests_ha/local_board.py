@@ -44,7 +44,7 @@ ADDON_STATUS = {
     port: {
         "available": True,
         "poe_system": "addon",
-        "state": "power-on" if port == 2 else "backoff",
+        "state": "power on" if port == 2 else "backoff",
         "class": "0" if port == 2 else "?",
         "power_watts": 4.69 if port == 2 else 0.0,
         "allocated_power_watts": 15.4,

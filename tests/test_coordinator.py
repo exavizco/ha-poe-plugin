@@ -4,9 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.exaviz import poe_readers
 from custom_components.exaviz.coordinator import ExavizDataUpdateCoordinator
 from custom_components.exaviz.board_detector import BoardType
 from custom_components.exaviz.const import DOMAIN, DEFAULT_SCAN_INTERVAL
+
+from tests.module_asyncio import patch_module_asyncio
 
 
 @pytest.fixture
@@ -178,6 +181,41 @@ class TestDataUpdate:
         assert dev["traffic_detected"] is True
         assert dev["device_type"] == "Undiscovered Device (Traffic Seen, No ARP Entry)"
         assert dev["ip_address"] is None
+
+    @pytest.mark.asyncio
+    async def test_addon_power_on_port_drawing_nothing_is_active(self, coordinator):
+        """A powered add-on port is active even at 0 mA (Bug 6).
+
+        Raw /proc/pse text goes through the real reader: the driver spells
+        the state "power-on", which the coordinator must still count as on.
+        Port 4 is the line read from a bench Interceptor, current set to 0.
+        """
+        coordinator.board_type = BoardType.INTERCEPTOR
+        coordinator.onboard_ports = []
+        coordinator.addon_boards = ["pse0"]
+        proc_pse = (
+            "Exaviz Interceptor PoE driver version 2.0\n"
+            "0-3: backoff ? 0.00 48.2500 0.00000/0.80000 29.4375/150.0000 at \n"
+            "0-4: power-on 3 15.50 48.2500 0.00000/0.80000 32.7500/150.0000 at \n"
+            "0: 48.2500/40.0000-60.0000 0.00000/2.50000 15.50/120\n"
+        )
+        to_thread = AsyncMock(return_value=MagicMock(stdout=proc_pse, stderr=""))
+        with patch("pathlib.Path.exists", return_value=True), \
+             patch_module_asyncio(poe_readers, to_thread=to_thread), \
+             patch.object(poe_readers, "_get_connected_device_from_arp",
+                          AsyncMock(return_value=None)):
+            data = await coordinator._async_update_data()
+
+        ports = {p["port"]: p for p in data["poe"]["addon_0"]["ports"]}
+        powered, idle = ports[4], ports[3]
+        assert powered["power_consumption_watts"] == 0.0
+        assert powered["connected_device"]["device_type"] == (
+            "Unknown Device (No Network Activity)"
+        )
+        assert powered["status"] == "power on"
+        # Control: a backoff port at 0 mA has no device.
+        assert idle["status"] == "backoff"
+        assert idle["connected_device"] is None
 
     @pytest.mark.asyncio
     async def test_read_error_raises_update_failed(self, coordinator):

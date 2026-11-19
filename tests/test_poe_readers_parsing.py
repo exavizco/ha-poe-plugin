@@ -212,7 +212,7 @@ class TestProcPse:
         assert result == {
             "available": True,
             "poe_system": "addon",
-            "state": "power-on",
+            "state": "power on",
             "class": "0",
             "power_watts": 4.68,  # 48.25 V x 0.097 A
             "allocated_power_watts": 15.4,

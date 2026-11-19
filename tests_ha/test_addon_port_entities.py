@@ -7,9 +7,14 @@ second board and check port 2 on the first is untouched.
 """
 from __future__ import annotations
 
+import subprocess
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.exaviz import poe_readers
 from custom_components.exaviz.const import DOMAIN
 
 from .local_board import ADDON_STATUS, patch_local_board
@@ -118,6 +123,53 @@ async def test_addon_port_unreadable_at_setup_gets_entities_when_it_reads(
     # unique id as an error and drops it.
     await _poll(hass, entry, gone=False)
     assert "does not generate unique IDs" not in caplog.text
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+# A bench Interceptor's /proc/pse with port 4's current set to 0: the driver
+# spells the delivering state "power-on" (Bug 6).
+PROC_PSE = (
+    "Exaviz Interceptor PoE driver version 2.0\n"
+    "0-3: backoff ? 0.00 48.2500 0.00000/0.80000 29.4375/150.0000 at \n"
+    "0-4: power-on 3 15.50 48.2500 0.00000/0.80000 32.7500/150.0000 at \n"
+    "0: 48.2500/40.0000-60.0000 0.00000/2.50000 15.50/120\n"
+)
+
+
+async def test_powered_addon_port_at_zero_current_shows_plugged(hass):
+    """Raw /proc/pse text through the real reader into HA entities."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={}, unique_id="exaviz_interceptor", entry_id="raw"
+    )
+    entry.add_to_hass(hass)
+    stack, reader = patch_local_board(["pse0"])
+    reader.side_effect = poe_readers.read_all_addon_ports
+    fake_subprocess = SimpleNamespace(
+        run=MagicMock(return_value=MagicMock(stdout=PROC_PSE)),
+        TimeoutExpired=subprocess.TimeoutExpired,
+        CalledProcessError=subprocess.CalledProcessError,
+    )
+    stack.enter_context(patch.object(poe_readers, "subprocess", fake_subprocess))
+    stack.enter_context(
+        patch.object(poe_readers, "Path", MagicMock(return_value=MagicMock()))
+    )
+    stack.enter_context(
+        patch.object(
+            poe_readers, "_get_connected_device_from_arp", AsyncMock(return_value=None)
+        )
+    )
+    with stack:
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    current = hass.states.get("sensor.addon_0_port4_current")
+    assert current.state == "0.0"
+    assert current.attributes["status"] == "power on"
+    assert hass.states.get("binary_sensor.addon_0_port4_plug").state == "on"
+    # Control: a backoff port at 0 mA is not plugged.
+    assert hass.states.get("binary_sensor.addon_0_port3_plug").state == "off"
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
