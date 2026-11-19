@@ -28,18 +28,19 @@ from tests.module_asyncio import patch_module_asyncio
 
 pytestmark = pytest.mark.asyncio
 
-# Two PSE controllers as the ip808ar driver streams them (header, port
-# lines prefixed "<pse>-<port>:", summary).
+# Two PSE controllers as the ip808ar driver prints them: its version header,
+# port lines "<pse>-<port>: state class power voltage current/limit
+# temp/limit mode event", and a "<pse>:" summary line after each controller.
 PROC_PSE_TWO_CONTROLLERS = """\
-IP808AR PSE status v2.0
-0-0: power-on 0 15.50 48.10 120
-0-1: searching 0 0.00 0.00 0
-0-2: searching 0 0.00 0.00 0
-0-3: power-on 3 6.20 48.00 130
-total: 21.70
-1-0: searching 0 0.00 0.00 0
-1-1: power-on 2 4.10 48.20 85
-total: 4.10
+Exaviz Interceptor PoE driver version 2.0
+0-0: power-on 0 15.50 48.2500 0.09700/0.80000 33.1250/150.0000 af
+0-1: detecting ? 0.00 48.2500 0.00000/0.80000 34.6250/150.0000 af
+0-2: detecting ? 0.00 48.2500 0.00000/0.80000 34.0000/150.0000 af
+0-3: power-on 3 6.20 48.2500 0.12800/0.80000 36.5000/150.0000 af
+0: 48.2500/40.0000-60.0000 0.22500/2.50000 41.25/120
+1-0: detecting ? 0.00 48.1875 0.00000/0.80000 30.0000/150.0000 af
+1-1: power-on 2 4.10 48.1875 0.08500/0.80000 31.2500/150.0000 af
+1: 48.1875/40.0000-60.0000 0.08500/2.50000 38.00/120
 """
 
 
@@ -279,12 +280,18 @@ async def test_addon_boards_read_only_the_first_lines(fake_root):
 
 
 async def test_addon_board_on_a_single_controller(fake_root):
-    write(fake_root, "/proc/pse", "IP808AR PSE status v2.0\n0-0: searching 0 0.00 0.00 0\n")
+    write(
+        fake_root,
+        "/proc/pse",
+        "Exaviz Interceptor PoE driver version 2.0\n"
+        "0-0: detecting ? 0.00 48.2500 0.00000/0.80000 33.1250/150.0000 af\n"
+        "0: 48.2500/40.0000-60.0000 0.00000/2.50000 0.00/120\n",
+    )
     assert await detect_addon_boards() == ["pse0"]
 
 
 async def test_addon_boards_header_only_while_driver_starts(fake_root, caplog):
-    write(fake_root, "/proc/pse", "IP808AR PSE status v2.0\n")
+    write(fake_root, "/proc/pse", "Exaviz Interceptor PoE driver version 2.0\n")
     with caplog.at_level(logging.DEBUG, logger=board_detector.__name__):
         assert await detect_addon_boards() == []
     assert "no port lines found" in caplog.text
