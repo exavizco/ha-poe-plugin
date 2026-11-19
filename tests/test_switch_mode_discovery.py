@@ -80,9 +80,18 @@ class TestParseBridgeFdb:
         assert "02:1a:2b:3c:4d:5e" not in macs  # vlan ... permanent
 
     def test_drops_static_multicast_entry(self):
-        # `bridge fdb append` adds a multicast entry with neither self nor
-        # permanent; it is not a device behind the port.
-        assert _parse_bridge_fdb("01:00:5e:00:00:fb master br0\n", set()) == []
+        # `bridge fdb append ... master static` adds a multicast entry that
+        # shows neither self nor permanent (a plain append shows permanent);
+        # it is not a device behind the port.
+        assert _parse_bridge_fdb("01:00:5e:00:00:fb master br0 static\n", set()) == []
+
+    def test_keeps_static_unicast_entry(self):
+        # A unicast MAC pinned to the port with `static` is a real device.
+        # Keeping it also makes the multicast test above depend on the
+        # multicast filter alone.
+        assert _parse_bridge_fdb("24:52:6a:08:71:80 master br0 static\n", set()) == [
+            "24:52:6a:08:71:80",
+        ]
 
     def test_multiple_devices_preserve_order(self):
         assert _parse_bridge_fdb(FDB_TWO_DEVICES, set()) == [
