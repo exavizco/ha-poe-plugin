@@ -63,6 +63,20 @@ class TestReadPSEPortStatus:
         assert result["enabled"] is True
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "state", ["power-up", "power-up-suspended", "power-denied", "error-delay"],
+    )
+    async def test_other_hyphenated_states_unchanged(self, state):
+        # Only "power-on" is respelled; the driver's other states pass through.
+        line = f"0-0: {state} 0 15.50 47.9375 0.00000/0.80000 33.1250/150.0000\n"
+        to_thread = AsyncMock(return_value=MagicMock(stdout=line, stderr=""))
+        with patch("pathlib.Path.exists", return_value=True), \
+             patch_module_asyncio(poe_readers, to_thread=to_thread):
+            result = await read_pse_port_status("pse0", 0)
+
+        assert result["state"] == state
+
+    @pytest.mark.asyncio
     async def test_backoff_port_is_enabled(self):
         """Regression: backoff must be treated as enabled (Oct 2025 fix)."""
         mock_result = MagicMock(stdout=PROC_PSE_SAMPLE, stderr="")
