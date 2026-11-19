@@ -79,6 +79,11 @@ class TestParseBridgeFdb:
         assert "01:00:5e:00:00:01" not in macs
         assert "02:1a:2b:3c:4d:5e" not in macs  # vlan ... permanent
 
+    def test_drops_static_multicast_entry(self):
+        # `bridge fdb append` adds a multicast entry with neither self nor
+        # permanent; it is not a device behind the port.
+        assert _parse_bridge_fdb("01:00:5e:00:00:fb master br0\n", set()) == []
+
     def test_multiple_devices_preserve_order(self):
         assert _parse_bridge_fdb(FDB_TWO_DEVICES, set()) == [
             "24:52:6a:08:71:80",
@@ -317,8 +322,9 @@ class TestRunArpScan:
     @pytest.mark.asyncio
     async def test_failure_is_cached_no_herd(self):
         # A failing sweep (rc!=0) must be cached so concurrent ports don't each
-        # re-spawn arp-scan every poll cycle.
-        spawn = AsyncMock(return_value=_fake_proc(b"", returncode=1))
+        # re-spawn arp-scan every poll cycle. arp-scan prints hosts as it finds
+        # them, so a sweep that fails part way still has host lines: drop them.
+        spawn = AsyncMock(return_value=_fake_proc(ARP_SCAN_OUTPUT.encode(), returncode=1))
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
              patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
