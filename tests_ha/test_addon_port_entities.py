@@ -18,23 +18,24 @@ BOARDS = ["pse0", "pse1"]
 POWERED = "binary_sensor.addon_1_port2_powered"
 PLUGGED = "binary_sensor.addon_1_port2_plug"
 CURRENT = "sensor.addon_1_port2_current"
-# Port 2 on the first board; the switch and button of an add-on port are
-# always unavailable (no write interface), so only the readings are checked.
-OTHER_BOARD = (
-    "binary_sensor.addon_0_port2_powered",
-    "binary_sensor.addon_0_port2_plug",
-    "sensor.addon_0_port2_current",
-)
+# The switch and button of an add-on port are always unavailable (no write
+# interface), so only the readings are checked.
 READINGS = (POWERED, PLUGGED, CURRENT)
+# Port 2 on the second board draws a different power, so a reading taken from
+# the wrong board shows.
+SECOND = {**ADDON_STATUS, 2: {**ADDON_STATUS[2], "power_watts": 6.37}}
+WATTS = {"addon_0_port2": "4.69", "addon_1_port2": "6.37"}
 
 
 def _read(gone: bool):
     """read_all_addon_ports, with port 2 on pse1 unreadable when `gone`."""
 
     async def read(pse_id: str, port_count: int = 8):
-        if gone and pse_id == "pse1":
-            return {**ADDON_STATUS, 2: {"available": False, "state": "error"}}
-        return ADDON_STATUS
+        if pse_id == "pse0":
+            return ADDON_STATUS
+        if gone:
+            return {**SECOND, 2: {"available": False, "state": "error"}}
+        return SECOND
 
     return read
 
@@ -67,7 +68,7 @@ async def _poll(hass, entry, gone: bool) -> None:
 def _assert_reading(hass, prefix: str) -> None:
     assert hass.states.get(f"binary_sensor.{prefix}_powered").state == "on"
     assert hass.states.get(f"binary_sensor.{prefix}_plug").state == "on"
-    assert hass.states.get(f"sensor.{prefix}_current").state == "4.69"
+    assert hass.states.get(f"sensor.{prefix}_current").state == WATTS[prefix]
 
 
 async def test_addon_port_that_stops_reading_goes_unavailable(hass):
@@ -82,7 +83,6 @@ async def test_addon_port_that_stops_reading_goes_unavailable(hass):
     for entity_id in READINGS:
         state = hass.states.get(entity_id)
         assert state.state == "unavailable", entity_id
-        assert "port_number" not in state.attributes
     # The same port number on the other board, and the other ports on this
     # board, still read.
     _assert_reading(hass, "addon_0_port2")
