@@ -64,7 +64,8 @@ class TestReadPSEPortStatus:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "state", ["power-up", "power-up-suspended", "power-denied", "error-delay"],
+        "state",
+        ["power-up", "power-up-suspended", "power-denied", "error-delay", "invalid-signature"],
     )
     async def test_other_hyphenated_states_unchanged(self, state):
         # Only "power-on" is respelled; the driver's other states pass through.

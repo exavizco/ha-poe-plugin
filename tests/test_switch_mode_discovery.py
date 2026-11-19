@@ -85,6 +85,14 @@ class TestParseBridgeFdb:
         # it is not a device behind the port.
         assert _parse_bridge_fdb("01:00:5e:00:00:fb master br0 static\n", set()) == []
 
+    def test_keeps_static_unicast_entry(self):
+        # A unicast MAC pinned to the port with `static` is a real device.
+        # Keeping it also makes the multicast test above depend on the
+        # multicast filter alone.
+        assert _parse_bridge_fdb("24:52:6a:08:71:80 master br0 static\n", set()) == [
+            "24:52:6a:08:71:80",
+        ]
+
     def test_multiple_devices_preserve_order(self):
         assert _parse_bridge_fdb(FDB_TWO_DEVICES, set()) == [
             "24:52:6a:08:71:80",
