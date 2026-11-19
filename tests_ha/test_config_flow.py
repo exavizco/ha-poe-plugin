@@ -85,7 +85,7 @@ def _detection(total=8):
     }
 
 
-async def _local(hass, prereqs_ok=True, detection=None, detect_error=None):
+async def _local(hass, prereqs_ok=True, detection=None, detect_error=None, interval=30):
     detect = patch(
         "custom_components.exaviz.config_flow.detect_all_poe_systems",
         return_value=detection or _detection(),
@@ -106,7 +106,7 @@ async def _local(hass, prereqs_ok=True, detection=None, detect_error=None):
         )
         if result["type"] is FlowResultType.FORM and not result["errors"]:
             result = await hass.config_entries.flow.async_configure(
-                result["flow_id"], {"update_interval": 30}
+                result["flow_id"], {"update_interval": interval}
             )
     return result
 
@@ -1101,3 +1101,148 @@ async def test_same_address_unreadable_new_leaf_still_compares(hass, board, flow
             result = await _reconfigure(hass, entry, board)
     assert result["step_id"] == "fingerprint"
     assert entry.data == before
+
+
+# --- Mutation sweep: what the user types is what gets saved ------------------
+
+
+async def test_local_interval_chosen_at_setup_is_saved(hass):
+    result = await _local(hass, interval=120)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["update_interval"] == 120
+
+
+@pytest.mark.parametrize("interval", [9, 301])
+async def test_local_interval_outside_10_to_300_is_refused(hass, interval):
+    with pytest.raises(vol.Invalid):
+        await _local(hass, interval=interval)
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+@pytest.mark.parametrize("interval", [9, 301])
+async def test_local_interval_range_holds_on_the_form_after_an_error(hass, interval):
+    """The form shown after a failed first detection has its own schema."""
+    result = await _local(hass, prereqs_ok=False)
+    assert result["errors"] == {"base": "missing_packages"}
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"update_interval": interval}
+        )
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+async def _remote_form(hass) -> dict:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    return await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "remote"}
+    )
+
+
+async def test_remote_interval_chosen_at_setup_is_saved(hass, board):
+    result = await _remote_form(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"host": board.host, "port": board.port, "update_interval": 120},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"confirm": True}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["update_interval"] == 120
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"update_interval": 9},
+        {"update_interval": 301},
+        {"port": 0},
+        {"port": 65536},
+    ],
+)
+async def test_remote_form_refuses_out_of_range_numbers(hass, board, fields):
+    result = await _remote_form(hass)
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"host": board.host, "port": board.port, **fields}
+        )
+    assert board.connections == 0
+
+
+async def test_fingerprint_box_starts_unticked(hass, board):
+    """Pairing needs a deliberate tick after the console compare."""
+    result = await start_remote(hass, board.host, board.port)
+    (key,) = result["data_schema"].schema
+    assert str(key) == "confirm"
+    assert key.default() is False
+
+
+@pytest.mark.parametrize("board_type", [None, "unknown"])
+async def test_board_that_is_not_a_cruiser_is_refused(hass, board, board_type):
+    reply = case("board")
+    if board_type is None:
+        del reply["body"]["board_type"]
+    else:
+        reply["body"]["board_type"] = board_type
+    board.reply("GET", "/board", reply)
+    result = await start_remote(hass, board.host, board.port)
+    assert result["errors"] == {"base": "unsupported_board"}
+    assert pair_calls(board) == []
+
+
+async def test_reconfigure_form_starts_with_the_saved_address(hass, board):
+    entry = remote_entry(board, host="board.example", port=8443)
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    defaults = {str(k): k.default() for k in result["data_schema"].schema}
+    assert defaults == {"host": "board.example", "port": 8443}
+
+
+async def test_ca_mode_same_leaf_new_host_repair_saves_the_new_address(
+    hass, board, monkeypatch, tmp_path
+):
+    """The re-pair after a move to a host the CA leaf does not name saves the
+    new address and drops to pin, though the fingerprint did not change."""
+    ca = make_cert(("Test CA",), is_ca=True)
+    bundle = tmp_path / "ca.pem"
+    bundle.write_bytes(ca.pem)
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(bundle))
+    leaf = make_cert(("board.example",), issuer=ca)
+    await board.restart(leaf)
+    entry = remote_entry(
+        board, host="board.example", fingerprint=leaf.sha256, spki=leaf.spki_sha256,
+        trust_mode="ca",
+    )
+    entry.add_to_hass(hass)
+    result = await _reconfigure(hass, entry, board)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"confirm": True}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"code": CODE}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["host"] == "127.0.0.1"
+    assert entry.data["trust_mode"] == "pin"
+    assert entry.data["token"] == TOKEN
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ("  192.168.1.20 ", ("192.168.1.20", 443)),
+        (" https://board.example:8443\t", ("board.example", 8443)),
+    ],
+)
+def test_parse_host_ignores_pasted_spaces(typed, expected):
+    from custom_components.exaviz.config_flow import _parse_host
+
+    assert _parse_host(typed, 443) == expected
