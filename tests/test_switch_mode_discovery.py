@@ -79,6 +79,11 @@ class TestParseBridgeFdb:
         assert "01:00:5e:00:00:01" not in macs
         assert "02:1a:2b:3c:4d:5e" not in macs  # vlan ... permanent
 
+    def test_drops_static_multicast_entry(self):
+        # `bridge fdb append` adds a multicast entry with neither self nor
+        # permanent; it is not a device behind the port.
+        assert _parse_bridge_fdb("01:00:5e:00:00:fb master br0\n", set()) == []
+
     def test_multiple_devices_preserve_order(self):
         assert _parse_bridge_fdb(FDB_TWO_DEVICES, set()) == [
             "24:52:6a:08:71:80",
@@ -149,7 +154,20 @@ class TestResolveBridgedDevice:
 
     @pytest.mark.asyncio
     async def test_noop_when_link_down(self):
-        assert await _resolve_bridged_device("poe3", "down", None, enabled=True) is None
+        # The bridge still has the unplugged device's MAC learned (it ages out
+        # after minutes); a down port must not show it.
+        with patch("custom_components.exaviz.poe_readers._get_bridge_master",
+                   AsyncMock(return_value="br0")), \
+             patch("custom_components.exaviz.poe_readers._collect_local_macs",
+                   AsyncMock(return_value=set())), \
+             patch("custom_components.exaviz.poe_readers._read_bridge_fdb",
+                   AsyncMock(return_value=FDB_ONE_DEVICE)), \
+             patch("custom_components.exaviz.poe_readers._run_arp_scan",
+                   AsyncMock(return_value=_parse_arp_scan(ARP_SCAN_OUTPUT))):
+            assert await _resolve_bridged_device("poe3", "down", None, enabled=True) is None
+            # Control: the same port, link up, resolves.
+            up = await _resolve_bridged_device("poe3", "up", None, enabled=True)
+        assert up["mac_address"] == "24:52:6a:08:71:80"
 
     @pytest.mark.asyncio
     async def test_noop_when_not_bridge_member(self):
@@ -173,6 +191,24 @@ class TestResolveBridgedDevice:
         assert result["ip_address"] == "192.168.86.10"
         assert "Hikvision" in result["manufacturer"]
         assert "arp-scan" in result["detection_method"]
+
+    @pytest.mark.asyncio
+    async def test_built_in_vendor_kept_over_arp_scan_vendor(self):
+        # arp-scan names a vendor only where our own lookup cannot.
+        mac = "74:83:c2:11:22:33"  # in the built-in table: Ubiquiti Networks
+        arp = {mac: {"ip_address": "192.168.86.30", "vendor": "Some Other Name Ltd"}}
+        with patch("custom_components.exaviz.poe_readers._get_bridge_master",
+                   AsyncMock(return_value="br0")), \
+             patch("custom_components.exaviz.poe_readers._collect_local_macs",
+                   AsyncMock(return_value=set())), \
+             patch("custom_components.exaviz.poe_readers._read_bridge_fdb",
+                   AsyncMock(return_value=f"{mac} master br0\n")), \
+             patch("custom_components.exaviz.poe_readers._run_arp_scan",
+                   AsyncMock(return_value=arp)):
+            result = await _resolve_bridged_device("poe3", "up", None, enabled=True)
+
+        assert result["manufacturer"] == "Ubiquiti Networks"
+        assert result["ip_address"] == "192.168.86.30"
 
     @pytest.mark.asyncio
     async def test_fdb_only_when_arp_scan_empty(self):
@@ -286,8 +322,9 @@ class TestRunArpScan:
     @pytest.mark.asyncio
     async def test_failure_is_cached_no_herd(self):
         # A failing sweep (rc!=0) must be cached so concurrent ports don't each
-        # re-spawn arp-scan every poll cycle.
-        spawn = AsyncMock(return_value=_fake_proc(b"", returncode=1))
+        # re-spawn arp-scan every poll cycle. arp-scan prints hosts as it finds
+        # them, so a sweep that fails part way still has host lines: drop them.
+        spawn = AsyncMock(return_value=_fake_proc(ARP_SCAN_OUTPUT.encode(), returncode=1))
         with patch("custom_components.exaviz.poe_readers._bridge_has_ipv4",
                    AsyncMock(return_value=True)), \
              patch_module_asyncio(poe_readers, create_subprocess_exec=spawn):
