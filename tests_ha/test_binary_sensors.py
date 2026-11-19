@@ -3,12 +3,15 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.exaviz.board_detector import BoardType
+from custom_components.exaviz.const import DOMAIN
 from tests.fake_board import case
 
 from .local_board import ONBOARD, patch_local_board
-from .test_golden_local import local_entry
+from .test_golden_local import local_entry, setup_local
 from .test_remote_runtime import setup_remote
 
 
@@ -86,3 +89,21 @@ async def test_zigbee_coordinator_sensor_only_on_a_cruiser(hass, board_type, has
     # cannot pass as "no Zigbee sensor".
     assert hass.states.get("binary_sensor.onboard_port0_powered") is not None
     assert (hass.states.get("binary_sensor.zigbee_coordinator") is not None) is has_zigbee
+
+
+async def test_zigbee_coordinator_sensor_sits_on_the_board_device(hass, freezer):
+    """The Zigbee sensor belongs to the board device, with Board Status and
+    Board Temperature, not to a device of its own."""
+    entry, _rows = await setup_local(hass)
+    board = next(
+        device
+        for device in dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+        if (DOMAIN, entry.entry_id) in device.identifiers
+    )
+    registry = er.async_get(hass)
+    for entity_id in (
+        "binary_sensor.zigbee_coordinator",
+        "sensor.board_status",
+        "sensor.board_temperature",
+    ):
+        assert registry.async_get(entity_id).device_id == board.id, entity_id
