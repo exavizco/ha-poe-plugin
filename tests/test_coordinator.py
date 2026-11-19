@@ -218,6 +218,34 @@ class TestDataUpdate:
         assert idle["connected_device"] is None
 
     @pytest.mark.asyncio
+    async def test_addon_totals_skip_disabled_ports_and_round_power(self, coordinator):
+        """Board totals count enabled add-on ports and round the power sum.
+
+        Raw /proc/pse text goes through the real reader. 1.93 W + 2.51 W is
+        4.4399999999999995 in floating point.
+        """
+        coordinator.board_type = BoardType.INTERCEPTOR
+        coordinator.onboard_ports = []
+        coordinator.addon_boards = ["pse0"]
+        proc_pse = (
+            "Exaviz Interceptor PoE driver version 2.0\n"
+            "0-0: power-on 0 15.50 48.2500 0.04000/0.80000 31.0000/150.0000 af \n"
+            "0-1: power-on 0 15.50 48.2500 0.05200/0.80000 31.0000/150.0000 af \n"
+            "0-2: disabled ? 0.00 48.2500 0.00000/0.80000 31.0000/150.0000 at \n"
+            "0: 48.2500/40.0000-60.0000 0.09200/2.50000 31.00/120\n"
+        )
+        to_thread = AsyncMock(return_value=MagicMock(stdout=proc_pse, stderr=""))
+        with patch("pathlib.Path.exists", return_value=True), \
+             patch_module_asyncio(poe_readers, to_thread=to_thread), \
+             patch.object(poe_readers, "_get_connected_device_from_arp",
+                          AsyncMock(return_value=None)):
+            data = await coordinator._async_update_data()
+
+        assert len(data["poe"]["addon_0"]["ports"]) == 3
+        assert data["total_enabled_ports"] == 2
+        assert data["total_power_watts"] == 4.44
+
+    @pytest.mark.asyncio
     async def test_read_error_raises_update_failed(self, coordinator):
         coordinator.board_type = BoardType.CRUISER
         coordinator.onboard_ports = ["poe0"]

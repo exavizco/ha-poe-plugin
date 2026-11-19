@@ -38,6 +38,23 @@ async def test_plugged_by_current_alone(hass, board, milliamps, shown):
     assert plugged.state == shown
 
 
+async def test_delivering_port_drawing_nothing_is_plugged(hass, board):
+    """A port the board says is delivering is plugged even at 0 W and 0 mA
+    with no device seen: the camera may draw under what the chip reads.
+    Port 0's link in the fixture has traffic, hence the traffic placeholder."""
+    reply = case("poe_ports")
+    reply["body"]["ports"][0].update(power_w=0, current_ma=0)
+    reply["body"]["connected_devices"] = {}
+    board.reply("GET", "/poe/ports", reply)
+    await setup_remote(hass, board)
+    assert hass.states.get("binary_sensor.onboard_port0_powered").state == "off"
+    plugged = hass.states.get("binary_sensor.onboard_port0_plug")
+    assert plugged.state == "on"
+    assert plugged.attributes["device_type"] == (
+        "Undiscovered Device (Traffic Seen, No ARP Entry)"
+    )
+
+
 @pytest.mark.parametrize(
     ("board_type", "has_zigbee"),
     [

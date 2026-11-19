@@ -59,11 +59,26 @@ def test_t12_neutral_names_and_skips():
         dict(body["ports"][0], name="pse0-1", pse=0, index=1),
         dict(body["ports"][0], name="pse2-0", pse=2, index=0),
         dict(body["ports"][0], name="eth9", pse=0, index=0),
+        # An Interceptor has up to 16 ports; the first one past the limit.
+        dict(body["ports"][0], name="poe8", pse=0, index=0),
     ]
     ports = by_port(map_ports(body, {"ports": []}, DATE, None))
     assert sorted(ports) == [2, 5]
     assert ports[2]["interface"] == "poe2"
     assert (ports[5]["pse"], ports[5]["index"]) == (0, 1)
+
+
+def test_neutral_name_takes_link_and_device_from_its_interface():
+    # Before the board maps a controller port to its interface it names the
+    # port "pse1-0". Its link stats and device are still filed under the
+    # interface name ("poe0"), so the port must be matched by interface.
+    body = poe()
+    body["ports"] = [dict(body["ports"][0], name="pse1-0", pse=1, index=0)]
+    port = by_port(map_ports(body, switch(), DATE, None))[0]
+    assert port["link_state"] == "up"
+    assert port["speed_mbps"] == 100
+    assert (port["rx_bytes"], port["tx_bytes"]) == (123456, 654321)
+    assert port["connected_device"]["mac_address"] == "AA:BB:CC:DD:EE:01"
 
 
 @pytest.mark.parametrize(
