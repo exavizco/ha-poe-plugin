@@ -1119,6 +1119,18 @@ async def test_local_interval_outside_10_to_300_is_refused(hass, interval):
     assert hass.config_entries.async_entries(DOMAIN) == []
 
 
+@pytest.mark.parametrize("interval", [9, 301])
+async def test_local_interval_range_holds_on_the_form_after_an_error(hass, interval):
+    """The form shown after a failed first detection has its own schema."""
+    result = await _local(hass, prereqs_ok=False)
+    assert result["errors"] == {"base": "missing_packages"}
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"update_interval": interval}
+        )
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
 async def _remote_form(hass) -> dict:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
