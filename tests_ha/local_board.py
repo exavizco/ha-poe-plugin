@@ -1,4 +1,7 @@
-"""Patched local Cruiser: replaces every /proc, /sys, /dev and dpkg read."""
+"""Patched local board: replaces every /proc, /sys, /dev and dpkg read.
+
+A Cruiser with onboard ports by default, or an Interceptor with add-on boards.
+"""
 
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch
@@ -35,6 +38,24 @@ PORT_STATUS = {
     for i in range(8)
 }
 
+# One add-on board's ports as read_all_addon_ports returns them; port 2 has a
+# camera drawing power.
+ADDON_STATUS = {
+    port: {
+        "available": True,
+        "poe_system": "addon",
+        "state": "power-on" if port == 2 else "backoff",
+        "class": "0" if port == 2 else "?",
+        "power_watts": 4.69 if port == 2 else 0.0,
+        "allocated_power_watts": 15.4,
+        "voltage_volts": 48.25,
+        "current_milliamps": 97 if port == 2 else 0,
+        "temperature_celsius": 33.1,
+        "enabled": True,
+    }
+    for port in range(8)
+}
+
 SYSTEM_INFO = {
     "esp32_firmware_variant": "zigbee",
     "kernel_version": "6.12.0-test",
@@ -42,8 +63,30 @@ SYSTEM_INFO = {
 }
 
 
-def patch_local_board() -> tuple[ExitStack, AsyncMock]:
-    """Return an entered ExitStack of patches and the port reader mock."""
+def patch_local_board(
+    addon_boards: list[str] | None = None,
+) -> tuple[ExitStack, AsyncMock]:
+    """Return an entered ExitStack of patches and the port reader mock.
+
+    With `addon_boards` (PSE ids such as "pse0") the board is an Interceptor
+    with only those add-on boards, and the mock is read_all_addon_ports.
+    """
+    if addon_boards is None:
+        detection = {
+            "board_type": BoardType.CRUISER,
+            "addon_boards": [],
+            "onboard_ports": ONBOARD,
+            "total_poe_ports": 8,
+        }
+        reader_name, status = "read_all_onboard_ports", PORT_STATUS
+    else:
+        detection = {
+            "board_type": BoardType.INTERCEPTOR,
+            "addon_boards": addon_boards,
+            "onboard_ports": [],
+            "total_poe_ports": 8 * len(addon_boards),
+        }
+        reader_name, status = "read_all_addon_ports", ADDON_STATUS
     stack = ExitStack()
     stack.enter_context(
         patch(
@@ -54,14 +97,7 @@ def patch_local_board() -> tuple[ExitStack, AsyncMock]:
     stack.enter_context(
         patch(
             "custom_components.exaviz.coordinator.detect_all_poe_systems",
-            AsyncMock(
-                return_value={
-                    "board_type": BoardType.CRUISER,
-                    "addon_boards": [],
-                    "onboard_ports": ONBOARD,
-                    "total_poe_ports": 8,
-                }
-            ),
+            AsyncMock(return_value=detection),
         )
     )
     stack.enter_context(
@@ -78,10 +114,8 @@ def patch_local_board() -> tuple[ExitStack, AsyncMock]:
             AsyncMock(return_value=48.5),
         )
     )
-    reader = AsyncMock(return_value=PORT_STATUS)
+    reader = AsyncMock(return_value=status)
     stack.enter_context(
-        patch(
-            "custom_components.exaviz.coordinator.read_all_onboard_ports", reader
-        )
+        patch(f"custom_components.exaviz.coordinator.{reader_name}", reader)
     )
     return stack, reader
