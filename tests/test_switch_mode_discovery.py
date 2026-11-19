@@ -149,7 +149,20 @@ class TestResolveBridgedDevice:
 
     @pytest.mark.asyncio
     async def test_noop_when_link_down(self):
-        assert await _resolve_bridged_device("poe3", "down", None, enabled=True) is None
+        # The bridge still has the unplugged device's MAC learned (it ages out
+        # after minutes); a down port must not show it.
+        with patch("custom_components.exaviz.poe_readers._get_bridge_master",
+                   AsyncMock(return_value="br0")), \
+             patch("custom_components.exaviz.poe_readers._collect_local_macs",
+                   AsyncMock(return_value=set())), \
+             patch("custom_components.exaviz.poe_readers._read_bridge_fdb",
+                   AsyncMock(return_value=FDB_ONE_DEVICE)), \
+             patch("custom_components.exaviz.poe_readers._run_arp_scan",
+                   AsyncMock(return_value=_parse_arp_scan(ARP_SCAN_OUTPUT))):
+            assert await _resolve_bridged_device("poe3", "down", None, enabled=True) is None
+            # Control: the same port, link up, resolves.
+            up = await _resolve_bridged_device("poe3", "up", None, enabled=True)
+        assert up["mac_address"] == "24:52:6a:08:71:80"
 
     @pytest.mark.asyncio
     async def test_noop_when_not_bridge_member(self):
@@ -173,6 +186,24 @@ class TestResolveBridgedDevice:
         assert result["ip_address"] == "192.168.86.10"
         assert "Hikvision" in result["manufacturer"]
         assert "arp-scan" in result["detection_method"]
+
+    @pytest.mark.asyncio
+    async def test_built_in_vendor_kept_over_arp_scan_vendor(self):
+        # arp-scan names a vendor only where our own lookup cannot.
+        mac = "74:83:c2:11:22:33"  # in the built-in table: Ubiquiti Networks
+        arp = {mac: {"ip_address": "192.168.86.30", "vendor": "Some Other Name Ltd"}}
+        with patch("custom_components.exaviz.poe_readers._get_bridge_master",
+                   AsyncMock(return_value="br0")), \
+             patch("custom_components.exaviz.poe_readers._collect_local_macs",
+                   AsyncMock(return_value=set())), \
+             patch("custom_components.exaviz.poe_readers._read_bridge_fdb",
+                   AsyncMock(return_value=f"{mac} master br0\n")), \
+             patch("custom_components.exaviz.poe_readers._run_arp_scan",
+                   AsyncMock(return_value=arp)):
+            result = await _resolve_bridged_device("poe3", "up", None, enabled=True)
+
+        assert result["manufacturer"] == "Ubiquiti Networks"
+        assert result["ip_address"] == "192.168.86.30"
 
     @pytest.mark.asyncio
     async def test_fdb_only_when_arp_scan_empty(self):

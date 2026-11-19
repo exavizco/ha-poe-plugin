@@ -650,6 +650,9 @@ class TestOnboardResult:
     @pytest.mark.parametrize("speed,watts,poe_class,milliamps", [
         ("1000", 12.5, "3", 260),
         ("100", 8.0, "2", 166),
+        # Link up but no speed read (missing or unreadable): no power guessed.
+        ("0", 0.0, "?", 0),
+        (None, 0.0, "?", 0),
     ])
     async def test_mocked_power_by_link_speed(self, root, speed, watts, poe_class, milliamps):
         # Port 6 has no ESP32 sample in the map, so power is estimated.
