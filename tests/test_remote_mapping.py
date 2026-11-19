@@ -66,6 +66,19 @@ def test_t12_neutral_names_and_skips():
     assert (ports[5]["pse"], ports[5]["index"]) == (0, 1)
 
 
+def test_neutral_name_takes_link_and_device_from_its_interface():
+    # Before the board maps a controller port to its interface it names the
+    # port "pse1-0". Its link stats and device are still filed under the
+    # interface name ("poe0"), so the port must be matched by interface.
+    body = poe()
+    body["ports"] = [dict(body["ports"][0], name="pse1-0", pse=1, index=0)]
+    port = by_port(map_ports(body, switch(), DATE, None))[0]
+    assert port["link_state"] == "up"
+    assert port["speed_mbps"] == 100
+    assert (port["rx_bytes"], port["tx_bytes"]) == (123456, 654321)
+    assert port["connected_device"]["mac_address"] == "AA:BB:CC:DD:EE:01"
+
+
 @pytest.mark.parametrize(
     ("wire", "status", "enabled"),
     [
