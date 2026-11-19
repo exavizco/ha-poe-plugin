@@ -28,6 +28,11 @@ FIXTURE = json.loads(
 )["cases"]
 
 
+# One folder per test process for the certificate files, removed when the
+# process exits (#96).
+_CERT_DIR = tempfile.TemporaryDirectory(prefix="exaviz-cert-")
+
+
 def case(name: str) -> dict[str, Any]:
     """A deep copy of one fixture case."""
     return copy.deepcopy(FIXTURE[name])
@@ -111,7 +116,7 @@ def make_cert(
     if not is_ca:
         builder = builder.add_extension(x509.SubjectAlternativeName(sans), critical=False)
     cert = builder.sign(issuer.key if issuer else key, hashes.SHA256())
-    tmp = Path(tempfile.mkdtemp(prefix="exaviz-cert-"))
+    tmp = Path(tempfile.mkdtemp(dir=_CERT_DIR.name))
     cert_path, key_path = tmp / "cert.pem", tmp / "key.pem"
     cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     key_path.write_bytes(
